@@ -10,7 +10,6 @@
 # Gson (de)serializes the generated model classes reflectively by field name,
 # so the generated DTOs must keep their field names.
 -keep class org.dad.foundation.generated.model.** { <fields>; }
--keepclassmembers class org.dad.foundation.generated.model.** { <fields>; }
 
 # ZXing is only reached through direct calls (Referral.qrMatrix -> QRCodeWriter); it uses no
 # reflection or service loading, so R8 traces what it needs and no keep rule is required.
