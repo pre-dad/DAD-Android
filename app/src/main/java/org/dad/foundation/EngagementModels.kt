@@ -200,10 +200,13 @@ class InitiativeSpendModel(private val service: EngagementService, private val i
     var signedOut: Boolean by mutableStateOf(false)
         private set
 
+    private var job: Job? = null
+
     fun load() {
+        job?.cancel()
         val prior = phase
         if (prior !is Phase.Ready) phase = Phase.Loading
-        viewModelScope.launch {
+        job = viewModelScope.launch {
             try {
                 phase = Phase.Ready(service.initiativeSpend(initiativeId))
             } catch (cancelled: CancellationException) {
@@ -212,7 +215,7 @@ class InitiativeSpendModel(private val service: EngagementService, private val i
             } catch (error: Exception) {
                 if (error is AccountFailure.NotFound) { phase = Phase.Unpublished; return@launch }
                 if (error is AccountFailure.SignedOut) signedOut = true
-                if (prior !is Phase.Ready) phase = Phase.Failed(homeMessage(error)) else phase = prior
+                if (prior !is Phase.Ready) phase = Phase.Failed(homeMessage(error))
             }
         }
     }

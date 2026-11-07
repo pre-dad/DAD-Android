@@ -272,8 +272,8 @@ class DashboardModel(private val service: DashboardService) : ViewModel() {
  */
 class GiftHistoryModel(
     private val service: DashboardService,
-    private val year: Int = java.time.LocalDate.now().year,
-    private val showPriorYear: Boolean = java.time.LocalDate.now().monthValue == 1,
+    private val year: Int? = null,
+    private val showPriorYear: Boolean? = null,
 ) : ViewModel() {
     sealed interface Phase {
         data object Loading : Phase
@@ -341,11 +341,13 @@ class GiftHistoryModel(
                 return@launch
             }
             // The year total is secondary: a failed or missing summary just hides the card.
-            val loaded = try { service.annualSummary(year) }
+            val today = java.time.LocalDate.now()
+            val summaryYear = year ?: today.year
+            val loaded = try { service.annualSummary(summaryYear) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { null }
-            val prior = if (showPriorYear) {
-                try { service.annualSummary(year - 1) }
+            val prior = if (showPriorYear ?: (today.monthValue == 1)) {
+                try { service.annualSummary(summaryYear - 1) }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { null }
             } else null
