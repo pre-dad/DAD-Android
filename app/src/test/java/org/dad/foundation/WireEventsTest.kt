@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -295,11 +296,14 @@ class WireEventsTest {
         assertNull(rig.store.value)
     }
 
-    @Test fun aLostConnectionIsNotMistakenForAnEndedSession() = runTest {
-        val rig = Rig(backgroundScope) { throw java.io.IOException("offline") }
-        assertTrue(failure { rig.wire.events() } is java.io.IOException)
-        assertTrue(rig.session.isSignedIn())
-        assertEquals("access-0", rig.store.value?.access)
+    @Test fun aLostConnectionIsUnavailableAndNotMistakenForAnEndedSession() = runTest {
+        for (lost in listOf(java.io.IOException("offline"), java.net.SocketTimeoutException("timeout"), java.net.UnknownHostException("dns"))) {
+            val rig = Rig(backgroundScope) { throw lost }
+            assertSame(AccountFailure.Unavailable, failure { rig.wire.events() })
+            assertSame(AccountFailure.Unavailable, failure { rig.wire.reserve(id1) })
+            assertTrue(rig.session.isSignedIn())
+            assertEquals("access-0", rig.store.value?.access)
+        }
     }
 
     @Test fun cancellingARequestInFlightRethrowsCancellationAndKeepsTheSession() = runTest {
