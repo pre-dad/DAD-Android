@@ -97,11 +97,12 @@ class WireSettingsTest {
         assertFalse(after.preferences.networkVisible)
     }
 
-    @Test fun saveMapsStaleThrottledAndUnauthorized() = runTest {
+    @Test fun saveMapsStaleThrottledInvalidAndOutageAnswers() = runTest {
         val p = Preferences(3, true, false, true, true, true, true, true, false, true, false, true, false, true, true)
         assertEquals(AccountFailure.Unavailable, failure { Rig(scope = backgroundScope) { 409 to "{}" }.settings.savePreferences(p) })
         assertEquals(AccountFailure.RateLimited, failure { Rig(scope = backgroundScope) { 429 to "{}" }.settings.savePreferences(p) })
         assertEquals(AccountFailure.InvalidInput, failure { Rig(scope = backgroundScope) { 422 to "{}" }.settings.savePreferences(p) })
+        assertEquals(AccountFailure.Unavailable, failure { Rig(scope = backgroundScope) { 503 to "{}" }.settings.savePreferences(p) })
     }
 
     @Test fun deleteCallsTheServerFirstThenWipesLocallyWithoutALogoutCall() = runTest {

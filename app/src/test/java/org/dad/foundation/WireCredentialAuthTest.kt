@@ -240,8 +240,9 @@ class WireCredentialAuthTest {
 
     @Test fun malformedSuccessBodyIsNotACrash() = runTest {
         val rig = Rig(backgroundScope) { 200 to "not json {" }
-        val error = runCatching { rig.passwords.setPassword(null, "brand-new-password") }.exceptionOrNull()
-        assertTrue(error.toString(), error == null || error == AccountFailure.InvalidResponse)
+        assertEquals(AccountFailure.InvalidResponse, runCatching { rig.passwords.setPassword(null, "brand-new-password") }.exceptionOrNull())
+        assertEquals("access-0", rig.store.value?.access)
+        assertEquals(1, rig.http.requests.size)
     }
 
     @Test fun callerCancellationIsRethrownAndKeepsTheSession() = runBlocking<Unit> {

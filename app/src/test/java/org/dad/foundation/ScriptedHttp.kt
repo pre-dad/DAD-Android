@@ -19,6 +19,8 @@ data class Recorded(val method: String, val path: String, val headers: Map<Strin
  */
 class ScriptedHttp(private val handler: (Recorded) -> Pair<Int, String>) : Interceptor {
     val requests = CopyOnWriteArrayList<Recorded>()
+    private var responseHeaders = emptyMap<String, String>()
+    fun replyingWith(vararg headers: Pair<String, String>) = apply { responseHeaders = headers.toMap() }
     fun client(): OkHttpClient = OkHttpClient.Builder().addInterceptor(this).build()
     fun count(path: String) = requests.count { it.path == path }
 
@@ -29,6 +31,7 @@ class ScriptedHttp(private val handler: (Recorded) -> Pair<Int, String>) : Inter
         requests += recorded
         val (code, json) = handler(recorded)
         return Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(code).message("scripted")
+            .apply { responseHeaders.forEach { (name, value) -> header(name, value) } }
             .body(json.toResponseBody("application/json".toMediaType())).build()
     }
 }
