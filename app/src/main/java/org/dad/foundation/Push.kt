@@ -81,25 +81,31 @@ class PushMirroringSettings(
     override suspend fun signOut() { inner.signOut(); clear() }
 }
 
-/** A notification ready to show: generic text and where a tap goes. */
-data class PushNotice(val category: PushCategory?, val title: String, val body: String, val tap: PushTap?)
+/** A notification ready to show: text, where a tap goes, and the server's id for it when it sent one. */
+data class PushNotice(val category: PushCategory?, val title: String, val body: String, val tap: PushTap?, val id: String? = null)
+
+/** The text and id of a message's `notification` block, which FCM reads before the app does. */
+data class PushDisplay(val title: String?, val body: String?, val tag: String?)
 
 object PushNotices {
     private const val DEFAULT_TITLE = "DAD"
     private const val MAX_TEXT = 200
 
     /**
-     * The notification for a message's data, or null when there is nothing to show or the donor opted out of the
-     * category. A category the app does not know yet still shows, on the general channel.
+     * The notification for a message, or null when it names no valid category or the donor opted out of the
+     * category. Text comes from the `notification` block first, then the data, then the category label; a
+     * category the app does not know yet still shows, on the general channel.
      */
-    fun from(data: Map<String, String>, optOuts: PushOptOuts): PushNotice? {
+    fun from(data: Map<String, String>, optOuts: PushOptOuts, display: PushDisplay? = null): PushNotice? {
         val tap = PushTap.from(data["category"], data["path"]) ?: return null
         val category = PushCategory.of(tap.category)
         if (category != null && !optOuts.allows(category)) return null
-        val body = data["body"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val title = data["title"]?.trim()?.takeIf { it.isNotEmpty() } ?: category?.label ?: DEFAULT_TITLE
-        return PushNotice(category, title.take(MAX_TEXT), body.take(MAX_TEXT), tap)
+        val title = (display?.title.clean() ?: data["title"].clean() ?: category?.label ?: DEFAULT_TITLE).take(MAX_TEXT)
+        val body = (display?.body.clean() ?: data["body"].clean() ?: title).take(MAX_TEXT)
+        return PushNotice(category, title, body, tap, display?.tag.clean())
     }
+
+    private fun String?.clean() = this?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 /** When to ask for the notification permission: once, after sign-in, only where push can work and it is needed. */

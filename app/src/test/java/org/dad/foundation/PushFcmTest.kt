@@ -125,11 +125,71 @@ class PushFcmTest {
         assertEquals("DAD", notice.title)
     }
 
-    @Test fun malformedOrEmptyMessagesShowNothing() {
+    @Test fun malformedMessagesShowNothing() {
         assertNull(PushNotices.from(data(null), optOuts()))
         assertNull(PushNotices.from(data("bad category"), optOuts()))
-        assertNull(PushNotices.from(data("GIFT_PROCESSED", body = null), optOuts()))
-        assertNull(PushNotices.from(data("GIFT_PROCESSED", body = "   "), optOuts()))
+    }
+
+    @Test fun aMissingBodyFallsBackToTheTitleAndThenTheCategoryLabel() {
+        val blank = PushNotices.from(data("GIFT_PROCESSED", body = "   "), optOuts())!!
+        assertEquals("Gift processed", blank.title)
+        assertEquals("Gift processed", blank.body)
+        val titled = PushNotices.from(data("GIFT_PROCESSED", body = null, title = "Thanks"), optOuts())!!
+        assertEquals("Thanks", titled.body)
+    }
+
+    // DAD-Main sends a notification block (title, body, tag = id) plus data (category, path).
+    private val shown = PushDisplay("Your gift was processed", "Your test gift was processed.", "job-7")
+
+    @Test fun theNotificationBlockSuppliesTheTextWhenDataCarriesOnlyRouting() {
+        val notice = PushNotices.from(data("GIFT_PROCESSED", body = null), optOuts(), shown)!!
+        assertEquals("Your gift was processed", notice.title)
+        assertEquals("Your test gift was processed.", notice.body)
+        assertEquals("job-7", notice.id)
+        assertEquals(PushTap("GIFT_PROCESSED", "/account/gifts"), notice.tap)
+    }
+
+    @Test fun theNotificationBlockWinsOverDataText() {
+        val notice = PushNotices.from(data("GIFT_PROCESSED", body = "data body", title = "data title"), optOuts(), shown)!!
+        assertEquals("Your gift was processed", notice.title)
+        assertEquals("Your test gift was processed.", notice.body)
+    }
+
+    @Test fun aDataOnlyMessageHasNoId() {
+        assertNull(PushNotices.from(data("GIFT_PROCESSED"), optOuts())!!.id)
+    }
+
+    @Test fun aBlankNotificationBlockFallsBackToData() {
+        val notice = PushNotices.from(data("GIFT_PROCESSED"), optOuts(), PushDisplay(" ", null, ""))!!
+        assertEquals("Gift processed", notice.title)
+        assertEquals("Your gift was processed.", notice.body)
+        assertNull(notice.id)
+    }
+
+    @Test fun aMessageWithoutAPathStillShowsAndRoutesByCategory() {
+        val notice = PushNotices.from(data("EVENT_REMINDER", path = null), optOuts(), shown)!!
+        assertEquals(PushTap("EVENT_REMINDER", null), notice.tap)
+        assertEquals(PushCategory.EVENT_REMINDER, notice.category)
+    }
+
+    @Test fun partnerAndCancelledCategoriesShowOnTheGeneralChannel() {
+        for (wire in listOf("PARTNER_APPROVED", "PARTNER_METRICS_VERIFIED", "EVENT_CANCELLED")) {
+            val notice = PushNotices.from(data(wire, path = "/partner"), optOuts(), shown)!!
+            assertNull(wire, notice.category)
+            assertEquals(wire, "Your gift was processed", notice.title)
+        }
+    }
+
+    @Test fun theOptOutAlsoDropsAMessageCarryingANotificationBlock() {
+        assertNull(PushNotices.from(data("GIFT_PROCESSED"), optOuts(PushCategory.GIFT_PROCESSED), shown))
+    }
+
+    @Test fun everyServerPushCategoryHasAnAndroidMapping() {
+        val server = listOf(
+            "GIFT_PROCESSED", "STREAK_AT_RISK", "STREAK_MILESTONE", "STREAK_LAPSED", "BADGE_EARNED",
+            "EVENT_PROMOTED", "EVENT_REMINDER", "EVENT_NEARBY", "REFERRAL_CONVERTED",
+        )
+        assertEquals(server.toSet(), PushCategory.entries.map { it.wire }.toSet())
     }
 
     @Test fun everySettingsPushToggleHasACategoryAndChannel() {

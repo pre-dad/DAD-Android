@@ -280,8 +280,13 @@ no permission prompt appears. To turn it on:
 3. Give DAD-Main the FCM credentials (a service account for the HTTP v1 API) so it can deliver. Until it does,
    `registerPushDevice` answers 503 `PUSH_UNCONFIGURED` and the app carries on.
 
-Messages must be data messages carrying `category`, `path`, `body` and optionally `title`; a category the donor turned
-off in Settings is dropped on the device as well as by the server.
+DAD-Main sends each push as a `notification` block (`title`, `body`, and `tag` = the notification id) plus `data`
+(`category`, `path`). While the app is in the foreground `DadMessagingService` builds the notification itself: text
+from the `notification` block, else the data `title`/`body`, else the category label; routing from the data; the tag
+as the notification key so a redelivery replaces rather than repeats. While the app is in the background the system
+displays the notification without running app code, so the on-device opt-out cannot apply there and the server-side
+opt-out is authoritative. Categories the app has no toggle for (`EVENT_CANCELLED`, `PARTNER_*`) show on the general
+channel.
 
 **Referral and company-code links (contract 2.10).** An invite (`/r/<code>`, `?via=irl` in person) or company
 (`/c/<code>`) link that opens the app is recorded with DAD-Main (`captureReferral` / `captureCompany`), and the visitor

@@ -53,8 +53,8 @@ class PushNotifier(private val context: Context) {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra("category", notice.tap?.category)
             .putExtra("path", notice.tap?.path)
-        val id = "${notice.tap?.category}|${notice.tap?.path}".hashCode()
-        val pending = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val requestCode = "${notice.tap?.category}|${notice.tap?.path}".hashCode()
+        val pending = PendingIntent.getActivity(context, requestCode, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val built = android.app.Notification.Builder(context, channelId)
             .setSmallIcon(R.drawable.app_icon)
             .setContentTitle(notice.title)
@@ -62,7 +62,8 @@ class PushNotifier(private val context: Context) {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
-        manager.notify(id, built)
+        // The system posts a background push under (tag, 0); the same key makes a redelivery replace, not repeat.
+        if (notice.id != null) manager.notify(notice.id, 0, built) else manager.notify(requestCode, built)
     }
 
     private fun ensureChannel(category: PushCategory?): String {
@@ -81,7 +82,8 @@ class DadMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val notice = PushNotices.from(message.data, PrefsPushOptOuts(this)) ?: return
+        val display = message.notification?.let { PushDisplay(it.title, it.body, it.tag) }
+        val notice = PushNotices.from(message.data, PrefsPushOptOuts(this), display) ?: return
         PushNotifier(this).show(notice)
     }
 }
