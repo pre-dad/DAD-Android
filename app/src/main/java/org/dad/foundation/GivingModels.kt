@@ -443,11 +443,6 @@ class GivingModel(
         fun factory(kit: GivingKit): ViewModelProvider.Factory = viewModelFactory {
             initializer { GivingModel(kit.service, pollDelayMs = kit.pollDelayMs) }
         }
-
-        /** ViewModel factory for the `preview_giving` launch path — drives a [PreviewGivingService]. */
-        fun previewFactory(): ViewModelProvider.Factory = viewModelFactory {
-            initializer { GivingModel(PreviewGivingService(), pollDelayMs = 100) }
-        }
     }
 }
 
@@ -456,28 +451,3 @@ internal fun shortDate(date: Date): String = DateFormat.getDateInstance(DateForm
 
 /** "April 22, 2027": the spelled-out US form, in the device's time zone. */
 internal fun longUsDate(date: Date): String = DateFormat.getDateInstance(DateFormat.LONG, java.util.Locale.US).format(date)
-
-/**
- * In-app preview/test double for [GivingService]: starts with an active $1/day gift so the gift and
- * cancel surfaces both render without a network.
- */
-class PreviewGivingService : GivingService {
-    private var state: RecurringState =
-        RecurringState.Active("sub_preview", GiftAmount.CENTS_PER_DAILY_DOLLAR, Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000))
-    private var applied = false
-
-    override suspend fun recurring(): RecurringState = state
-    override suspend fun amountOffer(): AmountOffer? = null
-    override suspend fun changeAmount(subscriptionId: String, amountMinor: Int): RecurringState {
-        val periodEnd = (state as? RecurringState.Active)?.periodEnd ?: Date()
-        return RecurringState.Active(subscriptionId, amountMinor, periodEnd).also { state = it }
-    }
-    override suspend fun cancel(subscriptionId: String, periodEnd: Date): RecurringState {
-        val amount = state.amountMinorOrNull ?: GiftAmount.CENTS_PER_DAILY_DOLLAR
-        return RecurringState.Ending(subscriptionId, amount, periodEnd, Date(periodEnd.time)).also { state = it }
-    }
-    override suspend fun paymentMethod(): PaymentMethodState =
-        PaymentMethodState(if (applied) PaymentMethodState.Kind.APPLIED else PaymentMethodState.Kind.NONE)
-    override suspend fun beginPayment(): PaymentPath = PaymentPath.WebCheckoutHandoff("https://pay.example/setup")
-    override suspend fun startGift(amountMinor: Int): PaymentPath = PaymentPath.WebCheckoutHandoff("https://pay.example/checkout")
-}

@@ -549,9 +549,10 @@ private fun PartnerUsersSection(model: PartnerModel, snapshot: PartnerSnapshot) 
         }
         Button(
             onClick = {
-                model.inviteUser(inviteEmail, inviteName, if (inviteAdmin) PartnerRole.ADMIN else PartnerRole.VIEWER)
-                inviteEmail = ""
-                inviteName = ""
+                model.inviteUser(inviteEmail, inviteName, if (inviteAdmin) PartnerRole.ADMIN else PartnerRole.VIEWER) {
+                    inviteEmail = ""
+                    inviteName = ""
+                }
             },
             enabled = isPlausibleEmail(inviteEmail) && inviteName.isNotBlank() && !model.isBusy,
             modifier = Modifier.fillMaxWidth().testTag("partner-invite"),

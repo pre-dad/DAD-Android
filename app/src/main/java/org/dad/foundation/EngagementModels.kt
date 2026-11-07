@@ -11,7 +11,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.time.OffsetDateTime
 
 // Engagement view models + the service seam (PRD A-3, I-*, K-*, N-*, R-*, B-*). The models own an
 // explicit load/ready/failed state, so impact, badges, rankings, network and the invite are
@@ -177,11 +176,6 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
         fun factory(service: EngagementService): ViewModelProvider.Factory = viewModelFactory {
             initializer { EngagementModel(service) }
         }
-
-        /** Preview/UITest factory wiring the in-memory [PreviewEngagementService]. */
-        fun previewFactory(): ViewModelProvider.Factory = viewModelFactory {
-            initializer { EngagementModel(PreviewEngagementService()) }
-        }
     }
 }
 
@@ -225,82 +219,4 @@ class InitiativeSpendModel(private val service: EngagementService, private val i
             initializer { InitiativeSpendModel(service, initiativeId) }
         }
     }
-}
-
-/**
- * In-memory engagement service for DEBUG previews. One known snapshot: a 5-person network with 2 anonymous, the
- * 24-badge Appendix A catalogue with 7 earned, an opted-in ranking that the toggle flips, and a donor who starts
- * with no public name (choosing one mints the invite).
- */
-class PreviewEngagementService : EngagementService {
-    private var optedIn = true
-    private var publicName: String? = null
-
-    private fun ranking() = if (optedIn) RankingStanding(2, "Austin", 4) else RankingStanding.optedOut()
-
-    override suspend fun snapshot(): EngagementSnapshot = EngagementSnapshot(
-        impact = ImpactTotals(givenMinor = 124_000, initiativesFunded = 3, eventsVolunteered = 2),
-        badges = BadgeGrid(previewBadges()),
-        ranking = ranking(),
-        network = NetworkView(
-            activeCount = 5,
-            annualizedMinor = 348_000,
-            nextMilestone = NetworkMilestone(label = "Brought 12 In", target = 12, remaining = 7),
-            invitees = listOf(NetworkInvitee("Alex C.", active = true), NetworkInvitee("Jordan M.", active = true), NetworkInvitee("Sam R.", active = false)),
-            anonymousActive = 2,
-        ),
-        referral = publicName?.let {
-            ReferralInfo("preview", 2, 1, listOf(Conversion(OffsetDateTime.parse("2026-10-20T12:00:00Z"), "LINK")))
-        },
-        needsPublicName = publicName == null,
-    )
-
-    override suspend fun setRankingOptIn(optIn: Boolean): RankingStanding {
-        optedIn = optIn
-        return ranking()
-    }
-
-    override suspend fun choosePublicName(name: String) { publicName = name }
-
-    override suspend fun initiativeSpend(id: String) = InitiativeSpend(
-        totalMinor = 500_000,
-        categories = listOf(SpendCategory("Food", 300_000), SpendCategory("Housing", 200_000)),
-    )
-
-    private fun previewBadges(): List<Badge> {
-        val earnedAt = OffsetDateTime.parse("2026-06-01T00:00:00Z")
-        // Codes are the server catalogue's (DAD-Main badges.go); titles, rules and perks are verbatim from PRD Appendix A (approved 2026-10-23); "—" perks are blank.
-        val specs = listOf(
-            BadgeSpec("F", "Founding Donor", "Started a monthly gift before January 2027, or joined the website waitlist", "FOUNDING_EVENTS"),
-            BadgeSpec("1D", "First Day", "Completed a first gift", ""),
-            BadgeSpec("7", "One Week", "7-day streak", ""),
-            BadgeSpec("30", "One Month", "30-day streak", ""),
-            BadgeSpec("100", "Hundred", "100-day streak", ""),
-            BadgeSpec("Y1", "One Year", "365-day streak", ""),
-            BadgeSpec("1K", "1,000 Days", "1,000-day streak", "MILESTONE_EVENTS"),
-            BadgeSpec("Y3", "Three Years", "1,095-day streak", ""),
-            BadgeSpec("CB", "Comeback", "Restarted giving after a lapse and reached 30 days", ""),
-            BadgeSpec("UP", "Level Up", "Raised their daily amount", ""),
-            BadgeSpec("REF1", "First Referral", "First person they invited completed a gift", ""),
-            BadgeSpec("REF3", "Brought 3 In", "3 converted referrals", ""),
-            BadgeSpec("REF12", "Brought 12 In", "12 converted referrals", ""),
-            BadgeSpec("TC", "Team Captain", "20 converted referrals", "TEAM_CAPTAIN"),
-            BadgeSpec("IRL", "IRL", "Someone joined by scanning their IRL code", ""),
-            BadgeSpec("V", "Volunteer", "Opted in as a volunteer", ""),
-            BadgeSpec("SU", "Showed Up", "First event check-in", ""),
-            BadgeSpec("V3", "Volunteer ×3", "3 event check-ins", ""),
-            BadgeSpec("V10", "Volunteer ×10", "10 event check-ins", ""),
-            BadgeSpec("INIT7", "7 Initiatives", "Funded 7 distinct initiatives", ""),
-            BadgeSpec("CITY50", "Top 50 City", "Ranked top 50 in their city", ""),
-            BadgeSpec("NAT2", "Top 2%", "National top 2% by streak", ""),
-            BadgeSpec("TP", "Team Player", "Joined a company team", ""),
-            BadgeSpec("WT", "Winning Team", "Their team finished a month at #1 on the company leaderboard", ""),
-        )
-        return specs.mapIndexed { index, (code, title, rule, perkKey) ->
-            val earned = index < 7
-            Badge(code, title, rule, Badge.perkCopy(perkKey), earned, if (earned) earnedAt else null)
-        }
-    }
-
-    private data class BadgeSpec(val code: String, val title: String, val rule: String, val perkKey: String)
 }

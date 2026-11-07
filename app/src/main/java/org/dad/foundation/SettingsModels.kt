@@ -141,33 +141,5 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
         fun factory(service: SettingsService): ViewModelProvider.Factory = viewModelFactory {
             initializer { SettingsModel(service) }
         }
-        fun previewFactory(): ViewModelProvider.Factory = viewModelFactory {
-            initializer { SettingsModel(PreviewSettingsService()) }
-        }
     }
-}
-
-/** In-memory settings service for previews and Compose UI tests. */
-class PreviewSettingsService : SettingsService {
-    private var prefs = Preferences(
-        version = 3, referralEmails = true, marketingEmails = false,
-        pushReferralConverted = true, pushStreakAtRisk = true, pushStreakMilestone = true,
-        pushStreakLapsed = true, pushBadgeEarned = true, pushEventNearby = false,
-        pushEventReminder = true, pushEventPromoted = false, pushGiftProcessed = true,
-        rankingsOptedOut = false, networkVisible = true, volunteer = true,
-    )
-
-    override suspend fun load(): SettingsSnapshot = SettingsSnapshot(
-        profile = ProfileSummary(email = "donor@example.com", accountRole = "DONOR",
-            zip = "78701", city = "Austin", phone = null),
-        preferences = prefs,
-    )
-
-    override suspend fun savePreferences(preferences: Preferences): SettingsSnapshot {
-        prefs = preferences.copy(version = preferences.version + 1) // server bumps the version
-        return load()
-    }
-
-    override suspend fun deleteAccount() {}
-    override suspend fun signOut() {}
 }
