@@ -26,20 +26,27 @@ internal fun defaultNativeClient(): OkHttpClient = OkHttpClient.Builder()
     .cookieJar(CookieJar.NO_COOKIES).build()
 
 /** A Retrofit bound to [url] that sends the native headers, plus a bearer when [access] is given. Bodies over
- *  [maxBodyBytes] are an invalid response. */
+ *  [maxBodyBytes] are an invalid response and a transport I/O error surfaces as [AccountFailure.Unavailable]. */
 internal fun nativeRetrofit(url: HttpUrl, baseClient: OkHttpClient, access: String? = null, maxBodyBytes: Long = 1_048_576): Retrofit {
     val builder = baseClient.newBuilder().followRedirects(false).followSslRedirects(false).cookieJar(CookieJar.NO_COOKIES)
     builder.interceptors().add(0, Interceptor { chain ->
         val request = chain.request().newBuilder().header("X-DAD-Client", "native").header("X-DAD-Platform", "ANDROID").removeHeader("Origin").removeHeader("Cookie")
         if (access != null) request.header("Authorization", "Bearer $access") else request.removeHeader("Authorization")
-        val response = chain.proceed(request.build())
-        val body = response.body
-        if (body.contentLength() > maxBodyBytes) { response.close(); throw AccountFailure.InvalidResponse }
-        val source = body.source()
-        if (source.request(maxBodyBytes + 1)) { response.close(); throw AccountFailure.InvalidResponse }
-        val bytes = source.readByteArray()
-        response.close()
-        response.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+        try {
+            val response = chain.proceed(request.build())
+            val body = response.body
+            if (body.contentLength() > maxBodyBytes) { response.close(); throw AccountFailure.InvalidResponse }
+            val source = body.source()
+            if (source.request(maxBodyBytes + 1)) { response.close(); throw AccountFailure.InvalidResponse }
+            val bytes = source.readByteArray()
+            response.close()
+            response.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+        } catch (failure: AccountFailure) {
+            throw failure
+        } catch (_: java.io.IOException) {
+            // A lost, refused or timed-out connection is the one failure every caller reasons about: unavailable.
+            throw AccountFailure.Unavailable
+        }
     })
     return Retrofit.Builder().baseUrl(url).client(builder.build()).addConverterFactory(GsonConverterFactory.create()).build()
 }

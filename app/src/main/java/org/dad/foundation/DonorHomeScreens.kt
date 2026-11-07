@@ -435,17 +435,18 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 16.dp)) {
                 Text("Gift history", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
-                model.summary?.let { summary ->
-                    HomeCard("history-summary") {
+                listOf("" to model.summary, "-prior" to model.priorSummary).forEach { (suffix, summary) ->
+                    if (summary == null) return@forEach
+                    HomeCard("history-summary$suffix") {
                         Text("${summary.year} total", style = MaterialTheme.typography.labelLarge)
-                        Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total"))
+                        Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total$suffix"))
                         Text("Sandbox records, not tax receipts.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
         when (val phase = model.phase) {
-            GiftHistoryModel.Phase.Loading -> item { CircularProgressIndicator(Modifier.testTag("history-loading")) }
+            GiftHistoryModel.Phase.Loading -> item { CircularProgressIndicator(Modifier.testTag("history-loading").semantics { contentDescription = "Loading your gifts" }) }
             is GiftHistoryModel.Phase.Failed -> item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(phase.message, modifier = Modifier.testTag("history-error"))
@@ -466,7 +467,7 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
 @Composable
 private fun HistoryFooter(model: GiftHistoryModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (model.isLoadingMore) CircularProgressIndicator(Modifier.testTag("history-more-loading"))
+        if (model.isLoadingMore) CircularProgressIndicator(Modifier.testTag("history-more-loading").semantics { contentDescription = "Loading more gifts" })
         model.moreError?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("history-more-error")) }
         if (model.hasMore && !model.isLoadingMore) {
             OutlinedButton(onClick = { model.requestMore() }, modifier = Modifier.heightIn(min = 48.dp).testTag("history-more")) {
@@ -499,7 +500,7 @@ private fun GiftRow(model: GiftHistoryModel, gift: HomeGift, index: Int) {
 @Composable
 private fun ReceiptDetail(phase: GiftHistoryModel.ReceiptPhase?) {
     when (phase) {
-        is GiftHistoryModel.ReceiptPhase.Loading -> CircularProgressIndicator(Modifier.testTag("receipt-loading"))
+        is GiftHistoryModel.ReceiptPhase.Loading -> CircularProgressIndicator(Modifier.testTag("receipt-loading").semantics { contentDescription = "Loading the gift record" })
         is GiftHistoryModel.ReceiptPhase.Failed -> Text(phase.message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("receipt-error"))
         is GiftHistoryModel.ReceiptPhase.Ready -> {
             val receipt = phase.receipt

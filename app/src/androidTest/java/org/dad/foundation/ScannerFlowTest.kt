@@ -74,7 +74,7 @@ class ScannerFlowTest {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         DebugBackend.resetRequestLog()
-        val scenario = ActivityScenario.launch<MainActivity>(intent)
+        val scenario = compose.launchReady(intent)
         waitFor("open-events")
         compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
         compose.waitForIdle()

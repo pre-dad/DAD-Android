@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -112,9 +113,12 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
 
     fun now(): Date = clock()
 
+    private var loading: Job? = null
+
     fun load() {
+        if (loading?.isActive == true) return
         phase = EventsPhase.Loading
-        viewModelScope.launch {
+        loading = viewModelScope.launch {
             try {
                 events = service.events().sortedBy { it.startsAt } // soonest-first (E-2)
                 phase = EventsPhase.Ready
@@ -272,53 +276,5 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
         fun factory(service: EventsService): ViewModelProvider.Factory = viewModelFactory {
             initializer { EventsModel(service) }
         }
-        fun previewFactory(): ViewModelProvider.Factory = viewModelFactory {
-            initializer { EventsModel(PreviewEventsService()) }
-        }
     }
-}
-
-/**
- * In-memory events service for previews: one reservable public event, one full event (waitlist), one
- * invite-only event and one already under way, exercising the real [EventsModel] + screens.
- */
-class PreviewEventsService : EventsService {
-    private val soon = Date(System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000)
-    private val store = linkedMapOf(
-        "e1" to DonorEvent("e1", "park-cleanup", "Park Cleanup", "volunteer", "Zilker Park", "Austin",
-            soon, Date(soon.time + 7_200_000), capacity = 50, spotsLeft = 8, status = ReservationStatus.NONE,
-            reportIssueUrl = "mailto:help@dad.org", timeZone = "America/Chicago", details = "Bring gloves and water.",
-            address = "2100 Barton Springs Rd"),
-        "e2" to DonorEvent("e2", "food-bank", "Food Bank Night", "volunteer", "Central Kitchen", "Austin",
-            Date(soon.time + 86_400_000), Date(soon.time + 93_600_000), capacity = 30, spotsLeft = 0,
-            status = ReservationStatus.NONE, reportIssueUrl = "mailto:help@dad.org", timeZone = "America/Chicago"),
-        "e3" to DonorEvent("e3", "founders-dinner", "Founders Dinner", "invite_only", "The Loft", "Austin",
-            Date(soon.time + 2 * 86_400_000L), Date(soon.time + 2 * 86_400_000L + 7_200_000), capacity = 20,
-            spotsLeft = 5, status = ReservationStatus.NONE, invitationNote = "Founding donors only",
-            reportIssueUrl = "mailto:help@dad.org", timeZone = "America/Chicago"),
-    )
-
-    override suspend fun events(): List<DonorEvent> = store.values.sortedBy { it.startsAt }
-    override suspend fun event(id: String): DonorEvent = store[id] ?: throw AccountFailure.NotFound
-
-    override suspend fun reserve(eventId: String): ReservationOutcome {
-        val e = store.getValue(eventId)
-        val outcome = if (e.spotsLeft > 0) ReservationOutcome.RESERVED else ReservationOutcome.WAITLISTED
-        store[eventId] = e.copy(
-            spotsLeft = maxOf(0, e.spotsLeft - 1),
-            status = if (outcome == ReservationOutcome.RESERVED) ReservationStatus.RESERVED else ReservationStatus.WAITLISTED,
-        )
-        return outcome
-    }
-
-    override suspend fun cancel(eventId: String) {
-        val e = store.getValue(eventId)
-        store[eventId] = e.copy(spotsLeft = e.spotsLeft + 1, status = ReservationStatus.NONE)
-    }
-
-    override suspend fun checkIn(code: String): CheckInResultValue =
-        CheckInResultValue(eventId = "e1", checkedIn = true, alreadyCheckedIn = false)
-
-    override suspend fun calendar(eventId: String): ByteArray =
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n".toByteArray()
 }

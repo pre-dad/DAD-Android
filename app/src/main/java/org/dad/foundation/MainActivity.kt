@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,8 +66,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.ViewModel
@@ -80,12 +77,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.text.DateFormat
-import java.util.Date
 import org.dad.foundation.generated.DADTokens
 
 sealed interface AccountState {
@@ -93,38 +87,6 @@ sealed interface AccountState {
     data class Ready(val profile: AccountProfile) : AccountState
     data object Unavailable : AccountState
     data object SignedOut : AccountState
-}
-
-private class PreviewStore(signedIn: Boolean = true) : CredentialStore {
-    private var value: Credentials? = if (signedIn) Credentials("preview", "preview-refresh", Long.MAX_VALUE) else null
-    override fun load() = value
-    override fun save(value: Credentials) { this.value = value }
-    override fun clear() { value = null }
-}
-private class PreviewAPI(private var failFirst: Boolean) : AccountAPI {
-    override suspend fun profile(access: String): AccountProfile {
-        delay(250)
-        if (failFirst) { failFirst = false; throw AccountFailure.Unavailable }
-        return AccountProfile("alex@example.org", "Alex")
-    }
-    override suspend fun refresh(token: String): Credentials = throw AccountFailure.SignedOut
-    override suspend fun claim(token: String): Credentials = throw AccountFailure.Unavailable
-    override suspend fun logout(access: String) = Unit
-}
-/** DEBUG preview sign-in (`preview_signed_out`): accepts code 123456, never touches a network. */
-private class PreviewSignIn : SignInService {
-    override suspend fun requestPhoneCode(phone: String): String = phone
-    override suspend fun verifyPhone(handle: String, code: String): Credentials =
-        if (code == "123456") Credentials("preview", "preview-refresh", Long.MAX_VALUE) else throw AccountFailure.SignedOut
-}
-/** Preview settings tied to the live (preview) session, so signing out or deleting from the donor
- *  shell really ends the session and routes back to sign-in, like a release build. */
-private class PreviewSessionSettings(private val session: AccountSession) : SettingsService {
-    private val inner = PreviewSettingsService()
-    override suspend fun load() = inner.load()
-    override suspend fun savePreferences(preferences: Preferences) = inner.savePreferences(preferences)
-    override suspend fun deleteAccount() { session.discardLocal() }
-    override suspend fun signOut() { session.logout() }
 }
 
 class AccountModel(
@@ -467,29 +429,22 @@ class MainActivity : ComponentActivity() {
             stubAnalyticsUnset = BuildConfig.DEBUG && intent.getBooleanExtra("stub_analytics_unset", false),
             stubPush = BuildConfig.DEBUG && intent.getBooleanExtra("stub_push", false),
         )
-        val giving = BuildConfig.DEBUG && intent.getBooleanExtra("preview_giving", false)
-        val impact = BuildConfig.DEBUG && (intent.getBooleanExtra("preview_impact", false) || intent.getBooleanExtra("preview_network", false))
-        val events = BuildConfig.DEBUG && intent.getBooleanExtra("preview_events", false)
-        val settings = BuildConfig.DEBUG && intent.getBooleanExtra("preview_settings", false)
-        val partner = BuildConfig.DEBUG && intent.getBooleanExtra("preview_partner", false)
-        val partnerViewer = BuildConfig.DEBUG && intent.getBooleanExtra("preview_partner_viewer", false)
+        val preview = debugPreviewScreen(this, intent)
         val appContext = applicationContext
-        incomingLink = intent.dataString
-        incomingTap = PushTap.from(intent.getStringExtra("category"), intent.getStringExtra("path"))
+        // Only a fresh launch carries a link or notification tap: after a rotation the same intent would be replayed
+        // (re-counting `push_opened` and re-capturing the referral).
+        if (savedInstanceState == null) {
+            incomingLink = intent.dataString
+            incomingTap = PushTap.from(intent.getStringExtra("category"), intent.getStringExtra("path"))
+        }
         val factory = viewModelFactory {
             initializer {
                 AccountModel(factory = factory@{ scope, options ->
                     if (BuildConfig.DEBUG) DebugBackend.stub(appContext, scope, options)?.let { return@factory it }
                     if (BuildConfig.DAD_API_ORIGIN.isBlank()) {
-                        // The synthetic (PreviewAPI/PreviewStore) path must NEVER ship in a release
-                        // build: a blank origin there is a misconfiguration, not a demo mode, and
-                        // falling back would serve synthetic data as if real. Fail fast in release
-                        // (the model then shows a "not configured" notice); only debug builds get
-                        // the synthetic fallback.
-                        check(BuildConfig.DEBUG) { "DAD_API_ORIGIN must be set for a release build" }
-                        val session = AccountSession(PreviewAPI(options.unavailableFirst), PreviewStore(!options.signedOut), scope)
-                        AppServices(session, PreviewSignIn(), PreviewSessionSettings(session),
-                            partner = PartnerKit(PartnerSession(PreviewStore(signedIn = false)), PreviewPartnerSignIn, PreviewPartnerService()))
+                        // A blank origin in a release build is a misconfiguration, not a demo mode: fail fast rather than
+                        // serve synthetic data as if real. Only debug builds have the preview fallback.
+                        checkNotNull(debugPreviewServices(scope, options)) { "DAD_API_ORIGIN must be set for a release build" }
                     } else {
                         val origin = BuildConfig.DAD_API_ORIGIN
                         lateinit var session: AccountSession
@@ -499,22 +454,23 @@ class MainActivity : ComponentActivity() {
                         val attribution = PrefsAttributionStore(appContext)
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
+                        val product = ProductClient(origin, session, http)
                         val credentialAuth = WireCredentialAuth(origin, android.os.Build.MODEL, http)
                         val external = WireExternalSignIn(origin, android.os.Build.MODEL, http)
                         AppServices(
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
-                            WireSettings(ProductClient(origin, session, http), onLocalWipe = { attribution.clear(); linkTokens.clear(); milestones.clear() }),
+                            WireSettings(product, onLocalWipe = { attribution.clear(); linkTokens.clear(); milestones.clear() }),
                             signup = credentialAuth,
                             signInLink = credentialAuth,
                             passwordSignIn = credentialAuth,
-                            passwordSettings = WirePasswordSettings(ProductClient(origin, session, http)),
-                            dashboard = WireDashboard(ProductClient(origin, session, http)),
-                            giving = GivingKit(WireGiving(ProductClient(origin, session, http), referral = { linkTokens.load().referral })),
-                            events = WireEvents(ProductClient(origin, session, http)),
-                            engagement = WireEngagement(ProductClient(origin, session, http)),
-                            management = WireAccountManagement(ProductClient(origin, session, http)),
-                            wallet = WireWalletPass(ProductClient(origin, session, http)),
+                            passwordSettings = WirePasswordSettings(product),
+                            dashboard = WireDashboard(product),
+                            giving = GivingKit(WireGiving(product, referral = { linkTokens.load().referral })),
+                            events = WireEvents(product),
+                            engagement = WireEngagement(product),
+                            management = WireAccountManagement(product),
+                            wallet = WireWalletPass(product),
                             partner = PartnerSession(KeystoreCredentialStore(appContext, "partner-session", refreshable = false)).let {
                                 // The application receipt (`applyWithReceipt`, contract 2.11) is kept in its own Keystore item, apart
                                 // from the donor and partner sessions. The submit writes it and the status read reads it back.
@@ -523,8 +479,8 @@ class MainActivity : ComponentActivity() {
                                     WireApplicationStatus(origin, receipt, http), WirePartnerApplication(origin, receipt, http))
                             },
                             analytics = analytics,
-                            push = WireDonorPush(ProductClient(origin, session, http)),
-                            links = LinkAttribution(WireLinkAttribution(origin, ProductClient(origin, session, http), http), linkTokens, analytics),
+                            push = WireDonorPush(product),
+                            links = LinkAttribution(WireLinkAttribution(origin, product, http), linkTokens, analytics),
                             external = ExternalSignInDeps(
                                 // No Credential Manager provider is linked, so a configured ID alone never switches a method on.
                                 capabilities = SignInCapabilities.of(SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)),
@@ -586,7 +542,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val partnerKit = model.partner
                     when (val current = root) {
-                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && !partner && !partnerViewer ->
+                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
                             PartnerPortal(
                                 viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
                                 publicOrigin = linkPublicOrigin,
@@ -594,25 +550,8 @@ class MainActivity : ComponentActivity() {
                                 pushTokens = model.pushTokens,
                             )
                         is RoleRouter.Root.Restoring, is RoleRouter.Root.Authenticated ->
-                            if (partnerViewer) {
-                                PartnerPortal(viewModel(factory = PartnerModel.previewFactory(role = PartnerRole.VIEWER)), publicOrigin = "https://dad.example")
-                            } else if (partner) {
-                                PartnerPortal(viewModel(factory = PartnerModel.previewFactory()), publicOrigin = "https://dad.example")
-                            } else if (giving) {
-                                // Giving preview exercises the signed-in GiftScreen directly. The
-                                // donor shell reaches Restoring/Authenticated immediately (hasSession
-                                // starts true), so there is no load-delay gap to short-circuit.
-                                GiftScreen(viewModel(factory = GivingModel.previewFactory()), stubComplete = { })
-                            } else if (impact) {
-                                EngagementHome(
-                                    viewModel(factory = EngagementModel.previewFactory()),
-                                    publicOrigin = "https://dad.example",
-                                    sharer = ReferralShareAction(AndroidReferralSharer(this@MainActivity)),
-                                )
-                            } else if (events) {
-                                EventsScreen(viewModel(factory = EventsModel.previewFactory()))
-                            } else if (settings) {
-                                SettingsHome(viewModel(factory = SettingsModel.previewFactory()))
+                            if (preview != null) {
+                                preview()
                             } else {
                                 DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
                             }
@@ -749,150 +688,150 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
     // the Gift screen's load on return and wipe its "Your gift is set up." notice. While it shows, the
     // shell underneath is hidden from accessibility (the opaque Surface already blocks touches).
     Box(Modifier.fillMaxSize()) {
-    Scaffold(
-        modifier = if (giving != null && celebrating) Modifier.clearAndSetSemantics {} else Modifier,
-        topBar = {
-            when (pushed) {
-                Pushed.Settings -> DadBackBar("settings-back", "Back") { pushed = null }
-                Pushed.History -> DadBackBar("history-close", "Back") { pushed = null }
-                // Gift pushed from Settings' cancel-gift: back returns to Settings (carries `gift-close`).
-                Pushed.Gift -> DadBackBar("gift-close", "Back") { pushed = Pushed.Settings }
-                Pushed.Spend -> Unit // InitiativeSpendScreen owns its app bar
-                null -> when (tab) {
-                    DonorTab.HOME -> HomeTopBar(model, onSettings = if (service != null) ({ pushed = Pushed.Settings }) else null)
-                    // The close affordance on a tab returns to Home, preserving the prior close→Home contract.
-                    DonorTab.CIRCLE -> if (engagementService != null) DadBackBar("engagement-close", "Back") { tab = DonorTab.HOME }
-                    DonorTab.EVENTS -> if (eventsService != null) DadBackBar("events-back", "Back") { tab = DonorTab.HOME }
-                    DonorTab.GIVING -> if (giving != null) DadBackBar("gift-close", "Back") { tab = DonorTab.HOME }
+        Scaffold(
+            modifier = if (giving != null && celebrating) Modifier.clearAndSetSemantics {} else Modifier,
+            topBar = {
+                when (pushed) {
+                    Pushed.Settings -> DadBackBar("settings-back", "Back") { pushed = null }
+                    Pushed.History -> DadBackBar("history-close", "Back") { pushed = null }
+                    // Gift pushed from Settings' cancel-gift: back returns to Settings (carries `gift-close`).
+                    Pushed.Gift -> DadBackBar("gift-close", "Back") { pushed = Pushed.Settings }
+                    Pushed.Spend -> Unit // InitiativeSpendScreen owns its app bar
+                    null -> when (tab) {
+                        DonorTab.HOME -> HomeTopBar(model, onSettings = if (service != null) ({ pushed = Pushed.Settings }) else null)
+                        // The close affordance on a tab returns to Home, preserving the prior close→Home contract.
+                        DonorTab.CIRCLE -> if (engagementService != null) DadBackBar("engagement-close", "Back") { tab = DonorTab.HOME }
+                        DonorTab.EVENTS -> if (eventsService != null) DadBackBar("events-back", "Back") { tab = DonorTab.HOME }
+                        DonorTab.GIVING -> if (giving != null) DadBackBar("gift-close", "Back") { tab = DonorTab.HOME }
+                    }
                 }
-            }
-        },
-        floatingActionButton = {
-            // Invite is Home's single filled primary: brand fill, ink content. Shown only on the bare
-            // Home tab (no pushed screen), it opens the existing share flow — which lives on the Circle
-            // tab (EngagementHome hosts the share sheet, QR, and the public-name step when no name is
-            // set yet) — so there is no second share implementation and no new analytics event.
-            if (onShell && tab == DonorTab.HOME && ready && engagementService != null) {
-                ExtendedFloatingActionButton(
-                    onClick = { tab = DonorTab.CIRCLE },
-                    containerColor = DadTheme.color("brand"),
-                    contentColor = DadTheme.color("ink"),
-                    modifier = Modifier.testTag("invite-fab"),
-                ) { Text("Invite", style = MaterialTheme.typography.labelLarge) }
-            }
-        },
-        bottomBar = {
-            if (onShell) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = tab == DonorTab.HOME,
-                        onClick = { tab = DonorTab.HOME },
-                        icon = { Text("\u2302") },
-                        label = { Text("Home") },
-                        modifier = Modifier.testTag("tab-home"),
-                    )
-                    NavigationBarItem(
-                        selected = tab == DonorTab.CIRCLE,
+            },
+            floatingActionButton = {
+                // Invite is Home's single filled primary: brand fill, ink content. Shown only on the bare
+                // Home tab (no pushed screen), it opens the existing share flow — which lives on the Circle
+                // tab (EngagementHome hosts the share sheet, QR, and the public-name step when no name is
+                // set yet) — so there is no second share implementation and no new analytics event.
+                if (onShell && tab == DonorTab.HOME && ready && engagementService != null) {
+                    ExtendedFloatingActionButton(
                         onClick = { tab = DonorTab.CIRCLE },
-                        icon = { Text("\u25CE") },
-                        label = { Text("Circle") },
-                        enabled = engagementService != null,
-                        modifier = Modifier.testTag("tab-circle"),
-                    )
-                    NavigationBarItem(
-                        selected = tab == DonorTab.EVENTS,
-                        onClick = { tab = DonorTab.EVENTS },
-                        icon = { Text("\u2605") },
-                        label = { Text("Events") },
-                        enabled = eventsService != null,
-                        modifier = Modifier.testTag("tab-events"),
-                    )
-                    NavigationBarItem(
-                        selected = tab == DonorTab.GIVING,
-                        onClick = { tab = DonorTab.GIVING },
-                        icon = { Text("\u2661") },
-                        label = { Text("Giving") },
-                        enabled = giving != null,
-                        modifier = Modifier.testTag("tab-giving"),
-                    )
+                        containerColor = DadTheme.color("brand"),
+                        contentColor = DadTheme.color("ink"),
+                        modifier = Modifier.testTag("invite-fab"),
+                    ) { Text("Invite", style = MaterialTheme.typography.labelLarge) }
                 }
-            }
-        },
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            when (pushed) {
-                Pushed.Settings -> if (service != null) {
-                    BackHandler { pushed = null }
-                    holder.SaveableStateProvider("settings") {
-                        SettingsHome(
-                            viewModel(key = "settings-${model.generation}", factory = SettingsModel.factory(service)),
-                            onBack = { pushed = null },
-                            onSignedOut = { model.onSignedOut() },
-                            password = model.passwordSettings?.let { passwordService ->
-                                viewModel<PasswordChangeModel>(key = "password-${model.generation}", factory = PasswordChangeModel.factory(passwordService))
-                            },
-                            // Cancel-gift from Settings pushes the Gift screen OVER Settings, so its close
-                            // returns here (not Home) with the half-typed delete confirm intact.
-                            onCancelGift = if (giving != null) ({ pushed = Pushed.Gift }) else null,
-                            management = model.management,
-                            generation = model.generation,
-                            analytics = model.analytics,
+            },
+            bottomBar = {
+                if (onShell) {
+                    NavigationBar {
+                        NavigationBarItem(
+                            selected = tab == DonorTab.HOME,
+                            onClick = { tab = DonorTab.HOME },
+                            icon = { Text("\u2302", modifier = Modifier.clearAndSetSemantics {}) },
+                            label = { Text("Home") },
+                            modifier = Modifier.testTag("tab-home"),
+                        )
+                        NavigationBarItem(
+                            selected = tab == DonorTab.CIRCLE,
+                            onClick = { tab = DonorTab.CIRCLE },
+                            icon = { Text("\u25CE", modifier = Modifier.clearAndSetSemantics {}) },
+                            label = { Text("Circle") },
+                            enabled = engagementService != null,
+                            modifier = Modifier.testTag("tab-circle"),
+                        )
+                        NavigationBarItem(
+                            selected = tab == DonorTab.EVENTS,
+                            onClick = { tab = DonorTab.EVENTS },
+                            icon = { Text("\u2605", modifier = Modifier.clearAndSetSemantics {}) },
+                            label = { Text("Events") },
+                            enabled = eventsService != null,
+                            modifier = Modifier.testTag("tab-events"),
+                        )
+                        NavigationBarItem(
+                            selected = tab == DonorTab.GIVING,
+                            onClick = { tab = DonorTab.GIVING },
+                            icon = { Text("\u2661", modifier = Modifier.clearAndSetSemantics {}) },
+                            label = { Text("Giving") },
+                            enabled = giving != null,
+                            modifier = Modifier.testTag("tab-giving"),
                         )
                     }
                 }
-                Pushed.History -> if (dashboard != null) {
-                    BackHandler { pushed = null }
-                    holder.SaveableStateProvider("history") {
-                        GiftHistoryScreen(
-                            viewModel(key = "history-${model.generation}", factory = GiftHistoryModel.factory(dashboard)),
-                            onClose = { pushed = null },
-                            onSignedOut = { pushed = null; model.onSignedOut() },
-                        )
-                    }
-                }
-                Pushed.Gift -> if (giving != null) {
-                    // Pushed from Settings' cancel-gift: back returns to Settings.
-                    BackHandler { pushed = Pushed.Settings }
-                    holder.SaveableStateProvider("gift") {
-                        GiftScreen(giving, stubComplete = kit.stubComplete, onClose = { pushed = Pushed.Settings }, onSignedOut = { pushed = null; model.onSignedOut() })
-                    }
-                }
-                Pushed.Spend -> {
-                    val target = spendTarget
-                    if (target != null && engagementService != null) {
-                        BackHandler { pushed = null; spendTarget = null }
-                        holder.SaveableStateProvider("spend") {
-                            InitiativeSpendScreen(
-                                viewModel(key = "spend-${model.generation}-${target.id}", factory = InitiativeSpendModel.factory(engagementService, target.id)),
-                                title = target.title,
-                                onClose = { pushed = null; spendTarget = null },
-                                onSignedOut = { pushed = null; spendTarget = null; model.onSignedOut() },
+            },
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                when (pushed) {
+                    Pushed.Settings -> if (service != null) {
+                        BackHandler { pushed = null }
+                        holder.SaveableStateProvider("settings") {
+                            SettingsHome(
+                                viewModel(key = "settings-${model.generation}", factory = SettingsModel.factory(service)),
+                                onBack = { pushed = null },
+                                onSignedOut = { model.onSignedOut() },
+                                password = model.passwordSettings?.let { passwordService ->
+                                    viewModel<PasswordChangeModel>(key = "password-${model.generation}", factory = PasswordChangeModel.factory(passwordService))
+                                },
+                                // Cancel-gift from Settings pushes the Gift screen OVER Settings, so its close
+                                // returns here (not Home) with the half-typed delete confirm intact.
+                                onCancelGift = if (giving != null) ({ pushed = Pushed.Gift }) else null,
+                                management = model.management,
+                                generation = model.generation,
+                                analytics = model.analytics,
                             )
                         }
                     }
+                    Pushed.History -> if (dashboard != null) {
+                        BackHandler { pushed = null }
+                        holder.SaveableStateProvider("history") {
+                            GiftHistoryScreen(
+                                viewModel(key = "history-${model.generation}", factory = GiftHistoryModel.factory(dashboard)),
+                                onClose = { pushed = null },
+                                onSignedOut = { pushed = null; model.onSignedOut() },
+                            )
+                        }
+                    }
+                    Pushed.Gift -> if (giving != null) {
+                        // Pushed from Settings' cancel-gift: back returns to Settings.
+                        BackHandler { pushed = Pushed.Settings }
+                        holder.SaveableStateProvider("pushed-gift") {
+                            GiftScreen(giving, stubComplete = kit.stubComplete, onClose = { pushed = Pushed.Settings }, onSignedOut = { pushed = null; model.onSignedOut() })
+                        }
+                    }
+                    Pushed.Spend -> {
+                        val target = spendTarget
+                        if (target != null && engagementService != null) {
+                            BackHandler { pushed = null; spendTarget = null }
+                            holder.SaveableStateProvider("spend") {
+                                InitiativeSpendScreen(
+                                    viewModel(key = "spend-${model.generation}-${target.id}", factory = InitiativeSpendModel.factory(engagementService, target.id)),
+                                    title = target.title,
+                                    onClose = { pushed = null; spendTarget = null },
+                                    onSignedOut = { pushed = null; spendTarget = null; model.onSignedOut() },
+                                )
+                            }
+                        }
+                    }
+                    null -> DonorShellTab(
+                        tab, model, holder, publicOrigin, context,
+                        service, dashboard, dash, giving, kit, eventsService, engagementService,
+                        milestones, shareMilestone,
+                        onSelectTab = { tab = it },
+                        onPush = { pushed = it },
+                        onOpenSpend = { id, title -> spendTarget = SpendTarget(id, title); pushed = Pushed.Spend },
+                    )
                 }
-                null -> DonorShellTab(
-                    tab, model, holder, publicOrigin, context,
-                    service, dashboard, dash, giving, kit, eventsService, engagementService,
-                    milestones, shareMilestone,
-                    onSelectTab = { tab = it },
-                    onPush = { pushed = it },
-                    onOpenSpend = { id, title -> spendTarget = SpendTarget(id, title); pushed = Pushed.Spend },
-                )
             }
         }
-    }
-    if (giving != null && celebrating) {
-        BackHandler { giving.acknowledgeCelebration() }
-        val amount = giving.selection
-        FirstGiftCelebration(
-            amountMonthly = formatUsdMinor(amount.monthlyMinor) + "/month",
-            amountDaily = "$${amount.dailyDollars} a day",
-            founding = dash?.foundingDonor == true,
-            onInvite = { giving.acknowledgeCelebration(); pushed = null; tab = DonorTab.CIRCLE },
-            onDone = { giving.acknowledgeCelebration() },
-        )
-    }
+        if (giving != null && celebrating) {
+            BackHandler { giving.acknowledgeCelebration() }
+            val amount = giving.selection
+            FirstGiftCelebration(
+                amountMonthly = formatUsdMinor(amount.monthlyMinor) + "/month",
+                amountDaily = "$${amount.dailyDollars} a day",
+                founding = dash?.foundingDonor == true,
+                onInvite = { giving.acknowledgeCelebration(); pushed = null; tab = DonorTab.CIRCLE },
+                onDone = { giving.acknowledgeCelebration() },
+            )
+        }
     }
 
     // The analytics question is asked ONCE, after the first sign-in (moved off the Welcome screen) — the
@@ -955,7 +894,6 @@ private fun DonorShellTab(
                 sharer = remember { ReferralShareAction(debugReferralSharer(context, publicOrigin), model.analytics) },
                 onSignedOut = { onSelectTab(DonorTab.HOME); model.onSignedOut() },
                 wallet = model.wallet?.let { viewModel<WalletPassModel>(key = "wallet-${model.generation}", factory = WalletPassModel.factory(it)) },
-
                 inviterName = (model.state as? AccountState.Ready)?.profile?.publicName,
             )
         }
@@ -1046,7 +984,7 @@ private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {})
 // opt-in, sign out, and the store-mandated delete-account flow with a typed-word confirm gate.
 // Bound to SettingsModel; all inline (no OS dialogs), per the UITest-determinism lesson.
 @Composable
-private fun SettingsHome(
+internal fun SettingsHome(
     model: SettingsModel, onBack: (() -> Unit)? = null, onSignedOut: (() -> Unit)? = null, password: PasswordChangeModel? = null,
     onCancelGift: (() -> Unit)? = null, management: AccountManagementService? = null, generation: Int = 0,
     analytics: AnalyticsUploader? = null,
@@ -1157,7 +1095,7 @@ private fun SettingsContent(
             Text(DeleteAccountGate(deleteTyped).helpText, style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(
                 value = deleteTyped, onValueChange = onTypedChange,
-                singleLine = true, modifier = Modifier.fillMaxWidth().testTag("delete-input"),
+                label = { Text("Confirmation word") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("delete-input"),
             )
             DadDestructiveTextButton(
                 "Permanently delete",

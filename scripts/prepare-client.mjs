@@ -4,17 +4,15 @@ import { verifyFoundation } from "./check-foundation.mjs";
 
 await verifyFoundation(process.cwd());
 const document = JSON.parse(await readFile("contracts/foundation/mobile.openapi.json", "utf8"));
-// Phase 1 widens the 4-op base to the full donor + auth/session + events + employee
-// surface already present in the vendored contract. Partner-portal ops (partner*) and
-// the v2.1 partner push-device pair stay out until Phase 8 so the generated client
-// tracks the phases that consume it.
+// The operations the app consumes; everything else in the vendored contract is dropped so the
+// generated client stays limited to what the app calls.
 const allowed = new Set([
   // session foundation (unchanged base)
   "profile", "refresh", "logout", "claim",
-  // auth / session management (Phase 1 auth shell)
+  // auth / session management
   "login", "logoutAll", "sessions", "revokeSession", "revokeOtherSessions",
   "beginPhoneSignIn", "finishPhoneSignIn", "oidcSignIn",
-  // P1b: email signup + password sign-in + set/change password (contract 2.4.0)
+  // email signup + password sign-in + set/change password (contract 2.4.0)
   "postDonorSignup", "postDonorPasswordSignIn", "postDonorMePassword",
   "beginDonorPasskeyRegister", "finishDonorPasskeyRegister",
   "beginDonorPasskeySignIn", "finishDonorPasskeySignIn", "donorPasskeys", "deleteDonorPasskey",
@@ -37,7 +35,7 @@ const allowed = new Set([
   // employee giving & matching (display surface)
   "employeeEnroll", "employeeJoinTeam", "employeeTeam", "employeeTeams",
   "employeeOurPeople", "employeeWorkforce",
-  // partner portal (Phase 8, P-*/EM-*); partner push is the v2.2 addition
+  // partner portal; partner push is the v2.2 addition
   "partnerRequestSignIn", "partnerAcceptInvite", "partnerSignOut",
   "partnerOverview", "partnerInitiatives", "partnerSpend",
   "partnerUsers", "partnerInviteUser", "partnerRemoveUser",

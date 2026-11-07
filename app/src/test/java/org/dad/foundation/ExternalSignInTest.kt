@@ -214,7 +214,7 @@ class ExternalSignInTest {
 
     @Test fun cancellationIsRethrownNotShown() {
         val m = GoogleSignInModel({ throw CancellationException("x") }, FakeOidc(), passThrough)
-        runCatching { m.start() }
-        assertFalse(m.phase is ExternalSignInPhase.Failed)
+        m.start()
+        assertEquals(ExternalSignInPhase.Working, m.phase)
     }
 }

@@ -31,9 +31,11 @@ data class Attribution(
          */
         fun sanitized(raw: String?): String? {
             val trimmed = raw?.trim() ?: return null
-            if (trimmed.length !in 1..64 || !trimmed.matches(Regex("^[A-Za-z0-9_-]+$"))) return null
+            if (trimmed.length !in 1..64 || !CODE.matches(trimmed)) return null
             return trimmed
         }
+
+        private val CODE = Regex("^[A-Za-z0-9_-]+$")
 
         /** Build a sanitized Attribution from raw inputs in one step. */
         fun of(inviteCode: String? = null, irlCode: String? = null, companyCode: String? = null, source: String? = null) =

@@ -1,7 +1,12 @@
 package org.dad.foundation
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import okhttp3.HttpUrl
@@ -29,7 +34,11 @@ import java.util.Date
  * 12 hours and cannot be refreshed, so it is kept with its expiry and dropped the moment it lapses or the server
  * rejects it; the partner then signs in again with an emailed link. Stored apart from the donor session.
  */
-class PartnerSession(private val store: CredentialStore, private val now: () -> Long = System::currentTimeMillis) {
+class PartnerSession(
+    private val store: CredentialStore,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
     private var stored: Credentials? = store.load()
     private var epoch = 0L
 
@@ -53,10 +62,12 @@ class PartnerSession(private val store: CredentialStore, private val now: () -> 
         val before = synchronized(this) { epoch }
         val bearer = produce()
         val context = currentCoroutineContext()
-        synchronized(this) {
-            if (before != epoch) throw AccountFailure.SignedOut
-            context.ensureActive()
-            install(bearer)
+        withContext(io + NonCancellable) {
+            synchronized(this@PartnerSession) {
+                if (before != epoch) throw AccountFailure.SignedOut
+                context.ensureActive()
+                install(bearer)
+            }
         }
     }
 
@@ -253,9 +264,10 @@ class WirePartner(
     /** The local session is forgotten first, so the partner is signed out on this device even when the server
      *  cannot be reached; the server session then simply expires. */
     override suspend fun signOut() {
-        val bearer = session.end()
-        if (bearer == null) return
-        runCatching { decoding { nativeRetrofit(url, baseClient, bearer).create(PartnerReads::class.java).signOut(JsonObject()).body() } }
+        val bearer = session.end() ?: return
+        try { decoding { nativeRetrofit(url, baseClient, bearer).create(PartnerReads::class.java).signOut(JsonObject()).body() } }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { }
     }
 
     override suspend fun registerPushDevice(token: String) {

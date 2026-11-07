@@ -53,7 +53,7 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
             val page = retrofit.create(HomeReads::class.java).gifts(offset.toLong()).body_().asObjectOrInvalid()
             val rows = page.array("gifts").map { mapGift(it.asObjectOrInvalid()) }
             // Defensive page cap: the server pages at 50, so a larger body is truncated rather than trusted.
-            GiftHistoryPage(rows.take(PAGE_ROW_LIMIT), page.optLong("next_offset")?.let { it.toIntOrInvalid() })
+            GiftHistoryPage(rows.take(PAGE_ROW_LIMIT), page.optLong("next_offset")?.toIntOrInvalid())
         }
     }
 

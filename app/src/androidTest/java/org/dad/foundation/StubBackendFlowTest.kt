@@ -30,7 +30,7 @@ class StubBackendFlowTest {
         val intent = Intent(context, MainActivity::class.java).putExtra("stub_backend", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         extras.forEach { intent.putExtra(it, true) }
         link?.let { intent.data = android.net.Uri.parse(it) }
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun waitFor(tag: String, timeout: Long = 15_000) =
@@ -172,7 +172,7 @@ class StubBackendFlowTest {
         val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).putExtra("stub_push", true)
             .putExtra("category", "STREAK_AT_RISK").putExtra("path", "/account/gifts")
-        ActivityScenario.launch<MainActivity>(intent).use {
+        compose.launchReady(intent).use {
             waitFor("history-screen")
             compose.waitUntil(15_000) { "POST /donor/me/push-device" in DebugBackend.requestLog }
         }

@@ -35,6 +35,16 @@ class KeystoreStoreTest {
         } finally { store.clear() }
     }
 
+    @Test fun anUnreadableSessionFileLoadsAsSignedOutWithoutCrashing() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = KeystoreCredentialStore(context, "unreadable-session")
+        val unreadable = File(context.noBackupFilesDir, "unreadable-session.enc")
+        try {
+            assertTrue(unreadable.mkdir())
+            assertNull(store.load())
+        } finally { unreadable.delete() }
+    }
+
     @Test fun donorPartnerAndApplicationReceiptAreSeparateEncryptedEntries() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val donor = KeystoreCredentialStore(context)

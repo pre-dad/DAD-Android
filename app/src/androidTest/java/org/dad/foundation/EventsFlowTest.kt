@@ -25,7 +25,7 @@ class EventsFlowTest {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra("preview_events", true)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()

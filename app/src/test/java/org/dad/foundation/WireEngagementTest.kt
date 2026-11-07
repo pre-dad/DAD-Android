@@ -46,9 +46,9 @@ class WireEngagementTest {
         assertEquals("Top 2% nationally", snapshot.ranking?.nationalLabel)
         // Only the filtered, mapped badges: the blank-code row is dropped, perk keys become copy.
         assertEquals(listOf("F", "TC", "CITY50", "CITYLOCK", "CITYBLANK", "Z"), snapshot.badges!!.badges.map { it.code })
-        assertEquals("Invite-only founding events", snapshot.badges!!.badges[0].perk)
-        assertEquals("Unlocks a member perk", snapshot.badges!!.badges[5].perk)
-        assertTrue(snapshot.badges!!.hasInviteOnlyAccess)
+        assertEquals("Invite-only founding events", snapshot.badges.badges[0].perk)
+        assertEquals("Unlocks a member perk", snapshot.badges.badges[5].perk)
+        assertTrue(snapshot.badges.hasInviteOnlyAccess)
         assertEquals(5L, snapshot.network?.activeCount)
         assertEquals(2L, snapshot.network?.anonymousActive)
         assertEquals("ALEX2026", snapshot.referral?.code)
