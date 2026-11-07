@@ -111,5 +111,5 @@ data class DeleteAccountGate(val typed: String) {
 
     val helpText: String
         get() = "This permanently deletes your personal data. Your required gift records are kept. " +
-            "Type ${CONFIRM_WORD} to confirm."
+            "Type $CONFIRM_WORD to confirm."
 }

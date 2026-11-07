@@ -25,6 +25,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -109,7 +110,8 @@ private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> U
     var hint by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<ScannerStatus?>(null) }
     var torchOn by rememberSaveable { mutableStateOf(false) }
-    val gate = remember { ScanGate(onValid = { onToken(it) }, onInvalid = { hint = ScanCopy.HINT_INVALID }) }
+    val currentOnToken by rememberUpdatedState(onToken)
+    val gate = remember { ScanGate(onValid = { currentOnToken(it) }, onInvalid = { hint = ScanCopy.HINT_INVALID }) }
 
     // Above the viewfinder, so "Type the code instead" is on screen whenever the scanner is.
     val typeInstead: @Composable () -> Unit = {

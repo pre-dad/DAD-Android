@@ -1,5 +1,6 @@
 package org.dad.foundation
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -263,9 +264,10 @@ class WirePartner(
     /** The local session is forgotten first, so the partner is signed out on this device even when the server
      *  cannot be reached; the server session then simply expires. */
     override suspend fun signOut() {
-        val bearer = session.end()
-        if (bearer == null) return
-        runCatching { decoding { nativeRetrofit(url, baseClient, bearer).create(PartnerReads::class.java).signOut(JsonObject()).body() } }
+        val bearer = session.end() ?: return
+        try { decoding { nativeRetrofit(url, baseClient, bearer).create(PartnerReads::class.java).signOut(JsonObject()).body() } }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { }
     }
 
     override suspend fun registerPushDevice(token: String) {
