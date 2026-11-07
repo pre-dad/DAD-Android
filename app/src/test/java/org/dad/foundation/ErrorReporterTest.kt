@@ -37,8 +37,17 @@ class ErrorReporterTest {
         assertEquals(2, reporter.reportedCount)
     }
 
-    @Test fun noopReporterDoesNothing() {
-        // Just exercises the shipped default — no throw, no state.
-        NoopErrorReporter.report(ClientError("x", "y", ClientError.Kind.UNKNOWN, "z"))
+    @Test fun failuresWithoutTheirOwnBucketAreUnknownAndNeverLeakTheirType() {
+        listOf(AccountFailure.RateLimited, AccountFailure.Forbidden, AccountFailure.Conflict, java.io.IOException("socket"), IllegalStateException())
+            .forEach { assertEquals(it.toString(), ClientError.Kind.UNKNOWN, ClientError.Kind.of(it)) }
+    }
+
+    @Test fun theSameOperationFailingDifferentlyReportsEachKindOnce() {
+        val sink = RecordingReporter()
+        val reporter = DedupingErrorReporter(sink)
+        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE, "a"))
+        reporter.report(ClientError("home", "load", ClientError.Kind.SIGNED_OUT, "a"))
+        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE, "b"))
+        assertEquals(listOf(ClientError.Kind.UNAVAILABLE, ClientError.Kind.SIGNED_OUT), sink.received.map { it.kind })
     }
 }

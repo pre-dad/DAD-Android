@@ -1,5 +1,6 @@
 package org.dad.foundation
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -14,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AnalyticsUploadTest {
     private fun observed(method: String, path: String, request: String? = null, response: String? = null) =
         observedEvents(method, path, { request }, { response })
@@ -188,6 +190,8 @@ class PushTest {
         assertEquals(PushTap("REFERRAL_CONVERTED", null), PushTap.from("REFERRAL_CONVERTED", null))
         assertNull(PushTap.from(null, "/account/gifts"))
         assertNull(PushTap.from("streak; drop", "/account/gifts"))
-        assertNull(PushTap.from("STREAK_AT_RISK", "/" + "a".repeat(300))?.path)
+        assertEquals(PushTap("STREAK_AT_RISK", null), PushTap.from("STREAK_AT_RISK", "/" + "a".repeat(300)))
+        assertEquals("/" + "a".repeat(255), PushTap.from("STREAK_AT_RISK", "/" + "a".repeat(255))?.path)
+        assertNull(PushTap.from("", null))
     }
 }

@@ -130,3 +130,142 @@ class FoundationTest {
         assertNull(gate.signedIn())
     }
 }
+
+private class ScriptedAPI : AccountAPI {
+    val refreshResults = ArrayDeque<() -> Credentials>()
+    val profileResults = ArrayDeque<(String) -> AccountProfile>()
+    var refreshes = 0
+    val profileTokens = mutableListOf<String>()
+    var logoutFailure: Exception? = null
+    val loggedOut = mutableListOf<String>()
+    override suspend fun profile(access: String): AccountProfile {
+        profileTokens += access
+        return profileResults.removeFirst()(access)
+    }
+    override suspend fun refresh(token: String): Credentials { refreshes++; return refreshResults.removeFirst()() }
+    override suspend fun claim(token: String) = Credentials("claimed", "claim-refresh", Long.MAX_VALUE)
+    override suspend fun logout(access: String) { loggedOut += access; logoutFailure?.let { throw it } }
+}
+
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class SessionFailureModesTest {
+    private val donor = AccountProfile("donor@example.org", "Alex")
+    private val fresh = Credentials("new", "new-refresh", Long.MAX_VALUE)
+
+    private fun sessionIn(scope: kotlinx.coroutines.test.TestScope, api: AccountAPI, store: MemoryStore) =
+        AccountSession(api, store, scope.backgroundScope, UnconfinedTestDispatcher(scope.testScheduler))
+
+    @Test fun aTransientRefreshFailureKeepsTheSessionAndTheNextCallRetries() = runTest {
+        val api = ScriptedAPI()
+        val store = MemoryStore(Credentials("old", "refresh", 0))
+        val session = sessionIn(this, api, store)
+        api.refreshResults += { throw AccountFailure.Unavailable }
+        api.refreshResults += { fresh }
+        api.profileResults += { donor }
+        assertEquals(AccountFailure.Unavailable, runCatching { session.profile() }.exceptionOrNull())
+        assertEquals("a 5xx on refresh must not sign the donor out", "old", store.value?.access)
+        assertTrue(session.isSignedIn())
+        assertEquals("Alex", session.profile().publicName)
+        assertEquals(2, api.refreshes)
+        assertEquals(listOf("new"), api.profileTokens)
+        assertEquals("new", store.value?.access)
+    }
+
+    @Test fun aThrottledRefreshIsReportedAsThrottledNotSignedOut() = runTest {
+        val api = ScriptedAPI()
+        val store = MemoryStore(Credentials("old", "refresh", 0))
+        val session = sessionIn(this, api, store)
+        api.refreshResults += { throw AccountFailure.RateLimited }
+        assertEquals(AccountFailure.RateLimited, runCatching { session.profile() }.exceptionOrNull())
+        assertNotNull(store.value)
+    }
+
+    @Test fun aValidTokenIsUsedWithoutRefreshing() = runTest {
+        val api = ScriptedAPI()
+        val session = sessionIn(this, api, MemoryStore(Credentials("live", "refresh", Long.MAX_VALUE)))
+        api.profileResults += { donor }
+        session.profile()
+        assertEquals(0, api.refreshes)
+        assertEquals(listOf("live"), api.profileTokens)
+    }
+
+    @Test fun aTokenInsideTheExpiryMarginIsRefreshedFirst() = runTest {
+        val api = ScriptedAPI()
+        val nearlyExpired = System.currentTimeMillis() + 10_000
+        val session = sessionIn(this, api, MemoryStore(Credentials("stale", "refresh", nearlyExpired)))
+        api.refreshResults += { fresh }
+        api.profileResults += { donor }
+        session.profile()
+        assertEquals(listOf("new"), api.profileTokens)
+    }
+
+    @Test fun aSecondRejectionAfterARefreshEndsTheSessionLocally() = runTest {
+        val api = ScriptedAPI()
+        val store = MemoryStore(Credentials("old", "refresh", Long.MAX_VALUE))
+        val session = sessionIn(this, api, store)
+        api.profileResults += { throw AccountFailure.SignedOut }
+        api.refreshResults += { fresh }
+        api.profileResults += { throw AccountFailure.SignedOut }
+        assertEquals(AccountFailure.SignedOut, runCatching { session.profile() }.exceptionOrNull())
+        assertEquals(1, api.refreshes)
+        assertNull(store.value)
+        assertFalse(session.isSignedIn())
+        assertEquals(AccountFailure.SignedOut, runCatching { session.accessToken() }.exceptionOrNull())
+    }
+
+    @Test fun aServerErrorOnTheCallDoesNotTriggerARefreshOrSignOut() = runTest {
+        val api = ScriptedAPI()
+        val store = MemoryStore(Credentials("live", "refresh", Long.MAX_VALUE))
+        val session = sessionIn(this, api, store)
+        api.profileResults += { throw AccountFailure.Unavailable }
+        assertEquals(AccountFailure.Unavailable, runCatching { session.profile() }.exceptionOrNull())
+        assertEquals(0, api.refreshes)
+        assertEquals("live", store.value?.access)
+    }
+
+    @Test fun logoutClearsLocalCredentialsEvenWhenTheServerCallFails() = runTest {
+        val api = ScriptedAPI().apply { logoutFailure = AccountFailure.Unavailable }
+        val store = MemoryStore(Credentials("live", "refresh", Long.MAX_VALUE))
+        val session = sessionIn(this, api, store)
+        assertEquals(AccountFailure.Unavailable, runCatching { session.logout() }.exceptionOrNull())
+        assertNull(store.value)
+        assertFalse(session.isSignedIn())
+        assertEquals(listOf("live"), api.loggedOut)
+    }
+
+    @Test fun logoutWithoutASessionDoesNotCallTheServer() = runTest {
+        val api = ScriptedAPI()
+        val session = sessionIn(this, api, MemoryStore(null))
+        session.logout()
+        assertTrue(api.loggedOut.isEmpty())
+    }
+
+    @Test fun aSignInResolvingAfterASignOutIsDiscarded() = runTest {
+        val api = ScriptedAPI()
+        val store = MemoryStore(Credentials("live", "refresh", Long.MAX_VALUE))
+        val session = sessionIn(this, api, store)
+        val gate = CompletableDeferred<Credentials>()
+        val signIn = async { runCatching { session.establish { gate.await() } } }
+        runCurrent()
+        session.logout()
+        gate.complete(Credentials("late", "late-refresh", Long.MAX_VALUE))
+        assertEquals(AccountFailure.SignedOut, signIn.await().exceptionOrNull())
+        assertNull("a late sign-in must not resurrect a signed-out session", store.value)
+        assertFalse(session.isSignedIn())
+    }
+
+    @Test fun aFailureToPersistRefreshedCredentialsSignsOutInsteadOfHalfSavingThem() = runTest {
+        val api = ScriptedAPI()
+        val failing = object : CredentialStore {
+            var current: Credentials? = Credentials("old", "refresh", 0)
+            override fun load() = current
+            override fun save(value: Credentials) { throw java.io.IOException("keystore") }
+            override fun clear() { current = null }
+        }
+        val session = AccountSession(api, failing, backgroundScope, UnconfinedTestDispatcher(testScheduler))
+        api.refreshResults += { fresh }
+        assertTrue(runCatching { session.profile() }.isFailure)
+        assertNull(failing.current)
+        assertFalse(session.isSignedIn())
+    }
+}
