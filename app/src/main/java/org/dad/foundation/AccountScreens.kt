@@ -229,7 +229,11 @@ internal fun WalletPassButton(model: WalletPassModel) {
     LaunchedEffect(model.saveUrl) {
         model.saveUrl?.let { url ->
             model.saveUrl = null
-            uriHandler.openUri(url)
+            try {
+                uriHandler.openUri(url)
+            } catch (_: android.content.ActivityNotFoundException) {
+                model.openFailed()
+            }
         }
     }
     if (model.available == true) {
