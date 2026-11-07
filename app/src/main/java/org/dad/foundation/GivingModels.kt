@@ -459,7 +459,7 @@ internal fun longUsDate(date: Date): String = DateFormat.getDateInstance(DateFor
 
 /**
  * In-app preview/test double for [GivingService]: starts with an active $1/day gift so the gift and
- * cancel surfaces both render without a network. [complete] plays the hosted page finishing.
+ * cancel surfaces both render without a network.
  */
 class PreviewGivingService : GivingService {
     private var state: RecurringState =
