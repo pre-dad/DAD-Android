@@ -137,7 +137,7 @@ class WirePartnerApplication(
             // A lost or timed-out connection: the server may have received it.
             throw ApplicationSubmitFailure.Unconfirmed
         }
-        if (response.isSuccessful) { response.body(); return }
+        if (response.isSuccessful) return
         val retryAfter = response.headers()["Retry-After"]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
         response.errorBody()?.close()
         throw when (response.code()) {

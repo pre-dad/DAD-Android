@@ -46,11 +46,12 @@ object DadTheme {
      * are authored as `rgba(r,g,b,a)` with fractional alpha; `toColorInt` only parses `#rgb`/`#rrggbb`,
      * so those are decoded here to keep their real token value (and alpha) rather than a magenta fallback.
      */
-    fun color(name: String): Color {
-        val raw = DADTokens.color[name] ?: return Color.Magenta
-        parseRgba(raw)?.let { return it }
-        return runCatching { Color(raw.toColorInt()) }.getOrElse { Color.Magenta }
+    fun color(name: String): Color = resolved.getOrPut(name) {
+        val raw = DADTokens.color[name] ?: return@getOrPut Color.Magenta
+        parseRgba(raw) ?: runCatching { Color(raw.toColorInt()) }.getOrElse { Color.Magenta }
     }
+
+    private val resolved = java.util.concurrent.ConcurrentHashMap<String, Color>()
 
     /** Decode a `rgba(r,g,b,a)` / `rgb(r,g,b)` token string, or null if it is not that form. */
     private fun parseRgba(value: String): Color? {
@@ -94,7 +95,6 @@ object DadTheme {
         return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
     }
 
-    fun space(step: String): Dp = (DADTokens.space[step] ?: 0.0).dp
     fun radius(name: String): Dp = (DADTokens.radius[name] ?: 0.0).dp
 }
 

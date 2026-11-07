@@ -161,6 +161,9 @@ class WireAnalytics(
     }
 }
 
+private val EVENT_VIEW = Regex("^/(donor/me/)?events/[^/]+$")
+private val EVENT_RESERVE = Regex("^/donor/me/events/[^/]+/reserve$")
+
 /**
  * The §9 events a successful API call stands for, derived exactly as the website derives them from the same calls
  * (DAD-Main `apps/web/lib/analytics.ts` `observeAPI`), so a funnel counts the same thing on every platform.
@@ -168,7 +171,7 @@ class WireAnalytics(
  */
 internal fun observedEvents(method: String, path: String, requestBody: () -> String?, responseBody: () -> String?): List<PlainEvent> {
     if (method == "GET") {
-        return if (Regex("^/(donor/me/)?events/[^/]+$").matches(path)) listOf(PlainEvent.EVENT_VIEWED)
+        return if (EVENT_VIEW.matches(path)) listOf(PlainEvent.EVENT_VIEWED)
         else if (path == "/donor/partner/report.pdf") listOf(PlainEvent.PARTNER_REPORT_EXPORTED)
         else emptyList()
     }
@@ -190,7 +193,7 @@ internal fun observedEvents(method: String, path: String, requestBody: () -> Str
             }
         }
     }
-    if (Regex("^/donor/me/events/[^/]+/reserve$").matches(path)) {
+    if (EVENT_RESERVE.matches(path)) {
         val status = runCatching { JsonParser.parseString(responseBody()).asJsonObject.get("status").asString }.getOrNull()
         return when (status) {
             "WAITLISTED" -> listOf(PlainEvent.EVENT_WAITLISTED)
