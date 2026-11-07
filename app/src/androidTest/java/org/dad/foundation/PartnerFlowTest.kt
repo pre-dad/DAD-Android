@@ -5,7 +5,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -15,6 +14,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -31,7 +31,7 @@ class PartnerFlowTest {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(extra, true)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun openOrganization() {
@@ -46,7 +46,7 @@ class PartnerFlowTest {
             compose.onNodeWithTag("partner-committed").performScrollTo().assertIsDisplayed()
             compose.onNodeWithTag("partner-reached").performScrollTo().assertIsDisplayed()
             compose.onNodeWithTag("partner-verified-line").performScrollTo().assertIsDisplayed()
-            assert(compose.onAllNodes(hasTestTag("partner-deployed")).fetchSemanticsNodes().isEmpty())
+            assertTrue(compose.onAllNodes(hasTestTag("partner-deployed")).fetchSemanticsNodes().isEmpty())
             openOrganization()
             compose.onNodeWithTag("partner-invite").performScrollTo().assertIsDisplayed()
         }
@@ -72,8 +72,8 @@ class PartnerFlowTest {
             openOrganization()
             // A viewer sees the read-only notice and NO invite button (§7.2 gating).
             compose.onNodeWithTag("partner-readonly").performScrollTo().assertIsDisplayed()
-            assert(compose.onAllNodes(hasTestTag("partner-invite")).fetchSemanticsNodes().isEmpty())
-            assert(compose.onAllNodes(hasTestTag("partner-export")).fetchSemanticsNodes().isEmpty())
+            assertTrue(compose.onAllNodes(hasTestTag("partner-invite")).fetchSemanticsNodes().isEmpty())
+            assertTrue(compose.onAllNodes(hasTestTag("partner-export")).fetchSemanticsNodes().isEmpty())
         }
     }
 
@@ -95,7 +95,7 @@ class PartnerFlowTest {
         launch("preview_partner").use {
             openOrganization()
             compose.onNodeWithTag("partner-invite").performScrollTo()
-            assert(compose.onAllNodes(hasTestTag("partner-remove-u1")).fetchSemanticsNodes().isEmpty())
+            assertTrue(compose.onAllNodes(hasTestTag("partner-remove-u1")).fetchSemanticsNodes().isEmpty())
             compose.onNodeWithText("Ada Admin (you) · Admin").performScrollTo().assertIsDisplayed()
         }
     }

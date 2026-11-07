@@ -23,7 +23,7 @@ class AccountManagementFlowTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, MainActivity::class.java)
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val scenario = ActivityScenario.launch<MainActivity>(intent)
+        val scenario = compose.launchReady(intent)
         compose.tapSafely("open-settings", 20_000)
         waitFor("settings-email")
         return scenario

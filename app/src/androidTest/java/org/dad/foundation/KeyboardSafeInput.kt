@@ -1,11 +1,13 @@
 package org.dad.foundation
 
 import android.app.Activity
+import android.content.Intent
 import android.view.Choreographer
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -14,6 +16,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
@@ -33,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 private const val SETTLE_TIMEOUT_MS = 20_000L
 private const val STABLE_FRAMES = 10
+private const val READY_TIMEOUT_MS = 30_000L
 
 // If the IME inset never becomes visible within this many frames, treat the platform as one that
 // cannot report it (see awaitKeyboardSettled) and stop waiting. ~180 frames is about 3s at 60fps.
@@ -49,6 +53,24 @@ private fun resumedActivity(): Activity? {
 private fun imeBottomInset(activity: Activity): Pair<Boolean, Int> {
     val insets = ViewCompat.getRootWindowInsets(activity.window.decorView) ?: return false to 0
     return insets.isVisible(WindowInsetsCompat.Type.ime()) to insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+}
+
+/**
+ * The single readiness gate every test that launches [MainActivity] goes through.
+ *
+ * A createEmptyComposeRule() has no binding to the host activity, so right after ActivityScenario.launch there is a
+ * window in which the compose hierarchy is not yet attached. A fast local emulator closes it before the first probe;
+ * the slow headless CI emulator does not, and the first interaction then fails as "No compose hierarchies found", a
+ * timeout, or an exception inside a helper. Gating once on RESUMED plus a non-empty root removes the race at its
+ * source instead of guarding each symptom.
+ */
+fun ComposeTestRule.launchReady(intent: Intent): ActivityScenario<MainActivity> {
+    val scenario = ActivityScenario.launch<MainActivity>(intent)
+    waitUntil(READY_TIMEOUT_MS) { runCatching { resumedActivity() != null }.getOrDefault(false) }
+    waitUntil(READY_TIMEOUT_MS) {
+        runCatching { onAllNodes(isRoot()).fetchSemanticsNodes().any { it.children.isNotEmpty() } }.getOrDefault(false)
+    }
+    return scenario
 }
 
 /** Waits until the soft keyboard is up and its height has been unchanged for [STABLE_FRAMES] consecutive frames. */

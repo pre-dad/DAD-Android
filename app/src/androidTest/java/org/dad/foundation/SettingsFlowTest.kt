@@ -32,7 +32,7 @@ class SettingsFlowTest {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra("preview_settings", true)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     @Test fun settingsRendersProfileAndToggles() {

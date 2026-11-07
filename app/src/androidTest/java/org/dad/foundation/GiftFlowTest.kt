@@ -35,7 +35,7 @@ class GiftFlowTest {
         link?.let { intent.data = android.net.Uri.parse(it) }
         DebugBackend.resetRequestLog()
         DebugBackend.checkoutReferral = null
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()

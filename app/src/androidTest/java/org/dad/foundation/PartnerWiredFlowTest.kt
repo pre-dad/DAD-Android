@@ -7,14 +7,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
-import androidx.test.runner.lifecycle.Stage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -33,37 +30,7 @@ class PartnerWiredFlowTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, MainActivity::class.java).putExtra("stub_backend", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         extras.forEach { intent.putExtra(it, true) }
-        return ActivityScenario.launch(intent)
-    }
-
-    // A createEmptyComposeRule() is not bound to a host activity, so right after ActivityScenario.launch there is a
-    // window where MainActivity has not yet attached (or stably attached) its compose tree. The fast local emulator
-    // closes that window before the first probe; the slow headless CI emulator loses the race in the heaviest test,
-    // surfacing as "No compose hierarchies found" or a ComposeTimeout on the first interaction. Rather than guard
-    // each symptom, every test launches through this single readiness gate: it waits for the activity to actually
-    // reach RESUMED and for compose to report a non-empty tree ONCE before any interaction runs.
-    private fun appResumed(): Boolean {
-        var resumed = false
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            resumed = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).isNotEmpty()
-        }
-        return resumed
-    }
-
-    private fun launchReady(vararg extras: String): ActivityScenario<MainActivity> {
-        val scenario = launch(*extras)
-        // 1. The launched activity must be RESUMED — same mechanism KeyboardSafeInput.resumedActivity() uses.
-        compose.waitUntil(30_000) { runCatching { appResumed() }.getOrDefault(false) }
-        // 2. Compose must report a non-empty tree. Anchor on the always-present signed-out root tag `role-select`;
-        //    for launches seeded straight into a signed-in/partner state that tag never appears, so fall back to any
-        //    non-empty root. A pre-attach probe throws, which counts as "not ready" rather than aborting the wait.
-        compose.waitUntil(30_000) {
-            runCatching {
-                compose.onAllNodes(hasTestTag("role-select")).fetchSemanticsNodes().isNotEmpty() ||
-                    compose.onAllNodes(isRoot()).fetchSemanticsNodes().any { it.children.isNotEmpty() }
-            }.getOrDefault(false)
-        }
-        return scenario
+        return compose.launchReady(intent)
     }
 
     // On the slow headless CI emulator the Activity's setContent can land after the first probe, so
@@ -101,7 +68,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun aViewerSeesNoAdminActionsAndTheServerWouldRefuseThemAnyway() {
-        launchReady("stub_partner_signed_in", "stub_partner_viewer").use {
+        launch("stub_partner_signed_in", "stub_partner_viewer").use {
             waitFor("partner-committed")
             openOrganization()
             compose.onNodeWithTag("partner-readonly").performScrollTo().assertIsDisplayed()
@@ -114,7 +81,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun anInviteForATakenAddressIsExplainedThenAValidOneAddsTheUser() {
-        launchReady("stub_partner_signed_in").use {
+        launch("stub_partner_signed_in").use {
             openOrganization()
             compose.enterText("partner-invite-name", "Taken Person")
             compose.enterText("partner-invite-email", "taken@acme.com")
@@ -130,7 +97,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun removingAUserNeedsConfirmationAndTheAdminCannotRemoveThemselves() {
-        launchReady("stub_partner_signed_in").use {
+        launch("stub_partner_signed_in").use {
             openOrganization()
             waitFor("partner-remove-u2")
             assertTrue(absent("partner-remove-u1"))
@@ -157,7 +124,7 @@ class PartnerWiredFlowTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.addMonitor(monitor)
         try {
-            launchReady("stub_partner_signed_in").use {
+            launch("stub_partner_signed_in").use {
                 openOrganization()
                 compose.tapSafely("partner-export")
                 compose.waitUntil(15_000) { "GET /donor/partner/report.pdf" in DebugBackend.requestLog }
@@ -177,7 +144,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun aPendingApplicationShowsItsStatusAboveSignIn() {
-        launchReady("stub_application_pending").use {
+        launch("stub_application_pending").use {
             openApplicantSignIn()
             waitFor("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains("being reviewed", substring = true)
@@ -185,7 +152,7 @@ class PartnerWiredFlowTest {
     }
 
     private fun applicationShows(extra: String, text: String) {
-        launchReady(extra).use {
+        launch(extra).use {
             openApplicantSignIn()
             waitFor("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains(text, substring = true)
@@ -200,7 +167,7 @@ class PartnerWiredFlowTest {
     @Test fun anUnknownApplicationStateIsGeneric() = applicationShows("stub_application_unknown", "Check back soon")
 
     @Test fun withoutAReceiptThereIsNoApplicationCard() {
-        launchReady().use {
+        launch().use {
             openApplicantSignIn()
             compose.waitForIdle()
             assertTrue(absent("partner-application-status"))
@@ -219,7 +186,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun submittingAnApplicationStoresTheReceiptAndTheStatusCardThenShowsPending() {
-        launchReady().use {
+        launch().use {
             openApplicantSignIn()
             // No receipt yet: the status card is absent and the apply button is offered.
             assertTrue(absent("partner-application-status"))
@@ -235,7 +202,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun anInvalidApplicationShowsAnErrorAndKeepsTheFormForCorrection() {
-        launchReady("stub_application_submit_invalid").use {
+        launch("stub_application_submit_invalid").use {
             openApplicantSignIn()
             compose.tapSafely("partner-apply-in-app")
             waitFor("partner-app-submit")
@@ -247,8 +214,21 @@ class PartnerWiredFlowTest {
         }
     }
 
+    @Test fun aThrottledApplicationNamesTheWaitTheServerAsked() {
+        launch("stub_application_submit_throttled").use {
+            openApplicantSignIn()
+            compose.tapSafely("partner-apply-in-app")
+            waitFor("partner-app-submit")
+            fillApplication()
+            compose.tapSafely("partner-app-submit")
+            waitFor("partner-app-error")
+            compose.onNodeWithTag("partner-app-error").performScrollTo().assertTextContains("Please wait 30 seconds", substring = true)
+            assertTrue(absent("partner-application-status"))
+        }
+    }
+
     @Test fun anUnconfirmedSendLocksTheFormAndRetrySucceeds() {
-        launchReady("stub_application_submit_fails_first").use {
+        launch("stub_application_submit_fails_first").use {
             openApplicantSignIn()
             compose.tapSafely("partner-apply-in-app")
             waitFor("partner-app-submit")
@@ -263,7 +243,7 @@ class PartnerWiredFlowTest {
     }
 
     @Test fun signingOutReturnsToRoleSelectAndThePortalIsGone() {
-        launchReady("stub_partner_signed_in").use {
+        launch("stub_partner_signed_in").use {
             openOrganization()
             compose.tapSafely("partner-sign-out")
             waitFor("role-partner")

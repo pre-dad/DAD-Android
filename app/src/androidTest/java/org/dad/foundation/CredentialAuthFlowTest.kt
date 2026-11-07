@@ -26,7 +26,7 @@ class CredentialAuthFlowTest {
     private fun launch(): ActivityScenario<MainActivity> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, MainActivity::class.java).putExtra("stub_backend", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun waitFor(tag: String, timeout: Long = 15_000) =

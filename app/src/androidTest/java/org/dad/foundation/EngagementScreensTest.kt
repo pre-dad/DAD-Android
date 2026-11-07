@@ -83,5 +83,3 @@ class EngagementScreensTest {
         compose.onNodeWithTag("ranking-national").performScrollTo().assertTextContains("Top 1% nationally")
     }
 }
-
-private fun androidx.compose.ui.test.SemanticsNodeInteraction.performClick() = performClick()

@@ -28,7 +28,7 @@ class EngagementWiredFlowTest {
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         extras.forEach { intent.putExtra(it, true) }
         DebugBackend.resetRequestLog()
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()

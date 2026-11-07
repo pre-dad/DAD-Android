@@ -1,23 +1,20 @@
 package org.dad.foundation
 
+import android.app.Activity
+import android.app.Instrumentation
 import android.content.Intent
-import android.content.IntentFilter
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The events journey end to end through the REAL [WireEvents] conformer, [AccountSession] and Retrofit stack,
@@ -34,7 +31,7 @@ class EventsWiredFlowTest {
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         extras.forEach { intent.putExtra(it, true) }
         DebugBackend.resetRequestLog()
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
@@ -169,23 +166,37 @@ class EventsWiredFlowTest {
         }
     }
 
-    @Test fun addToCalendarOffersTheShareChooser() {
+    @Test fun addToCalendarHandsTheShareChooserTheIcsFile() {
+        // The system share sheet is another app and outlives the test on the headless emulator, so the chooser is
+        // intercepted at the app's own startActivity and inspected instead of being opened.
+        val chooser = AtomicReference<Intent?>(null)
+        val monitor = object : Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                if (intent.action != Intent.ACTION_CHOOSER) return null
+                chooser.set(intent)
+                return Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
+            }
+        }
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val monitor = instrumentation.addMonitor(IntentFilter(Intent.ACTION_CHOOSER), null, false)
+        instrumentation.addMonitor(monitor)
         try {
             launch().use {
                 openEvents()
                 openEvent(StubEvents.LATER)
                 tap("add-calendar")
                 compose.waitUntil(20_000) { DebugBackend.requestLog.contains("GET /donor/me/events/${StubEvents.LATER}/calendar.ics") }
-                val chooser: android.app.Activity? = monitor.waitForActivityWithTimeout(15_000)
-                assertNotNull("the share sheet should open", chooser)
-                assertTrue(DebugBackend.requestLog.toString(), DebugBackend.requestLog.contains("GET /donor/me/events/${StubEvents.LATER}/calendar.ics"))
-                chooser?.finish()
+                compose.waitUntil(20_000) { chooser.get() != null }
             }
         } finally {
             instrumentation.removeMonitor(monitor)
         }
+        @Suppress("DEPRECATION")
+        val send = checkNotNull(chooser.get()).getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+        assertEquals(Intent.ACTION_SEND, send?.action)
+        assertEquals("text/calendar", send?.type)
+        @Suppress("DEPRECATION")
+        val stream = send?.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+        assertTrue("$stream", stream?.path?.endsWith(".ics") == true)
     }
 
     @Test fun aDonorWhoIsNotEligibleIsToldSo() {
