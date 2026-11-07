@@ -216,6 +216,15 @@ class EventsTest {
 
     private fun modelOf(service: FakeService) = EventsModel(service) { now }.also { it.load(); dispatcher.scheduler.advanceUntilIdle() }
 
+    @Test fun aSecondLoadWhileOneIsInFlightIsIgnored() = runTest {
+        val service = FakeService()
+        val model = EventsModel(service) { now }
+        model.load(); model.load(); model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, service.listCalls)
+        model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, service.listCalls)
+    }
+
     @Test fun loadReadySortsEvents() = runTest {
         val model = modelOf(FakeService())
         assertEquals(EventsPhase.Ready, model.phase)

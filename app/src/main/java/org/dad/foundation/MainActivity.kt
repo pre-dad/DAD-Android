@@ -79,7 +79,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -90,38 +89,6 @@ sealed interface AccountState {
     data class Ready(val profile: AccountProfile) : AccountState
     data object Unavailable : AccountState
     data object SignedOut : AccountState
-}
-
-private class PreviewStore(signedIn: Boolean = true) : CredentialStore {
-    private var value: Credentials? = if (signedIn) Credentials("preview", "preview-refresh", Long.MAX_VALUE) else null
-    override fun load() = value
-    override fun save(value: Credentials) { this.value = value }
-    override fun clear() { value = null }
-}
-private class PreviewAPI(private var failFirst: Boolean) : AccountAPI {
-    override suspend fun profile(access: String): AccountProfile {
-        delay(250)
-        if (failFirst) { failFirst = false; throw AccountFailure.Unavailable }
-        return AccountProfile("alex@example.org", "Alex")
-    }
-    override suspend fun refresh(token: String): Credentials = throw AccountFailure.SignedOut
-    override suspend fun claim(token: String): Credentials = throw AccountFailure.Unavailable
-    override suspend fun logout(access: String) = Unit
-}
-/** DEBUG preview sign-in (`preview_signed_out`): accepts code 123456, never touches a network. */
-private class PreviewSignIn : SignInService {
-    override suspend fun requestPhoneCode(phone: String): String = phone
-    override suspend fun verifyPhone(handle: String, code: String): Credentials =
-        if (code == "123456") Credentials("preview", "preview-refresh", Long.MAX_VALUE) else throw AccountFailure.SignedOut
-}
-/** Preview settings tied to the live (preview) session, so signing out or deleting from the donor
- *  shell really ends the session and routes back to sign-in, like a release build. */
-private class PreviewSessionSettings(private val session: AccountSession) : SettingsService {
-    private val inner = PreviewSettingsService()
-    override suspend fun load() = inner.load()
-    override suspend fun savePreferences(preferences: Preferences) = inner.savePreferences(preferences)
-    override suspend fun deleteAccount() { session.discardLocal() }
-    override suspend fun signOut() { session.logout() }
 }
 
 class AccountModel(
@@ -482,12 +449,7 @@ class MainActivity : ComponentActivity() {
             stubAnalyticsUnset = BuildConfig.DEBUG && intent.getBooleanExtra("stub_analytics_unset", false),
             stubPush = BuildConfig.DEBUG && intent.getBooleanExtra("stub_push", false),
         )
-        val giving = BuildConfig.DEBUG && intent.getBooleanExtra("preview_giving", false)
-        val impact = BuildConfig.DEBUG && (intent.getBooleanExtra("preview_impact", false) || intent.getBooleanExtra("preview_network", false))
-        val events = BuildConfig.DEBUG && intent.getBooleanExtra("preview_events", false)
-        val settings = BuildConfig.DEBUG && intent.getBooleanExtra("preview_settings", false)
-        val partner = BuildConfig.DEBUG && intent.getBooleanExtra("preview_partner", false)
-        val partnerViewer = BuildConfig.DEBUG && intent.getBooleanExtra("preview_partner_viewer", false)
+        val preview = debugPreviewScreen(this, intent)
         val appContext = applicationContext
         // Only a fresh launch carries a link or notification tap: after a rotation the same intent would be replayed
         // (re-counting `push_opened` and re-capturing the referral).
@@ -500,15 +462,9 @@ class MainActivity : ComponentActivity() {
                 AccountModel(factory = factory@{ scope, options ->
                     if (BuildConfig.DEBUG) DebugBackend.stub(appContext, scope, options)?.let { return@factory it }
                     if (BuildConfig.DAD_API_ORIGIN.isBlank()) {
-                        // The synthetic (PreviewAPI/PreviewStore) path must NEVER ship in a release
-                        // build: a blank origin there is a misconfiguration, not a demo mode, and
-                        // falling back would serve synthetic data as if real. Fail fast in release
-                        // (the model then shows a "not configured" notice); only debug builds get
-                        // the synthetic fallback.
-                        check(BuildConfig.DEBUG) { "DAD_API_ORIGIN must be set for a release build" }
-                        val session = AccountSession(PreviewAPI(options.unavailableFirst), PreviewStore(!options.signedOut), scope)
-                        AppServices(session, PreviewSignIn(), PreviewSessionSettings(session),
-                            partner = PartnerKit(PartnerSession(PreviewStore(signedIn = false)), PreviewPartnerSignIn, PreviewPartnerService()))
+                        // A blank origin in a release build is a misconfiguration, not a demo mode: fail fast rather than
+                        // serve synthetic data as if real. Only debug builds have the preview fallback.
+                        checkNotNull(debugPreviewServices(scope, options)) { "DAD_API_ORIGIN must be set for a release build" }
                     } else {
                         val origin = BuildConfig.DAD_API_ORIGIN
                         lateinit var session: AccountSession
@@ -634,7 +590,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val partnerKit = model.partner
                     when (val current = root) {
-                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && !partner && !partnerViewer ->
+                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
                             PartnerPortal(
                                 viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
                                 publicOrigin = linkPublicOrigin,
@@ -642,25 +598,8 @@ class MainActivity : ComponentActivity() {
                                 pushTokens = model.pushTokens,
                             )
                         is RoleRouter.Root.Restoring, is RoleRouter.Root.Authenticated ->
-                            if (partnerViewer) {
-                                PartnerPortal(viewModel(factory = PartnerModel.previewFactory(role = PartnerRole.VIEWER)), publicOrigin = "https://dad.example")
-                            } else if (partner) {
-                                PartnerPortal(viewModel(factory = PartnerModel.previewFactory()), publicOrigin = "https://dad.example")
-                            } else if (giving) {
-                                // Giving preview exercises the signed-in GiftScreen directly. The
-                                // donor shell reaches Restoring/Authenticated immediately (hasSession
-                                // starts true), so there is no load-delay gap to short-circuit.
-                                GiftScreen(viewModel(factory = GivingModel.previewFactory()), stubComplete = { })
-                            } else if (impact) {
-                                EngagementHome(
-                                    viewModel(factory = EngagementModel.previewFactory()),
-                                    publicOrigin = "https://dad.example",
-                                    sharer = ReferralShareAction(AndroidReferralSharer(this@MainActivity)),
-                                )
-                            } else if (events) {
-                                EventsScreen(viewModel(factory = EventsModel.previewFactory()))
-                            } else if (settings) {
-                                SettingsHome(viewModel(factory = SettingsModel.previewFactory()))
+                            if (preview != null) {
+                                preview()
                             } else {
                                 DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
                             }
@@ -901,7 +840,7 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                     Pushed.Gift -> if (giving != null) {
                         // Pushed from Settings' cancel-gift: back returns to Settings.
                         BackHandler { pushed = Pushed.Settings }
-                        holder.SaveableStateProvider("gift") {
+                        holder.SaveableStateProvider("pushed-gift") {
                             GiftScreen(giving, stubComplete = kit.stubComplete, onClose = { pushed = Pushed.Settings }, onSignedOut = { pushed = null; model.onSignedOut() })
                         }
                     }
@@ -1093,7 +1032,7 @@ private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {})
 // opt-in, sign out, and the store-mandated delete-account flow with a typed-word confirm gate.
 // Bound to SettingsModel; all inline (no OS dialogs), per the UITest-determinism lesson.
 @Composable
-private fun SettingsHome(
+internal fun SettingsHome(
     model: SettingsModel, onBack: (() -> Unit)? = null, onSignedOut: (() -> Unit)? = null, password: PasswordChangeModel? = null,
     onCancelGift: (() -> Unit)? = null, management: AccountManagementService? = null, generation: Int = 0,
     analytics: AnalyticsUploader? = null,

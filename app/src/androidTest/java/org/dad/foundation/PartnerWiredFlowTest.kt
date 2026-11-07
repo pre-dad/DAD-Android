@@ -3,6 +3,7 @@ package org.dad.foundation
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
@@ -89,10 +90,16 @@ class PartnerWiredFlowTest {
             waitFor("partner-action-error")
             compose.onNodeWithTag("partner-action-error").performScrollTo()
                 .assertTextContains("That email already signs in to DAD with another role or organization.")
-            compose.enterText("partner-invite-name", "New Person")
-            compose.enterText("partner-invite-email", "new.person@acme.com")
+            // A refused invite keeps what was typed, so it can be corrected rather than retyped.
+            compose.onNodeWithTag("partner-invite-name").assertTextContains("Taken Person")
+            compose.onNodeWithTag("partner-invite-email").assertTextContains("taken@acme.com")
+            compose.enterText("partner-invite-name", "New Person", replace = true)
+            compose.enterText("partner-invite-email", "new.person@acme.com", replace = true)
             compose.tapSafely("partner-invite")
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("New Person · Viewer")).fetchSemanticsNodes().isNotEmpty() }
+            // Only an accepted invite clears the form.
+            compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("partner-invite-email") and hasText("new.person@acme.com")).fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithTag("partner-invite-name").assert(hasText("New Person").not())
         }
     }
 
