@@ -435,10 +435,11 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 16.dp)) {
                 Text("Gift history", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
-                model.summary?.let { summary ->
-                    HomeCard("history-summary") {
+                listOf("" to model.summary, "-prior" to model.priorSummary).forEach { (suffix, summary) ->
+                    if (summary == null) return@forEach
+                    HomeCard("history-summary$suffix") {
                         Text("${summary.year} total", style = MaterialTheme.typography.labelLarge)
-                        Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total"))
+                        Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total$suffix"))
                         Text("Sandbox records, not tax receipts.", style = MaterialTheme.typography.bodySmall)
                     }
                 }

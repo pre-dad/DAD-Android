@@ -184,6 +184,26 @@ class DonorHomeModelsTest {
 
     private fun pageOf(range: IntRange, next: Int?) = GiftHistoryPage(range.map(::gift), next)
 
+    @Test fun januaryHistoryAlsoLoadsLastYearsSummary() = runTest {
+        val years = mutableListOf<Int>()
+        val service = object : DashboardService by FakeService() {
+            override suspend fun gifts(offset: Int) = GiftHistoryPage(emptyList(), null)
+            override suspend fun annualSummary(year: Int): AnnualGivingSummary {
+                years += year
+                return AnnualGivingSummary(year, 1, 1000, 0, 1000, false)
+            }
+        }
+        val january = GiftHistoryModel(service, year = 2027, showPriorYear = true)
+        january.load(); idle()
+        assertEquals(listOf(2027, 2026), years)
+        assertEquals(2026, january.priorSummary?.year)
+        years.clear()
+        val november = GiftHistoryModel(service, year = 2026, showPriorYear = false)
+        november.load(); idle()
+        assertEquals(listOf(2026), years)
+        assertNull(november.priorSummary)
+    }
+
     @Test fun historyLoadsTheFirstPageThenPagesToTheEnd() = runTest {
         val service = FakeService().apply {
             giftsResult = { offset -> when (offset) { 0 -> pageOf(0..49, 50); 50 -> pageOf(50..99, 100); else -> pageOf(100..119, null) } }

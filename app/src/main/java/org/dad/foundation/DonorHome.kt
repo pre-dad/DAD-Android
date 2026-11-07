@@ -273,6 +273,7 @@ class DashboardModel(private val service: DashboardService) : ViewModel() {
 class GiftHistoryModel(
     private val service: DashboardService,
     private val year: Int = java.time.LocalDate.now().year,
+    private val showPriorYear: Boolean = java.time.LocalDate.now().monthValue == 1,
 ) : ViewModel() {
     sealed interface Phase {
         data object Loading : Phase
@@ -298,6 +299,9 @@ class GiftHistoryModel(
     var moreError: String? by mutableStateOf(null)
         private set
     var summary: AnnualGivingSummary? by mutableStateOf(null)
+        private set
+    /** Only in January: last year's total, which is when donors reach for it (year-end tax summary). */
+    var priorSummary: AnnualGivingSummary? by mutableStateOf(null)
         private set
     var receipt: ReceiptPhase? by mutableStateOf(null)
         private set
@@ -340,7 +344,12 @@ class GiftHistoryModel(
             val loaded = try { service.annualSummary(year) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { null }
-            if (current == generation) summary = loaded
+            val prior = if (showPriorYear) {
+                try { service.annualSummary(year - 1) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { null }
+            } else null
+            if (current == generation) { summary = loaded; priorSummary = prior }
         }
     }
 
