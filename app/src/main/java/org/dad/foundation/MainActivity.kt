@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -47,6 +48,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -178,6 +180,7 @@ class AccountModel(
                     services = it; signIn = it.signIn; settings = it.settings; passwordSettings = it.passwordSettings; dashboard = it.dashboard; giving = it.giving; events = it.events; engagement = it.engagement
                     management = it.management; wallet = it.wallet; partner = it.partner; analytics = it.analytics; pushTokens = it.pushTokens
                     auth = AuthServices(it.signIn, it.signup, it.signInLink, it.passwordSignIn, it.external)
+                    watchTokenRotations(it)
                 }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
@@ -270,6 +273,21 @@ class AccountModel(
         partnerSignedIn = true
     }
 
+    /** A token the platform rotates mid-session is registered right away; with no session the next sign-in registers it. */
+    private fun watchTokenRotations(active: AppServices) {
+        val push = active.push ?: return
+        if (active.pushTokens == null) return
+        viewModelScope.launch(io) {
+            PushTokenRelay.refreshed.collect { token ->
+                if (hasSession) {
+                    try { push.register(token) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { pushRegistered = false }
+                }
+            }
+        }
+    }
+
     /** Best-effort, once per sign-in and launch: platforms rotate tokens, so the server wants every launch. */
     private fun registerPush(active: AppServices) {
         val push = active.push ?: return
@@ -352,6 +370,8 @@ class AccountModel(
 private fun tokenColor(name: String) = Color(DADTokens.color.getValue(name).toColorInt())
 
 class MainActivity : ComponentActivity() {
+    // A refusal is final for the app: the ledger stops it being asked again, and notifications simply stay off.
+    private val notificationPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     private var incomingLink: String? = null
     private var linkEvent by mutableIntStateOf(0)
     private var incomingTap: PushTap? = null
@@ -455,12 +475,16 @@ class MainActivity : ComponentActivity() {
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
                         val product = ProductClient(origin, session, http)
+                        val pushOptOuts = PrefsPushOptOuts(appContext)
                         val credentialAuth = WireCredentialAuth(origin, android.os.Build.MODEL, http)
                         val external = WireExternalSignIn(origin, android.os.Build.MODEL, http)
                         AppServices(
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
-                            WireSettings(product, onLocalWipe = { attribution.clear(); linkTokens.clear(); milestones.clear() }),
+                            PushMirroringSettings(
+                                WireSettings(product, onLocalWipe = { attribution.clear(); linkTokens.clear(); milestones.clear() }),
+                                record = pushOptOuts::record, clear = pushOptOuts::clear,
+                            ),
                             signup = credentialAuth,
                             signInLink = credentialAuth,
                             passwordSignIn = credentialAuth,
@@ -480,6 +504,7 @@ class MainActivity : ComponentActivity() {
                             },
                             analytics = analytics,
                             push = WireDonorPush(product),
+                            pushTokens = firebasePushTokens(appContext),
                             links = LinkAttribution(WireLinkAttribution(origin, product, http), linkTokens, analytics),
                             external = ExternalSignInDeps(
                                 // No Credential Manager provider is linked, so a configured ID alone never switches a method on.
@@ -510,6 +535,14 @@ class MainActivity : ComponentActivity() {
                 incomingTap?.let { model.openNotification(it, linkRouter) }
                 incomingTap = null
             }
+            val pushLedger = remember { PushPermissionLedger(this@MainActivity) }
+            var explainPush by remember { mutableStateOf(false) }
+            val signedInAndReady = model.hasSession && model.state is AccountState.Ready
+            LaunchedEffect(signedInAndReady) {
+                val granted = getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+                val pushAvailable = model.pushTokens != null && firebasePushAvailable(this@MainActivity)
+                if (PushPermissionPolicy.shouldAsk(android.os.Build.VERSION.SDK_INT, granted, pushLedger.asked, pushAvailable, signedInAndReady)) explainPush = true
+            }
             val dark = isSystemInDarkTheme()
             // Material primary mirrors the web/DAD primary button: brand fill with an ink label
             // (ink-on-brand = 5.11:1, WCAG AA) in both themes. Text links/icons on the page keep
@@ -524,6 +557,21 @@ class MainActivity : ComponentActivity() {
                     medium = RoundedCornerShape(DadTheme.radius("card")),
                 ),
             ) {
+                if (explainPush) {
+                    AlertDialog(
+                        onDismissRequest = { explainPush = false; pushLedger.asked = true },
+                        title = { Text("Turn on notifications?") },
+                        text = { Text("DAD can let you know when someone joins through you, when your streak needs a gift, and about your events. You choose which in Settings.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                explainPush = false
+                                pushLedger.asked = true
+                                notificationPermission.launch(PushPermissionPolicy.PERMISSION)
+                            }) { Text("Continue") }
+                        },
+                        dismissButton = { TextButton(onClick = { explainPush = false; pushLedger.asked = true }) { Text("Not now") } },
+                    )
+                }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val router = remember { RoleRouter() }
                     var root by remember { mutableStateOf<RoleRouter.Root>(router.root) }
