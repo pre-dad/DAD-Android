@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import java.io.ByteArrayOutputStream
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -267,7 +268,16 @@ private enum class PartnerSection(val label: String) { OVERVIEW("Overview"), INI
 @Composable
 fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> Unit = {}, pushTokens: PushTokenProvider? = null) {
     LaunchedEffect(Unit) { model.load() }
-    LaunchedEffect(pushTokens) { runCatching { pushTokens?.token() }.getOrNull()?.let(model::registerPush) }
+    LaunchedEffect(pushTokens) {
+        val token = try {
+            pushTokens?.token()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        token?.let(model::registerPush)
+    }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
     PartnerReportShare(model)
     var section by rememberSaveable { mutableStateOf(PartnerSection.OVERVIEW) }
@@ -439,15 +449,36 @@ private fun PartnerProfileEditor(model: PartnerModel, snapshot: PartnerSnapshot)
 
 /** Scales a picked image to the server's logo limits: a PNG no larger than 512 by 512 pixels and 256 KiB. */
 internal object LogoImage {
+    private const val MAX_SOURCE_BYTES = 20 * 1024 * 1024
+    private const val MAX_PNG_BYTES = 256 * 1024
+
     fun png(context: Context, uri: Uri): ByteArray? {
-        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() ?: return null
-        val image = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val out = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read < 0) break
+                    out.write(buffer, 0, read)
+                    if (out.size() > MAX_SOURCE_BYTES) return null
+                }
+                out.toByteArray()
+            }
+        }.getOrNull() ?: return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        // Decode no larger than needed: a full-resolution camera photo would cost hundreds of megabytes.
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 512) sample *= 2
+        val image = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
         var side = 512
         while (side >= 64) {
             val scale = minOf(1f, side.toFloat() / maxOf(image.width, image.height))
             val scaled = image.scale(maxOf(1, (image.width * scale).toInt()), maxOf(1, (image.height * scale).toInt()))
             val png = ByteArrayOutputStream().also { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
-            if (png.size <= 256 * 1024) return png
+            if (png.size <= MAX_PNG_BYTES) return png
             side /= 2
         }
         return null
