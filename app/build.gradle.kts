@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Push is dormant until the owner adds app/google-services.json (see README "Enabling push"): the plugin is
+// applied only then, and without it Firebase never initialises, so every build and test still works.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 // Release signing credentials live in keystore.properties (gitignored); see
 // keystore.properties.example. Absent (CI, local debug builds) the release
 // signing config is simply not wired, so an unsigned release build fails loudly
@@ -154,6 +158,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.6.2")
     implementation("androidx.camera:camera-view:1.6.2")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // Push (FCM). The BoM pins the matching firebase-messaging version.
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation("com.google.firebase:firebase-messaging")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

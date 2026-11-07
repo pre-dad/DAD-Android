@@ -264,11 +264,24 @@ Declare this in the Play Data safety form as app interactions collected for anal
 **Push** registers the donor (`registerPushDevice`, at every launch and sign-in; the server drops the token when the
 session ends) and the partner (`partnerRegisterPushDevice`, unregistered on sign-out). A tapped notification's
 `category` is counted as `push_opened` and its `path` opens the matching screen (`/account/gifts` gift history,
-`/account/payment-method` the gift screen, `/account/profile` Settings), after sign-in if need be. **Owner
-dependency:** no push provider is linked, so there is no token and nothing is registered. Turning push on needs a
-Firebase project for the app ID, its `google-services` configuration, the Firebase Messaging dependency (a
-dependency decision), an implementation of `PushTokenProvider`, the `POST_NOTIFICATIONS` runtime permission on
-Android 13+, and DAD-Main's FCM credentials. `stub_push` exercises the rest with a fixed token.
+`/account/payment-method` the gift screen, `/account/profile` Settings), after sign-in if need be. Push is built but dormant until Firebase is configured (below);
+`stub_push` exercises the rest with a fixed token.
+
+### Enabling push
+
+Firebase Cloud Messaging is wired in (`firebase-messaging` via Firebase BoM 35.1.0, `DadMessagingService`, one
+notification channel per Settings category, the `POST_NOTIFICATIONS` prompt on Android 13+ after sign-in). Without
+`app/google-services.json` Firebase never initialises: the app builds, passes its tests and runs with push off, and
+no permission prompt appears. To turn it on:
+
+1. Create a Firebase project and register two Android apps, `org.dad.foundation` and `org.dad.foundation.debug`.
+2. Download `google-services.json` (it holds both) into `app/`. Its presence applies the `com.google.gms.google-services`
+   plugin on the next build; nothing else changes in the code.
+3. Give DAD-Main the FCM credentials (a service account for the HTTP v1 API) so it can deliver. Until it does,
+   `registerPushDevice` answers 503 `PUSH_UNCONFIGURED` and the app carries on.
+
+Messages must be data messages carrying `category`, `path`, `body` and optionally `title`; a category the donor turned
+off in Settings is dropped on the device as well as by the server.
 
 **Referral and company-code links (contract 2.10).** An invite (`/r/<code>`, `?via=irl` in person) or company
 (`/c/<code>`) link that opens the app is recorded with DAD-Main (`captureReferral` / `captureCompany`), and the visitor
