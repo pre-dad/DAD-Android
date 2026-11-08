@@ -12,10 +12,15 @@ contract. Start with these; this file only adds what they do not say.
 
 ```sh
 node scripts/check-foundation.mjs
+node scripts/check-hardcoded-strings.mjs
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
 ```
 
 CI runs the same on API 35 and **lint treats warnings as errors**.
+
+User-visible text is never a literal in `app/src/main`: add it to `res/values/strings.xml` (formatting
+arguments or `<plurals>` for counts, never concatenated sentences) and use `stringResource`, or return a
+`UiText` from a model. `scripts/check-hardcoded-strings.mjs` enforces this in CI.
 
 ## Branch and push discipline
 

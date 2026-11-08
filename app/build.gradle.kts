@@ -90,6 +90,9 @@ android {
         // (or Gradle) ships a new version. Disable them; real lint warnings still
         // fail the build.
         disable += setOf("NewerVersionAvailable", "AndroidGradlePluginVersion")
+        // Text must come from resources. HardcodedText only reads XML layouts, so scripts/check-hardcoded-strings.mjs
+        // covers Compose; these keep any view-based text from slipping in.
+        error += setOf("HardcodedText", "SetTextI18n")
     }
 }
 
