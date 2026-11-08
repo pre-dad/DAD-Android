@@ -1,10 +1,14 @@
 package org.dad.foundation
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -292,9 +296,34 @@ class WireEventsTest {
         assertNull(rig.store.value)
     }
 
-    @Test fun cancellationPropagatesUntouched() = runTest {
-        val rig = Rig(backgroundScope) { throw CancellationException("left the screen") }
-        val thrown = failure { rig.wire.events() }
-        assertTrue("$thrown", thrown is CancellationException || thrown is java.io.IOException)
+    @Test fun aLostConnectionIsUnavailableAndNotMistakenForAnEndedSession() = runTest {
+        for (lost in listOf(java.io.IOException("offline"), java.net.SocketTimeoutException("timeout"), java.net.UnknownHostException("dns"))) {
+            val rig = Rig(backgroundScope) { throw lost }
+            assertSame(AccountFailure.Unavailable, failure { rig.wire.events() })
+            assertSame(AccountFailure.Unavailable, failure { rig.wire.reserve(id1) })
+            assertTrue(rig.session.isSignedIn())
+            assertEquals("access-0", rig.store.value?.access)
+        }
+    }
+
+    @Test fun cancellingARequestInFlightRethrowsCancellationAndKeepsTheSession() = runTest {
+        val started = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val rig = Rig(backgroundScope) { _ ->
+            started.countDown()
+            release.await(10, java.util.concurrent.TimeUnit.SECONDS)
+            200 to list(view())
+        }
+        val thrown = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        val read = async(Dispatchers.Default) {
+            try { rig.wire.events() } catch (error: Throwable) { thrown.set(error); throw error }
+        }
+        withContext(Dispatchers.IO) { assertTrue(started.await(10, java.util.concurrent.TimeUnit.SECONDS)) }
+        read.cancel()
+        release.countDown()
+        withContext(Dispatchers.IO) { read.join() }
+        assertTrue(read.isCancelled)
+        assertTrue("expected CancellationException, got ${thrown.get()}", thrown.get() is CancellationException)
+        assertTrue(rig.session.isSignedIn())
     }
 }

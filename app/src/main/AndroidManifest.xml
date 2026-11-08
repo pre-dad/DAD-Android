@@ -2,10 +2,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Asked only when the donor taps "Scan QR code". Typing the code always works, so a camera is optional. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Asked on Android 13+ after the first sign-in, with an explanation; declining only turns notifications off. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <application android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@drawable/app_icon"
-        android:label="DAD Preview" android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:label="@string/app_name" android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -32,6 +34,11 @@
                 <data android:path="/account/gifts" />
             </intent-filter>
         </activity-alias>
+        <service android:name=".DadMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>

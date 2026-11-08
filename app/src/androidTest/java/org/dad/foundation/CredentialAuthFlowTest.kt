@@ -26,7 +26,7 @@ class CredentialAuthFlowTest {
     private fun launch(): ActivityScenario<MainActivity> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, MainActivity::class.java).putExtra("stub_backend", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return ActivityScenario.launch(intent)
+        return compose.launchReady(intent)
     }
 
     private fun waitFor(tag: String, timeout: Long = 15_000) =
@@ -178,12 +178,12 @@ class CredentialAuthFlowTest {
         }
     }
 
-    @Test fun googleAndPasskeyShowTheNotAvailableHint() {
+    @Test fun googleAndPasskeyAreHiddenWhileNoProviderIsWired() {
         launch().use {
             openMethods()
-            // The lower-emphasis methods and their "not available yet" hint now live under "More options".
             compose.tapSafely("more-options")
-            compose.onNodeWithTag("external-unavailable").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithTag("method-password").performScrollTo().assertIsDisplayed()
+            assertTrue(absent("external-unavailable"))
             assertTrue(absent("method-google"))
             assertTrue(absent("method-passkey"))
         }

@@ -210,8 +210,25 @@ class CredentialAuthModelsTest {
     @Test fun cancellationIsNotShownAsAnError() {
         val m = PasswordSignInModel(FakePasswordSignIn(CancellationException("x"))) { produce -> produce() }
         m.email = "a@b.co"; m.password = "pw"
-        runCatching { m.submit() }
-        assertFalse(m.phase is PasswordSignInPhase.Failed)
+        m.submit()
+        assertEquals(PasswordSignInPhase.Submitting, m.phase)
+    }
+
+    @Test fun aSecondSubmitWhileOneIsInFlightIsIgnored() {
+        val gate = CompletableDeferred<Unit>()
+        val calls = mutableListOf<String>()
+        val service = object : PasswordSignInService {
+            override suspend fun signIn(email: String, password: String): Credentials { calls += email; gate.await(); return validCredentials("p") }
+        }
+        val m = PasswordSignInModel(service, passThrough)
+        m.email = "a@b.co"; m.password = "pw"
+        m.submit()
+        m.password = "pw"
+        assertFalse(m.canSubmit)
+        m.submit()
+        gate.complete(Unit)
+        assertEquals(1, calls.size)
+        assertEquals(PasswordSignInPhase.SignedIn, m.phase)
     }
 
     // MARK: change password

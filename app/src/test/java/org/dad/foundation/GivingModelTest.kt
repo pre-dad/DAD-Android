@@ -149,6 +149,20 @@ class GivingModelTest {
         assertEquals(GivingPhase.Idle, model.phase)
     }
 
+    @Test fun theSelectedAmountIsAlwaysWithinOneToThirtyDollarsADay() = runTest {
+        val service = Fake()
+        val model = loaded(service)
+        model.setDaily(Int.MAX_VALUE)
+        assertEquals(30, model.selection.dailyDollars)
+        model.setDaily(-5)
+        assertEquals(1, model.selection.dailyDollars)
+        model.setDaily(0)
+        assertEquals(1, model.selection.dailyDollars)
+        model.setDaily(99)
+        model.startGift(); advanceUntilIdle()
+        assertEquals(90000, service.startedAmount)
+    }
+
     @Test fun afterTheHostedPageClosesTheModelPollsUntilTheSubscriptionIsPresent() = runTest {
         val service = Fake()
         val model = loaded(service)

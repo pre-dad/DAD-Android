@@ -9,11 +9,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
-import java.util.Date
 
 // Partner portal view models + the service seam. The models own load/ready/failed state, role-gated actions
 // and push register/unregister, so they are unit-tested without a network or UI — the Kotlin counterpart of
@@ -111,9 +111,12 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
      *  capability gates never open early. */
     val role: PartnerRole get() = snapshot?.overview?.role ?: PartnerRole.VIEWER
 
+    private var loading: Job? = null
+
     fun load() {
+        if (loading?.isActive == true) return
         phase = PartnerPhase.Loading
-        viewModelScope.launch {
+        loading = viewModelScope.launch {
             try {
                 // Overview first: it carries the role every other section and action is gated on.
                 val overview = service.overview()
@@ -184,7 +187,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     private fun update(change: (PartnerSnapshot) -> PartnerSnapshot) { snapshot = snapshot?.let(change) }
 
     /** Invite a user (P-13), admin-only. Gated client-side; the server re-checks. */
-    fun inviteUser(email: String, name: String, role: PartnerRole) {
+    fun inviteUser(email: String, name: String, role: PartnerRole, onInvited: () -> Unit = {}) {
         if (!this.role.canManageUsers) { actionError = "Only an admin can invite users."; return }
         if (!isPlausibleEmail(email)) { actionError = "Enter a valid email address."; return }
         val trimmedName = name.trim()
@@ -193,6 +196,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
         act("Invitation sent to $address.", invalid = "Check the name and email address, then try again.",
             conflict = "That email already signs in to DAD with another role or organization.") {
             service.inviteUser(address, trimmedName, role)
+            onInvited()
             val users = runCatching { service.users() }.getOrNull()
             if (users != null) update { it.copy(users = users) }
         }
@@ -329,8 +333,6 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
         fun factory(service: PartnerService): ViewModelProvider.Factory = viewModelFactory {
             initializer { PartnerModel(service) }
         }
-        fun previewFactory(role: PartnerRole = PartnerRole.ADMIN): ViewModelProvider.Factory =
-            viewModelFactory { initializer { PartnerModel(PreviewPartnerService(role)) } }
     }
 }
 
@@ -422,64 +424,4 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
     companion object {
         fun factory(service: PartnerSignInService): ViewModelProvider.Factory = viewModelFactory { initializer { PartnerSignInModel(service) } }
     }
-}
-
-/** Accepts any partner link, so the DEBUG preview's partner sign-in runs with no backend. */
-object PreviewPartnerSignIn : PartnerSignInService {
-    override suspend fun requestSignInLink(email: String) {}
-    override suspend fun accept(token: String) {}
-}
-
-/** In-memory partner service for previews/UITests: an admin or viewer portal. */
-class PreviewPartnerService(private val role: PartnerRole = PartnerRole.ADMIN) : PartnerService {
-    private val userList = mutableListOf(
-        PartnerUser("u1", "ada@acme.com", "Ada Admin", PartnerRole.ADMIN),
-        PartnerUser("u2", "val@acme.com", "Val Viewer", PartnerRole.VIEWER),
-    )
-    private var organization = "Acme Corp"
-    private var about = "Doing good together."
-    private var workforce = 240
-    private var savedLogo: ByteArray? = null
-
-    override suspend fun overview(): PartnerOverview = PartnerOverview(
-        organization = organization, description = about, role = role, companyCode = "ACME",
-        committed = VerifiedMoney(5_000_000, verified = true),
-        deployed = VerifiedMoney(3_000_000, verified = false), // unverified -> hidden (§7.3)
-        deployedPercent = 60,
-        peopleReached = VerifiedCount(12_400, verified = true),
-        employeesEnrolled = 86, workforceSize = workforce, enrolledPercent = 35,
-        updatedAt = Date(1_793_000_000_000), hasLogo = savedLogo != null,
-        userId = if (role == PartnerRole.ADMIN) "u1" else "u2",
-    )
-
-    override suspend fun initiatives(): List<PartnerInitiative> = listOf(
-        PartnerInitiative("i1", "Clean Water West", "Wells across 6 counties.", InitiativeStatus.ACTIVE,
-            "West", 2_000_000, 1_200_000,
-            listOf(PartnerMetric("People reached", 8400, PartnerMetric.Unit.PEOPLE),
-                   PartnerMetric("Wells", 32, PartnerMetric.Unit.INITIATIVES))),
-    )
-
-    override suspend fun spend(): List<PartnerSpendCategory> = listOf(
-        PartnerSpendCategory("Water", 1_800_000), PartnerSpendCategory("Housing", 1_200_000),
-    )
-
-    override suspend fun people(): PartnerPeople =
-        PartnerPeople(86, workforce, 940_000, 470_000, 42, 6_300, 7, suppressed = false)
-
-    override suspend fun teams(): List<TeamStanding> = listOf(TeamStanding("t1", "Engineering", 31, 1_200_000, 40, 1_200))
-    override suspend fun users(): List<PartnerUser> = userList.toList()
-    override suspend fun inviteUser(email: String, name: String, role: PartnerRole) {
-        userList.add(PartnerUser("u${userList.size + 1}", email, name, role))
-    }
-    override suspend fun removeUser(id: String) { userList.removeAll { it.id == id } }
-    override suspend fun saveProfile(organization: String, description: String) { this.organization = organization; about = description }
-    override suspend fun saveWorkforce(size: Int) { workforce = size }
-    override suspend fun logo(): ByteArray? = savedLogo
-    override suspend fun saveLogo(png: ByteArray?) { savedLogo = png }
-    override suspend fun exports(): List<PartnerExport> = emptyList()
-    override suspend fun report(): ByteArray = "%PDF-1.4 preview".toByteArray()
-    override suspend fun retainedReport(id: String): ByteArray = throw AccountFailure.NotFound
-    override suspend fun signOut() {}
-    override suspend fun registerPushDevice(token: String) {}
-    override suspend fun unregisterPushDevice() {}
 }

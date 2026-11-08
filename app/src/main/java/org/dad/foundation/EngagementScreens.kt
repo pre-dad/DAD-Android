@@ -378,26 +378,26 @@ fun InitiativeSpendScreen(model: InitiativeSpendModel, title: String, onClose: (
             Text("Where the money went", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
             Text(title, style = MaterialTheme.typography.titleMedium)
             when (val phase = model.phase) {
-            InitiativeSpendModel.Phase.Loading -> CircularProgressIndicator(modifier = Modifier.testTag("spend-loading"))
-            InitiativeSpendModel.Phase.Unpublished -> Text("This initiative’s spending hasn’t been published yet.", modifier = Modifier.testTag("spend-unpublished"))
-            is InitiativeSpendModel.Phase.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(phase.message, modifier = Modifier.testTag("spend-error"))
-                DadPrimaryButton("Try again", Modifier.testTag("spend-retry")) { model.load() }
-            }
-            is InitiativeSpendModel.Phase.Ready -> {
-                HomeCard("spend-summary") {
-                    Text("Total spent", style = MaterialTheme.typography.labelLarge)
-                    Text(phase.spend.totalLabel, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("spend-total"))
+                InitiativeSpendModel.Phase.Loading -> CircularProgressIndicator(modifier = Modifier.testTag("spend-loading"))
+                InitiativeSpendModel.Phase.Unpublished -> Text("This initiative’s spending hasn’t been published yet.", modifier = Modifier.testTag("spend-unpublished"))
+                is InitiativeSpendModel.Phase.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(phase.message, modifier = Modifier.testTag("spend-error"))
+                    DadPrimaryButton("Try again", Modifier.testTag("spend-retry")) { model.load() }
                 }
-                if (phase.spend.categories.isEmpty()) Text("No spending by category yet.", modifier = Modifier.testTag("spend-empty"))
-                phase.spend.categories.forEachIndexed { index, category ->
-                    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}.testTag("spend-row-$index"), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(category.category, modifier = Modifier.weight(1f))
-                        Text(category.amountLabel)
+                is InitiativeSpendModel.Phase.Ready -> {
+                    HomeCard("spend-summary") {
+                        Text("Total spent", style = MaterialTheme.typography.labelLarge)
+                        Text(phase.spend.totalLabel, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("spend-total"))
                     }
+                    if (phase.spend.categories.isEmpty()) Text("No spending by category yet.", modifier = Modifier.testTag("spend-empty"))
+                    phase.spend.categories.forEachIndexed { index, category ->
+                        Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}.testTag("spend-row-$index"), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(category.category, modifier = Modifier.weight(1f))
+                            Text(category.amountLabel)
+                        }
+                    }
+                    Text("Totals by category, not individual payments.", style = MaterialTheme.typography.bodySmall)
                 }
-                Text("Totals by category, not individual payments.", style = MaterialTheme.typography.bodySmall)
-            }
             }
         }
     }

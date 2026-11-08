@@ -90,6 +90,7 @@ class PartnerTest {
         val workforce = mutableListOf<Int>()
         val logos = mutableListOf<ByteArray?>()
         var reports = 0
+        var overviews = 0
         var signedOut = false
         var removed = mutableListOf<String>()
         var pushRegistered = false
@@ -101,6 +102,7 @@ class PartnerTest {
         )
         var selfId: String? = "u1"
         override suspend fun overview(): PartnerOverview {
+            overviews++
             if (fail) throw AccountFailure.SignedOut
             return PartnerOverview("Acme", "d", role, "AC", VerifiedMoney(1, true), VerifiedMoney(1, true),
                 1, VerifiedCount(1, true), 42, workforce.lastOrNull() ?: 120, 35, Date(), hasLogo, userId = selfId)
@@ -137,6 +139,15 @@ class PartnerTest {
         assertEquals(PartnerRole.ADMIN, model.role)
     }
 
+    @Test fun aSecondLoadWhileOneIsInFlightIsIgnored() = runTest {
+        val svc = FakeService()
+        val model = PartnerModel(svc)
+        model.load(); model.load(); model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, svc.overviews)
+        model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, svc.overviews)
+    }
+
     @Test fun loadFailureSurfacesFailed() = runTest {
         val model = PartnerModel(FakeService(fail = true))
         model.load(); dispatcher.scheduler.advanceUntilIdle()
@@ -160,6 +171,20 @@ class PartnerTest {
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, svc.invited.size)
+    }
+
+    @Test fun inviteReportsSuccessOnlyWhenTheServiceAccepted() = runTest {
+        val svc = FakeService()
+        val model = PartnerModel(svc)
+        model.load(); dispatcher.scheduler.advanceUntilIdle()
+        var invitedCalls = 0
+        svc.actionError = AccountFailure.Unavailable
+        model.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) { invitedCalls++ }; dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, invitedCalls)
+        assertTrue(model.actionError != null)
+        svc.actionError = null
+        model.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) { invitedCalls++ }; dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, invitedCalls)
     }
 
     @Test fun pushRegistersAndSignOutUnregistersThenEndsTheSession() = runTest {

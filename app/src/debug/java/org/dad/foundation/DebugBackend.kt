@@ -1,6 +1,9 @@
 package org.dad.foundation
 
 import android.content.Context
+import android.content.Intent
+import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.CoroutineScope
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -133,6 +136,7 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
     private var generation = 0
     private var deleted = false
     private var version = 3
+    private var interests = emptyList<String>()
     private val prefs = linkedMapOf(
         "referral_emails" to true, "marketing_emails" to false, "push_referral_converted" to true,
         "push_streak_at_risk" to true, "push_streak_milestone" to true, "push_streak_lapsed" to true,
@@ -152,7 +156,7 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
     @Synchronized private fun profile(): String {
         val flags = prefs.entries.joinToString(",") { "\"${it.key}\":${it.value}" }
         return """{"email":"alex@example.org","public_name":"Alex","account_role":"DONOR","zip":"${account.zip}","city":"${account.city}",""" +
-            """"timezone":"America/Chicago","phone":"${account.phone}","volunteer_interests":[],"version":$version,"consent_version":"stub-v1",$flags}"""
+            """"timezone":"America/Chicago","phone":"${account.phone}","volunteer_interests":${com.google.gson.Gson().toJson(interests)},"version":$version,"consent_version":"stub-v1",$flags}"""
     }
 
     @Synchronized override fun intercept(chain: Interceptor.Chain): Response {
@@ -225,6 +229,8 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
                     prefs.keys.forEach { key ->
                         Regex("\"$key\"\\s*:\\s*(true|false)").find(payload)?.let { prefs[key] = it.groupValues[1] == "true" }
                     }
+                    runCatching { com.google.gson.JsonParser.parseString(payload).asJsonObject.getAsJsonArray("volunteer_interests") }
+                        .getOrNull()?.let { array -> interests = array.map { it.asString } }
                     version++
                     reply(200, profile())
                 }
@@ -253,4 +259,40 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
             } else reply(404)
         }
     }
+}
+
+/** The in-memory services behind the `preview_unavailable` / `preview_signed_out` launches (blank API origin). */
+fun debugPreviewServices(scope: CoroutineScope, options: LaunchOptions): AppServices? {
+    val session = AccountSession(PreviewAPI(options.unavailableFirst), PreviewStore(!options.signedOut), scope)
+    return AppServices(session, PreviewSignIn(), PreviewSessionSettings(session),
+        partner = PartnerKit(PartnerSession(PreviewStore(signedIn = false)), PreviewPartnerSignIn, PreviewPartnerService()))
+}
+
+/** The screen shown in place of the app for a `preview_*` launch extra, or null for a normal launch. */
+fun debugPreviewScreen(context: Context, intent: Intent): (@Composable () -> Unit)? = when {
+    intent.getBooleanExtra("preview_partner_viewer", false) -> {
+        { PartnerPortal(viewModel(factory = PartnerModel.previewFactory(role = PartnerRole.VIEWER)), publicOrigin = "https://dad.example") }
+    }
+    intent.getBooleanExtra("preview_partner", false) -> {
+        { PartnerPortal(viewModel(factory = PartnerModel.previewFactory()), publicOrigin = "https://dad.example") }
+    }
+    intent.getBooleanExtra("preview_giving", false) -> {
+        { GiftScreen(viewModel(factory = GivingModel.previewFactory()), stubComplete = { }) }
+    }
+    intent.getBooleanExtra("preview_impact", false) || intent.getBooleanExtra("preview_network", false) -> {
+        {
+            EngagementHome(
+                viewModel(factory = EngagementModel.previewFactory()),
+                publicOrigin = "https://dad.example",
+                sharer = ReferralShareAction(AndroidReferralSharer(context)),
+            )
+        }
+    }
+    intent.getBooleanExtra("preview_events", false) -> {
+        { EventsScreen(viewModel(factory = EventsModel.previewFactory())) }
+    }
+    intent.getBooleanExtra("preview_settings", false) -> {
+        { SettingsHome(viewModel(factory = SettingsModel.previewFactory())) }
+    }
+    else -> null
 }

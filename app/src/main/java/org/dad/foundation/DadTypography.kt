@@ -29,9 +29,11 @@ private fun text(step: String): androidx.compose.ui.unit.TextUnit = (DADTokens.t
  * untouched so running copy stays on Roboto.
  */
 @Composable
-fun dadTypography(): Typography {
+fun dadTypography(): Typography = dadTypographyValue
+
+private val dadTypographyValue: Typography by lazy {
     val base = Typography()
-    return base.copy(
+    base.copy(
         displayLarge = base.displayLarge.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = text("3xl")),
         displayMedium = base.displayMedium.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = text("3xl")),
         displaySmall = base.displaySmall.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = text("2xl")),

@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Push is dormant until the owner adds app/google-services.json (see README "Enabling push"): the plugin is
+// applied only then, and without it Firebase never initialises, so every build and test still works.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 // Release signing credentials live in keystore.properties (gitignored); see
 // keystore.properties.example. Absent (CI, local debug builds) the release
 // signing config is simply not wired, so an unsigned release build fails loudly
@@ -27,8 +31,9 @@ android {
         applicationId = "org.dad.foundation"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // Release builds pass -PdadVersionCode (strictly increasing; CI uses the run number) and -PdadVersionName.
+        versionCode = providers.gradleProperty("dadVersionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("dadVersionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val apiOrigin = providers.gradleProperty("dadApiOrigin").orElse("").get()
         buildConfigField("String", "DAD_API_ORIGIN", groovy.json.JsonOutput.toJson(apiOrigin))
@@ -146,6 +151,7 @@ dependencies {
     // R-1/R-2: QR generation for the IRL invite code. Pure-JVM core so the encode/decode
     // round-trip is a unit test (no emulator).
     implementation("com.google.zxing:core:3.5.3")
+    implementation("com.android.installreferrer:installreferrer:2.2")
     // E-8: live QR scanning for event check-in. CameraX drives the viewfinder; ML Kit's BUNDLED barcode model
     // (not the Play Services one) decodes, so the first scan works offline with no model download.
     implementation("androidx.camera:camera-core:1.6.2")
@@ -153,6 +159,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.6.2")
     implementation("androidx.camera:camera-view:1.6.2")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // Push (FCM). The BoM pins the matching firebase-messaging version.
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation("com.google.firebase:firebase-messaging")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

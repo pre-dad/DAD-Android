@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -163,7 +164,7 @@ fun RoleSelect(notice: String?, invitation: String? = null, onSelect: (AppRole) 
             Text("Give monthly, invite the people you know, and watch your circle grow.",
                 style = MaterialTheme.typography.bodyLarge, color = DadTheme.color("dkmut"))
             // Founding-Donor line, computed days remaining; hidden after end-of-2026 New York time.
-            foundingDaysRemaining()?.let { days ->
+            remember { foundingDaysRemaining() }?.let { days ->
                 Spacer(Modifier.height(12.dp))
                 Text("Founding Donor status closes in $days ${if (days == 1L) "day" else "days"}.",
                     style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("dkmut"),
@@ -228,8 +229,7 @@ private fun SignInMethods(
             Spacer(Modifier.height(8.dp))
             DadSecondaryButton("Sign in with email and password", Modifier.fillMaxWidth().testTag("method-password"), onClick = onPassword)
             Spacer(Modifier.height(12.dp))
-            // Google/passkey render only when available; the "not available yet" hint
-            // (external-unavailable) lives here under More options, not on the bare screen.
+            // Google/passkey render only when a provider is wired.
             ExternalMethods(external, establish, generation, onSignedIn)
         }
         Spacer(Modifier.height(24.dp))
@@ -246,7 +246,7 @@ private fun SignInMethods(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onBack) { Text("Back") }
+        DadTextButton("Back", onClick = onBack)
     }
 }
 

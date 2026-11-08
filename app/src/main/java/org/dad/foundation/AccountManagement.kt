@@ -372,6 +372,9 @@ class WalletPassModel(private val service: WalletPassService) : ViewModel() {
         }
     }
 
+    /** No app on the device could open the save link. */
+    fun openFailed() { error = FAILURE }
+
     companion object {
         const val FAILURE = "The Wallet pass couldn’t be prepared. Please try again. Your on-screen code still works."
         fun factory(service: WalletPassService): ViewModelProvider.Factory = viewModelFactory { initializer { WalletPassModel(service) } }

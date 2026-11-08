@@ -93,7 +93,7 @@ internal fun SignupFlow(model: SignupModel, onPastedLink: (String) -> Boolean, n
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("signup-working")) }
         (model.phase as? SignupPhase.Failed)?.let { FieldError(it.message, "signup-error") }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onBack, modifier = Modifier.testTag("signup-back")) { Text("Back") }
+        DadTextButton("Back", Modifier.testTag("signup-back"), onClick = onBack)
     }
 }
 
@@ -120,7 +120,7 @@ internal fun EmailLinkFlow(model: SignInLinkModel, onPastedLink: (String) -> Boo
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("email-link-working")) }
         (model.phase as? SignInLinkPhase.Failed)?.let { FieldError(it.message, "email-link-error") }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onBack, modifier = Modifier.testTag("email-link-back")) { Text("Back") }
+        DadTextButton("Back", Modifier.testTag("email-link-back"), onClick = onBack)
     }
 }
 
@@ -193,15 +193,15 @@ internal fun PasswordSignInFlow(model: PasswordSignInModel, onSignedIn: () -> Un
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("password-working")) }
         (model.phase as? PasswordSignInPhase.Failed)?.let { FieldError(it.message, "password-error") }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onBack, modifier = Modifier.testTag("password-back")) { Text("Back") }
+        DadTextButton("Back", Modifier.testTag("password-back"), onClick = onBack)
     }
 }
 
-/** One-tap Google and passkey buttons when this build can run them; otherwise the "Not available yet" hint. */
+/** One-tap Google and passkey buttons when this build can run them; nothing is shown for a method this build cannot run. */
 @Composable
 internal fun ExternalMethods(external: ExternalSignInDeps, establish: Establish, generation: Int, onSignedIn: () -> Unit) {
     val tokens = external.googleTokens
-    if (external.capabilities.google && tokens != null) {
+    if (external.offersGoogle && tokens != null) {
         val model = androidx.lifecycle.viewmodel.compose.viewModel<GoogleSignInModel>(
             key = "google-sign-in-$generation", factory = GoogleSignInModel.factory(tokens, external.oidc, establish))
         LaunchedEffect(model.phase) { if (model.phase == ExternalSignInPhase.SignedIn) onSignedIn() }
@@ -210,16 +210,13 @@ internal fun ExternalMethods(external: ExternalSignInDeps, establish: Establish,
         Spacer(Modifier.height(12.dp))
     }
     val authenticator = external.authenticator
-    if (external.capabilities.passkey && authenticator != null) {
+    if (external.offersPasskey && authenticator != null) {
         val model = androidx.lifecycle.viewmodel.compose.viewModel<PasskeySignInModel>(
             key = "passkey-sign-in-$generation", factory = PasskeySignInModel.factory(authenticator, external.passkey, establish))
         LaunchedEffect(model.phase) { if (model.phase == ExternalSignInPhase.SignedIn) onSignedIn() }
         DadPrimaryButton("Sign in with a passkey", Modifier.testTag("method-passkey")) { model.start() }
         (model.phase as? ExternalSignInPhase.Failed)?.let { FieldError(it.message, "passkey-error") }
         Spacer(Modifier.height(12.dp))
-    }
-    if (external.capabilities.hasUnavailableMethod) {
-        Text("Google and passkey sign-in: not available yet.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("external-unavailable"))
     }
 }
 

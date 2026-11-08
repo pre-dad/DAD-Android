@@ -190,6 +190,8 @@ class EventsTest {
         var detailFailure: Throwable? = null,
     ) : EventsService {
         var reserveCalls = 0
+        var cancelCalls = 0
+        var cancelFailure: Throwable? = null
         var checkInCalls = 0
         var listCalls = 0
         var current = DonorEvent("e1", "s", "T", "volunteer", "V", "Austin", Date(1), Date(2), 50, 5, ReservationStatus.NONE)
@@ -203,7 +205,7 @@ class EventsTest {
             return current.copy(status = ReservationStatus.RESERVED, spotsLeft = 4)
         }
         override suspend fun reserve(eventId: String): ReservationOutcome? { reserveCalls++; reserveFailure?.let { throw it }; return reserveOutcome }
-        override suspend fun cancel(eventId: String) { reserveFailure?.let { throw it } }
+        override suspend fun cancel(eventId: String) { cancelCalls++; cancelFailure?.let { throw it } }
         override suspend fun checkIn(code: String): CheckInResultValue {
             checkInCalls++
             checkInFailure?.let { throw it }
@@ -213,6 +215,15 @@ class EventsTest {
     }
 
     private fun modelOf(service: FakeService) = EventsModel(service) { now }.also { it.load(); dispatcher.scheduler.advanceUntilIdle() }
+
+    @Test fun aSecondLoadWhileOneIsInFlightIsIgnored() = runTest {
+        val service = FakeService()
+        val model = EventsModel(service) { now }
+        model.load(); model.load(); model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, service.listCalls)
+        model.load(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, service.listCalls)
+    }
 
     @Test fun loadReadySortsEvents() = runTest {
         val model = modelOf(FakeService())
@@ -302,6 +313,34 @@ class EventsTest {
         val model = modelOf(service)
         model.open("e1"); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.events.isEmpty())
+    }
+
+    @Test fun cancellingASeatCallsTheServiceOnceClearsTheOutcomeAndRereadsTheEvent() = runTest {
+        val service = FakeService()
+        val model = modelOf(service)
+        model.reserve("e1"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ReservationOutcome.RESERVED, model.lastOutcome)
+        model.cancel("e1")
+        model.cancel("e1")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, service.cancelCalls)
+        assertNull(model.lastOutcome)
+        assertNull(model.actionError)
+        assertTrue(model.busy.isEmpty())
+    }
+
+    @Test fun cancelRefusalsExplainThemselvesAndAGoneEventReloadsTheList() = runTest {
+        val gone = FakeService(); gone.cancelFailure = AccountFailure.NotFound
+        val goneModel = modelOf(gone)
+        goneModel.cancel("e1"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(EventsCopy.GONE, goneModel.actionError)
+        assertEquals(2, gone.listCalls)
+        val limited = FakeService(); limited.cancelFailure = AccountFailure.RateLimited
+        val limitedModel = modelOf(limited)
+        limitedModel.cancel("e1"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(EventsCopy.TOO_MANY, limitedModel.actionError)
+        assertEquals(1, limited.listCalls)
+        assertTrue(limitedModel.busy.isEmpty())
     }
 
     @Test fun signedOutOnACommandFlagsTheModel() = runTest {

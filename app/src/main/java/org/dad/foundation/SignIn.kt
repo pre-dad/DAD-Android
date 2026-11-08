@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -58,7 +57,6 @@ class PhoneSignInModel(private val service: SignInService, private val establish
     var phone: String by mutableStateOf("+1 ")
     var code: String by mutableStateOf("")
     private var activeHandle: String? = null
-    private var work: Job? = null
 
     /** True once a code was sent and not abandoned, including after a wrong code (stay on code entry). */
     val isAwaitingCode: Boolean
@@ -80,7 +78,7 @@ class PhoneSignInModel(private val service: SignInService, private val establish
         if (!canRequestCode || phase is PhoneSignInPhase.RequestingCode || phase is PhoneSignInPhase.Verifying) return
         phase = PhoneSignInPhase.RequestingCode
         val number = normalizedPhone
-        work = viewModelScope.launch {
+        viewModelScope.launch {
             try {
                 val handle = service.requestPhoneCode(number)
                 activeHandle = handle
@@ -100,7 +98,7 @@ class PhoneSignInModel(private val service: SignInService, private val establish
         if (!canVerify || phase is PhoneSignInPhase.Verifying) return
         phase = PhoneSignInPhase.Verifying(handle)
         val entered = code
-        work = viewModelScope.launch {
+        viewModelScope.launch {
             try {
                 establish { service.verifyPhone(handle, entered) }
                 phase = PhoneSignInPhase.SignedIn

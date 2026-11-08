@@ -57,8 +57,8 @@ configuration deprecation diagnostics; those upstream warnings are not suppresse
 
 ## Contract, sessions, and transport
 
-`foundation.lock.json` pins the mobile foundation release (currently 2.11.0, tag
-`mobile-foundation-v2.11.0`) and its manifest
+`foundation.lock.json` pins the mobile foundation release (currently 2.12.0, tag
+`mobile-foundation-v2.12.0`) and its manifest
 SHA-256. The vendored release is verified before code generation. The build invokes pinned
 OpenAPI Generator CLI 7.20.0 and generates Retrofit coroutine interfaces and Gson models
 for the operations allow-listed in `scripts/prepare-client.mjs`. No client is generated
@@ -111,12 +111,16 @@ session; a real 401 refreshes once, then signs out). Passwords are masked, never
 
 **Built but switched off until configured:** Google sign-in (`oidcSignIn`) and passkeys
 (`beginDonorPasskeySignIn`/`finishDonorPasskeySignIn`). The server exchanges, models, UI states and stub-transport
-tests exist; the screen says "Not available yet" because no platform provider is linked. Sign in with Apple is
+tests exist; the sign-in screen hides both buttons while no platform provider is linked and shows each as soon as its provider is supplied. Sign in with Apple is
 not offered on Android. To turn them on you must supply:
 
 - **Both:** the AndroidX Credential Manager dependency (`androidx.credentials`, plus
   `androidx.credentials:credentials-play-services-auth` for older devices), and an implementation of
   `GoogleIdTokenProvider` / `PasskeyAuthenticator` passed in `ExternalSignInDeps` (not yet written, a dependency decision).
+- **Google nonce:** every attempt gets a fresh `SignInNonce` (32 random bytes, base64url, single-use, never logged
+  or stored). `GoogleIdTokenProvider.idToken(nonce)` receives it, and the Credential Manager implementation must pass
+  that exact value to `GetGoogleIdOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
+  `oidcSignIn` body; the server accepts it raw or as lowercase hex SHA-256 of it in the id_token `nonce` claim.
 - **Google:** a Google Cloud *web* OAuth client ID (`-PdadGoogleWebClientId=...apps.googleusercontent.com`), an Android
   OAuth client for the release signing certificate's SHA-1, and the Google ID library
   (`com.google.android.libraries.identity.googleid`). The same client ID must be accepted by DAD-Main's OIDC verifier.
@@ -145,10 +149,12 @@ backed up safely — losing them after publishing requires a Play key reset:
 keytool -genkeypair -v -keystore upload-keystore.jks \
   -keyalg RSA -keysize 2048 -validity 10000 -alias dad-upload
 cp keystore.properties.example keystore.properties   # then fill in the values
-./gradlew :app:bundleRelease                          # signed AAB for Play
+./gradlew :app:bundleRelease -PdadVersionCode=2 -PdadVersionName=1.0.1   # signed AAB for Play
 ```
 
-Bump `versionCode`/`versionName` in `app/build.gradle.kts` for each Play release.
+`versionName` defaults to `1.0.0` and `versionCode` to `1`; pass a strictly increasing `-PdadVersionCode`
+(and the marketing `-PdadVersionName`) for every Play upload. The release label is `DAD`; debug builds are
+labelled `DAD Preview` and install beside it.
 Device-gated pre-submission items (verified App Links against `assetlinks.json`,
 real-device FCM, Instruments/perf, store listing) remain a hands-on checklist.
 
@@ -229,6 +235,11 @@ devices (`sessions`, `revokeSession`, `revokeOtherSessions`, and `logoutAll` to 
 programme (`employeeTeam`, `employeeEnroll` with a company code, `employeeJoinTeam`), and the referral code as a
 Google Wallet pass (`walletProviders` / `googlePass`, offered only when the server says Google Wallet is configured).
 
+Under the volunteer opt-in, Settings has a free-form interest list (`volunteer_interests`): type an interest and add it,
+remove one with its Remove button. Entries are trimmed, repeats (in any letter case) are refused, and the contract's
+limits apply on the device too: at most 20 interests of 60 characters. Each change saves the whole preference block at
+its current `version`, one save at a time, so a stale or failed save keeps the list as it was and shows the error.
+
 ## Partner portal (contract 2.9.0)
 
 A partner signs in with an emailed link: "Partner" on the start screen asks for a work email
@@ -250,7 +261,7 @@ partner session; links whose token starts `goodpartner` are accepted).
 
 ## Analytics and push (contract 2.9.0)
 
-**Analytics are opt-in**, worded and counted as on the website. The start screen asks once ("Allow usage
+**Analytics are opt-in**, worded and counted as on the website. The app asks once, after the first sign-in ("Allow usage
 analytics?") and Settings has a "Usage analytics" switch; until the donor allows it nothing is recorded. Events go
 only to DAD-Main's `ingestAnalytics` (first party, `X-DAD-Platform: ANDROID`, attributed to the donor when signed
 in) in batches of up to 100 with a stable id each, so a retried batch is not double-counted; declining drops
@@ -262,11 +273,29 @@ Declare this in the Play Data safety form as app interactions collected for anal
 **Push** registers the donor (`registerPushDevice`, at every launch and sign-in; the server drops the token when the
 session ends) and the partner (`partnerRegisterPushDevice`, unregistered on sign-out). A tapped notification's
 `category` is counted as `push_opened` and its `path` opens the matching screen (`/account/gifts` gift history,
-`/account/payment-method` the gift screen, `/account/profile` Settings), after sign-in if need be. **Owner
-dependency:** no push provider is linked, so there is no token and nothing is registered. Turning push on needs a
-Firebase project for the app ID, its `google-services` configuration, the Firebase Messaging dependency (a
-dependency decision), an implementation of `PushTokenProvider`, the `POST_NOTIFICATIONS` runtime permission on
-Android 13+, and DAD-Main's FCM credentials. `stub_push` exercises the rest with a fixed token.
+`/account/payment-method` the gift screen, `/account/profile` Settings), after sign-in if need be. Push is built but dormant until Firebase is configured (below);
+`stub_push` exercises the rest with a fixed token.
+
+### Enabling push
+
+Firebase Cloud Messaging is wired in (`firebase-messaging` via Firebase BoM 35.1.0, `DadMessagingService`, one
+notification channel per Settings category, the `POST_NOTIFICATIONS` prompt on Android 13+ after sign-in). Without
+`app/google-services.json` Firebase never initialises: the app builds, passes its tests and runs with push off, and
+no permission prompt appears. To turn it on:
+
+1. Create a Firebase project and register two Android apps, `org.dad.foundation` and `org.dad.foundation.debug`.
+2. Download `google-services.json` (it holds both) into `app/`. Its presence applies the `com.google.gms.google-services`
+   plugin on the next build; nothing else changes in the code.
+3. Give DAD-Main the FCM credentials (a service account for the HTTP v1 API) so it can deliver. Until it does,
+   `registerPushDevice` answers 503 `PUSH_UNCONFIGURED` and the app carries on.
+
+DAD-Main sends each push as a `notification` block (`title`, `body`, and `tag` = the notification id) plus `data`
+(`category`, `path`). While the app is in the foreground `DadMessagingService` builds the notification itself: text
+from the `notification` block, else the data `title`/`body`, else the category label; routing from the data; the tag
+as the notification key so a redelivery replaces rather than repeats. While the app is in the background the system
+displays the notification without running app code, so the on-device opt-out cannot apply there and the server-side
+opt-out is authoritative. Categories the app has no toggle for (`EVENT_CANCELLED`, `PARTNER_*`) show on the general
+channel.
 
 **Referral and company-code links (contract 2.10).** An invite (`/r/<code>`, `?via=irl` in person) or company
 (`/c/<code>`) link that opens the app is recorded with DAD-Main (`captureReferral` / `captureCompany`), and the visitor
@@ -275,3 +304,15 @@ wins, and a visit that keeps nothing discards it). The referral token goes with 
 (`startRecurringCheckout`'s `referral_token`, part of the command's idempotency fingerprint), so the referrer is credited
 as on the web; the company token is bound once the donor is signed in (`bindCompanyTouch`). Before sign-in an invite
 names the referrer on the start screen. Account deletion forgets both.
+
+**Play install referrer (deferred attribution).** On the first launch after install the app reads the Play install
+referrer once (`com.android.installreferrer:installreferrer:2.2`, from Google Maven; the version is the one the
+[Android developer guide](https://developer.android.com/google/play/installreferrer/library) shows) and feeds it
+through the same link path as a tapped invite: `invite=`/`ref=` to `captureReferral` (`LINK`), `irl=` to
+`captureReferral` (`IRL`), `company=` to `captureCompany`. The read runs off the main thread with a 5 second bound,
+never delays startup, and Play being unavailable or unsupported, a refused connection, a failed read, a timeout or
+a malformed or oversized string all count as "no referrer". Codes are validated (1 to 64 letters, digits, `_`, `-`)
+before use. The referrer is marked read as soon as it has answered, so it is captured at most once; the capture itself
+is best effort and is not retried after a failed network call. The mark survives account deletion. A launch closed
+before Play answers leaves it unread for the next one. Only Play installs have a referrer, so debug and sideloaded
+builds capture nothing.

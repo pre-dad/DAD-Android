@@ -40,6 +40,16 @@ class GivingTest {
         assertEquals(90000, over.monthlyMinor)
     }
 
+    @Test fun theBoundsAreInclusiveAtOneAndThirty() {
+        assertEquals(3000, GiftAmount.ofDailyDollars(1)!!.monthlyMinor)
+        assertEquals(90000, GiftAmount.ofDailyDollars(30)!!.monthlyMinor)
+        assertEquals(30, GiftAmount.ofDailyDollars(31)!!.dailyDollars)
+        assertEquals(30, GiftAmount.ofDailyDollars(Int.MAX_VALUE)!!.dailyDollars)
+        assertNull(GiftAmount.ofMonthlyMinor(0))
+        assertNull(GiftAmount.ofMonthlyMinor(-3000))
+        assertNull(GiftAmount.ofMonthlyMinor(Int.MIN_VALUE))
+    }
+
     @Test fun nonPositiveDailyAmountIsRejected() {
         assertNull(GiftAmount.ofDailyDollars(0))
         assertNull(GiftAmount.ofDailyDollars(-3))

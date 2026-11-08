@@ -74,14 +74,14 @@ class WirePartnerApplicationTest {
         }
     }
 
-    @Test fun aThrottleSurfacesRetryAfterSeconds() = runTest {
-        val http = object {
-            val inner = ScriptedHttp { 429 to "" }
-        }
-        // ScriptedHttp cannot set response headers; verify the mapping directly through the model's wait message
-        // and the wire's handling of a Retry-After-less 429 instead.
-        val actual = runCatching { WirePartnerApplication(TEST_ORIGIN, MemoryStore(), http.inner.client()).submit(attempt()) }.exceptionOrNull()
-        assertEquals(ApplicationSubmitFailure.RateLimited(null), actual)
+    @Test fun aThrottleSurfacesRetryAfterSecondsWhenTheServerSaysHowLong() = runTest {
+        suspend fun throttled(vararg headers: Pair<String, String>) = runCatching {
+            WirePartnerApplication(TEST_ORIGIN, MemoryStore(), ScriptedHttp { 429 to "" }.replyingWith(*headers).client()).submit(attempt())
+        }.exceptionOrNull()
+        assertEquals(ApplicationSubmitFailure.RateLimited(30), throttled("Retry-After" to "30"))
+        assertEquals(ApplicationSubmitFailure.RateLimited(null), throttled())
+        assertEquals(ApplicationSubmitFailure.RateLimited(null), throttled("Retry-After" to "soon"))
+        assertEquals(ApplicationSubmitFailure.RateLimited(null), throttled("Retry-After" to "0"))
     }
 
     @Test fun aRetryRepeatsTheSameKeyAndReceipt() = runTest {

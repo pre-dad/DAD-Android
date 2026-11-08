@@ -25,6 +25,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -108,7 +110,8 @@ private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> U
     var hint by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<ScannerStatus?>(null) }
     var torchOn by rememberSaveable { mutableStateOf(false) }
-    val gate = remember { ScanGate(onValid = { onToken(it) }, onInvalid = { hint = ScanCopy.HINT_INVALID }) }
+    val currentOnToken by rememberUpdatedState(onToken)
+    val gate = remember { ScanGate(onValid = { currentOnToken(it) }, onInvalid = { hint = ScanCopy.HINT_INVALID }) }
 
     // Above the viewfinder, so "Type the code instead" is on screen whenever the scanner is.
     val typeInstead: @Composable () -> Unit = {
@@ -128,7 +131,8 @@ private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> U
             Text(ScanCopy.PROMPT, style = MaterialTheme.typography.bodyMedium)
             typeInstead()
             Box(
-                Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f).clip(RoundedCornerShape(16.dp)).testTag("scanner-viewfinder"),
+                Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f).clip(RoundedCornerShape(16.dp)).testTag("scanner-viewfinder")
+                    .semantics { contentDescription = "Camera view for scanning the event QR code" },
                 contentAlignment = Alignment.Center,
             ) {
                 environment.source.Viewfinder(

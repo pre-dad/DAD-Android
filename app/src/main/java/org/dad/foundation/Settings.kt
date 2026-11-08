@@ -46,6 +46,8 @@ data class Preferences(
     val rankingsOptedOut: Boolean,
     val networkVisible: Boolean,
     val volunteer: Boolean,
+    /** Free-form event interests picked when opting in as a volunteer (E-1), already trimmed and de-duplicated. */
+    val volunteerInterests: List<String> = emptyList(),
 ) {
     /** A UI-facing toggle: its label, current value, and a copy producing the updated block. */
     data class Toggle(val key: String, val label: String, val value: Boolean)
@@ -111,5 +113,46 @@ data class DeleteAccountGate(val typed: String) {
 
     val helpText: String
         get() = "This permanently deletes your personal data. Your required gift records are kept. " +
-            "Type ${CONFIRM_WORD} to confirm."
+            "Type $CONFIRM_WORD to confirm."
 }
+
+// MARK: - Volunteer interests (E-1)
+
+/** Why an interest could not be added; the donor sees [message]. */
+enum class InterestRejection(val message: String) {
+    EMPTY("Type an interest to add."),
+    TOO_LONG("Keep an interest to ${VolunteerInterests.MAX_LENGTH} characters or fewer."),
+    DUPLICATE("That interest is already on your list."),
+    FULL("You can add up to ${VolunteerInterests.MAX_COUNT} interests. Remove one to add another."),
+}
+
+/**
+ * The rules for the free-form interest list, mirroring the contract's `volunteer_interests` limits (at most
+ * [MAX_COUNT] entries of 1 to [MAX_LENGTH] characters, unique). Entries are trimmed with inner runs of whitespace
+ * collapsed, and two entries that differ only in letter case count as the same interest. Pure so it is unit-tested.
+ */
+object VolunteerInterests {
+    const val MAX_COUNT = 20
+    const val MAX_LENGTH = 60
+
+    private val WHITESPACE = Regex("\\s+")
+
+    fun normalize(raw: String): String = raw.trim().replace(WHITESPACE, " ")
+
+    /** The list with [raw] appended, or the reason it cannot be. */
+    fun add(current: List<String>, raw: String): Result<List<String>> {
+        val interest = normalize(raw)
+        val rejection = when {
+            interest.isEmpty() -> InterestRejection.EMPTY
+            interest.codePointCount(0, interest.length) > MAX_LENGTH -> InterestRejection.TOO_LONG
+            current.any { it.equals(interest, ignoreCase = true) } -> InterestRejection.DUPLICATE
+            current.size >= MAX_COUNT -> InterestRejection.FULL
+            else -> null
+        }
+        return if (rejection == null) Result.success(current + interest) else Result.failure(InterestRejected(rejection))
+    }
+
+    fun remove(current: List<String>, interest: String): List<String> = current.filterNot { it == interest }
+}
+
+class InterestRejected(val reason: InterestRejection) : Exception(reason.message)

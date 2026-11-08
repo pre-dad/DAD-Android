@@ -31,9 +31,11 @@ data class Attribution(
          */
         fun sanitized(raw: String?): String? {
             val trimmed = raw?.trim() ?: return null
-            if (trimmed.length !in 1..64 || !trimmed.matches(Regex("^[A-Za-z0-9_-]+$"))) return null
+            if (trimmed.length !in 1..64 || !CODE.matches(trimmed)) return null
             return trimmed
         }
+
+        private val CODE = Regex("^[A-Za-z0-9_-]+$")
 
         /** Build a sanitized Attribution from raw inputs in one step. */
         fun of(inviteCode: String? = null, irlCode: String? = null, companyCode: String? = null, source: String? = null) =
@@ -106,12 +108,12 @@ class AttributionCapture(private val store: AttributionStore, private val analyt
 }
 
 /**
- * Play Install Referrer seam (D-3 deferred deep linking). The real implementation will wrap
- * `com.android.installreferrer.api.InstallReferrerClient` (add the `installreferrer` dependency
- * with it); this interface lets tests replay a referrer string without the Play Store. The referrer string is `utm`-style query params
+ * Play Install Referrer seam (D-3 deferred deep linking): [PlayInstallReferrer] is the real client, and tests replay a
+ * referrer string without the Play Store. The referrer string is `utm`-style query params
  * (`invite=ABC&utm_source=...`), parsed into an Attribution.
  */
 interface InstallReferrer {
+    /** The raw referrer, or null when there is none or it could not be read. */
     suspend fun fetch(): String?
 }
 

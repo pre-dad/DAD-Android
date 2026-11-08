@@ -40,7 +40,7 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
         pushBadgeEarned = preferences.pushBadgeEarned, pushEventNearby = preferences.pushEventNearby,
         pushEventReminder = preferences.pushEventReminder, pushEventPromoted = preferences.pushEventPromoted,
         rankingsOptedOut = preferences.rankingsOptedOut, networkVisible = preferences.networkVisible,
-        volunteer = preferences.volunteer, pushGiftProcessed = preferences.pushGiftProcessed)
+        volunteer = preferences.volunteer, volunteerInterests = preferences.volunteerInterests.toSet(), pushGiftProcessed = preferences.pushGiftProcessed)
 
     override suspend fun deleteAccount() {
         val deleted = product.perform {
@@ -71,7 +71,8 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
             pushBadgeEarned = p.pushBadgeEarned, pushEventNearby = p.pushEventNearby,
             pushEventReminder = p.pushEventReminder, pushEventPromoted = p.pushEventPromoted,
             pushGiftProcessed = p.pushGiftProcessed, rankingsOptedOut = p.rankingsOptedOut,
-            networkVisible = p.networkVisible, volunteer = p.volunteer))
+            networkVisible = p.networkVisible, volunteer = p.volunteer,
+            volunteerInterests = p.volunteerInterests.orEmpty()))
 }
 
 internal fun Profile.summary() = ProfileSummary(
