@@ -46,16 +46,16 @@ class ExternalSignInTest {
         assertTrue(google.google); assertFalse(google.passkey)
         val both = SignInCapabilities.of(config, googleProviderAvailable = true, passkeyProviderAvailable = true)
         assertTrue(both.isAvailable(SignInMethod.GOOGLE)); assertTrue(both.isAvailable(SignInMethod.PASSKEY))
-        val provided = ExternalSignInDeps(both, googleTokens = { "t" }, authenticator = { throw ExternalSignInError.Unsupported })
+        val provided = ExternalSignInDeps(both, googleTokens = { _ -> "t" }, authenticator = { throw ExternalSignInError.Unsupported })
         assertTrue(provided.offersGoogle); assertTrue(provided.offersPasskey)
         assertFalse(ExternalSignInDeps(both).offersGoogle) // a capability without a provider shows nothing
-        assertFalse(ExternalSignInDeps(provided.capabilities.copy(google = false), googleTokens = { "t" }).offersGoogle)
+        assertFalse(ExternalSignInDeps(provided.capabilities.copy(google = false), googleTokens = { _ -> "t" }).offersGoogle)
         assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PHONE)); assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSWORD))
         assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.GOOGLE)); assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSKEY))
     }
 
     @Test fun anUnconfiguredBuildFailsClearly() = runTest {
-        assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.signIn("t") }.exceptionOrNull())
+        assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.signIn("t", "n") }.exceptionOrNull())
         assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.begin() }.exceptionOrNull())
     }
 
@@ -69,11 +69,12 @@ class ExternalSignInTest {
 
     @Test fun googleExchangeSendsProviderPathTokenAndPlatform() = runTest {
         val (w, http) = wire(200, nativeSessionJson("g-access", "g-refresh"))
-        val credentials = w.signIn("id-token-value")
+        val credentials = w.signIn("id-token-value", "raw-nonce")
         assertEquals("g-access", credentials.access)
         val sent = http.requests.single()
         assertEquals("/donor/oidc/google/sign-in", sent.path)
         assertTrue(sent.body.contains("\"id_token\":\"id-token-value\""))
+        assertTrue(sent.body.contains("\"nonce\":\"raw-nonce\""))
         assertTrue(sent.body.contains("\"platform\":\"ANDROID\""))
         assertTrue(sent.body.contains("\"device_name\":\"Pixel\""))
         assertNull(sent.headers["authorization"])
@@ -81,18 +82,20 @@ class ExternalSignInTest {
 
     @Test fun googleExchangeRejectsEmptyOrOversizedTokensBeforeTheWire() = runTest {
         val (w, http) = wire(200, nativeSessionJson())
-        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("") })
-        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("x".repeat(8193)) })
+        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("", "n") })
+        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("x".repeat(8193), "n") })
+        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("t", "") })
+        assertEquals(AccountFailure.InvalidInput, failure { w.signIn("t", "n".repeat(257)) })
         assertTrue(http.requests.isEmpty())
     }
 
     @Test fun googleExchangeMapsStatusesAndBadBodies() = runTest {
-        assertEquals(AccountFailure.SignedOut, failure { wire(401).first.signIn("t") })
-        assertEquals(AccountFailure.InvalidInput, failure { wire(422).first.signIn("t") })
-        assertEquals(AccountFailure.RateLimited, failure { wire(429).first.signIn("t") })
-        assertEquals(AccountFailure.Unavailable, failure { wire(503).first.signIn("t") })
-        assertEquals(AccountFailure.InvalidResponse, failure { wire(200, "not json {").first.signIn("t") })
-        assertEquals(AccountFailure.InvalidResponse, failure { wire(200, """{"signed_in":true}""").first.signIn("t") })
+        assertEquals(AccountFailure.SignedOut, failure { wire(401).first.signIn("t", "n") })
+        assertEquals(AccountFailure.InvalidInput, failure { wire(422).first.signIn("t", "n") })
+        assertEquals(AccountFailure.RateLimited, failure { wire(429).first.signIn("t", "n") })
+        assertEquals(AccountFailure.Unavailable, failure { wire(503).first.signIn("t", "n") })
+        assertEquals(AccountFailure.InvalidResponse, failure { wire(200, "not json {").first.signIn("t", "n") })
+        assertEquals(AccountFailure.InvalidResponse, failure { wire(200, """{"signed_in":true}""").first.signIn("t", "n") })
     }
 
     @Test fun passkeyBeginReadsTheChallenge() = runTest {
@@ -149,23 +152,24 @@ class ExternalSignInTest {
 
     private class FakeOidc(var failure: Exception? = null) : OidcSignInService {
         val tokens = mutableListOf<String>()
-        override suspend fun signIn(idToken: String): Credentials { tokens += idToken; failure?.let { throw it }; return validCredentials("g") }
+        val nonces = mutableListOf<String>()
+        override suspend fun signIn(idToken: String, nonce: String): Credentials { tokens += idToken; nonces += nonce; failure?.let { throw it }; return validCredentials("g") }
     }
     private val passThrough: Establish = { produce -> produce() }
 
     @Test fun googleModelHappyPath() {
         val oidc = FakeOidc()
-        val m = GoogleSignInModel({ "tok" }, oidc, passThrough)
+        val m = GoogleSignInModel({ _ -> "tok" }, oidc, passThrough)
         m.start()
         assertEquals(ExternalSignInPhase.SignedIn, m.phase)
         assertEquals(listOf("tok"), oidc.tokens)
     }
 
     @Test fun googleModelTreatsBackingOutAsIdleAndMapsErrors() {
-        val cancelled = GoogleSignInModel({ throw ExternalSignInError.Cancelled }, FakeOidc(), passThrough)
+        val cancelled = GoogleSignInModel({ _ -> throw ExternalSignInError.Cancelled }, FakeOidc(), passThrough)
         cancelled.start()
         assertEquals(ExternalSignInPhase.Idle, cancelled.phase)
-        val unsupported = GoogleSignInModel({ throw ExternalSignInError.Unsupported }, FakeOidc(), passThrough)
+        val unsupported = GoogleSignInModel({ _ -> throw ExternalSignInError.Unsupported }, FakeOidc(), passThrough)
         unsupported.start()
         assertEquals(ExternalSignInPhase.Failed("Google sign-in isn’t available on this device."), unsupported.phase)
         mapOf(
@@ -174,7 +178,7 @@ class ExternalSignInTest {
             AccountFailure.Unavailable to "Google sign-in isn’t available right now. Please try again in a moment.",
             AccountFailure.InvalidResponse to "Something went wrong. Please try again.",
         ).forEach { (failure, copy) ->
-            val m = GoogleSignInModel({ "t" }, FakeOidc(failure), passThrough)
+            val m = GoogleSignInModel({ _ -> "t" }, FakeOidc(failure), passThrough)
             m.start()
             assertEquals(ExternalSignInPhase.Failed(copy), m.phase)
         }
@@ -216,8 +220,57 @@ class ExternalSignInTest {
     }
 
     @Test fun cancellationIsRethrownNotShown() {
-        val m = GoogleSignInModel({ throw CancellationException("x") }, FakeOidc(), passThrough)
+        val m = GoogleSignInModel({ _ -> throw CancellationException("x") }, FakeOidc(), passThrough)
         m.start()
         assertEquals(ExternalSignInPhase.Working, m.phase)
+    }
+
+    // MARK: nonce
+
+    @Test fun nonceIsBase64UrlOf32BytesAndUniqueOverManyDraws() {
+        val draws = List(1000) { SignInNonce.generate() }
+        assertEquals(1000, draws.toSet().size)
+        draws.forEach {
+            assertEquals(43, it.length)
+            assertTrue(it.all { c -> c.isLetterOrDigit() && c.code < 128 || c == '-' || c == '_' })
+            assertEquals(32, it.fromBase64Url()!!.size)
+        }
+    }
+
+    @Test fun theProviderAndTheWireReceiveTheSameNonce() {
+        val oidc = FakeOidc()
+        val given = mutableListOf<String>()
+        val m = GoogleSignInModel({ nonce -> given += nonce; "tok" }, oidc, passThrough)
+        m.start()
+        assertEquals(ExternalSignInPhase.SignedIn, m.phase)
+        assertEquals(1, given.size)
+        assertEquals(given, oidc.nonces)
+    }
+
+    @Test fun eachAttemptGetsAFreshNonce() {
+        val oidc = FakeOidc(AccountFailure.Unavailable)
+        val given = mutableListOf<String>()
+        val m = GoogleSignInModel({ nonce -> given += nonce; "tok" }, oidc, passThrough)
+        m.start()
+        assertTrue(m.phase is ExternalSignInPhase.Failed)
+        m.start()
+        assertEquals(2, given.size)
+        assertTrue(given[0] != given[1])
+        assertEquals(given, oidc.nonces)
+    }
+
+    @Test fun aCancelledAttemptNeverReachesTheWireAndTheNextOneStillGetsANewNonce() {
+        val oidc = FakeOidc()
+        val given = mutableListOf<String>()
+        var cancel = true
+        val m = GoogleSignInModel({ nonce -> given += nonce; if (cancel) throw ExternalSignInError.Cancelled; "tok" }, oidc, passThrough)
+        m.start()
+        assertEquals(ExternalSignInPhase.Idle, m.phase)
+        assertTrue(oidc.nonces.isEmpty())
+        cancel = false
+        m.start()
+        assertEquals(ExternalSignInPhase.SignedIn, m.phase)
+        assertTrue(given[0] != given[1])
+        assertEquals(listOf(given[1]), oidc.nonces)
     }
 }

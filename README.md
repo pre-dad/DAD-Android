@@ -57,8 +57,8 @@ configuration deprecation diagnostics; those upstream warnings are not suppresse
 
 ## Contract, sessions, and transport
 
-`foundation.lock.json` pins the mobile foundation release (currently 2.11.0, tag
-`mobile-foundation-v2.11.0`) and its manifest
+`foundation.lock.json` pins the mobile foundation release (currently 2.12.0, tag
+`mobile-foundation-v2.12.0`) and its manifest
 SHA-256. The vendored release is verified before code generation. The build invokes pinned
 OpenAPI Generator CLI 7.20.0 and generates Retrofit coroutine interfaces and Gson models
 for the operations allow-listed in `scripts/prepare-client.mjs`. No client is generated
@@ -117,6 +117,10 @@ not offered on Android. To turn them on you must supply:
 - **Both:** the AndroidX Credential Manager dependency (`androidx.credentials`, plus
   `androidx.credentials:credentials-play-services-auth` for older devices), and an implementation of
   `GoogleIdTokenProvider` / `PasskeyAuthenticator` passed in `ExternalSignInDeps` (not yet written, a dependency decision).
+- **Google nonce:** every attempt gets a fresh `SignInNonce` (32 random bytes, base64url, single-use, never logged
+  or stored). `GoogleIdTokenProvider.idToken(nonce)` receives it, and the Credential Manager implementation must pass
+  that exact value to `GetGoogleIdOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
+  `oidcSignIn` body; the server accepts it raw or as lowercase hex SHA-256 of it in the id_token `nonce` claim.
 - **Google:** a Google Cloud *web* OAuth client ID (`-PdadGoogleWebClientId=...apps.googleusercontent.com`), an Android
   OAuth client for the release signing certificate's SHA-1, and the Google ID library
   (`com.google.android.libraries.identity.googleid`). The same client ID must be accepted by DAD-Main's OIDC verifier.
