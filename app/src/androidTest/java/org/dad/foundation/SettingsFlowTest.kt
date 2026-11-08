@@ -6,6 +6,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -74,6 +77,36 @@ class SettingsFlowTest {
             compose.tapSafely("settings-signout")
             compose.waitUntil(5_000) { compose.onAllNodes(hasTestTag("settings-signed-out")).fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("settings-signed-out").assertIsDisplayed()
+        }
+    }
+
+    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+    private fun waitForTag(tag: String) = compose.waitUntil(10_000) { exists(tag) }
+    private fun waitGone(tag: String) = compose.waitUntil(10_000) { !exists(tag) }
+
+    @Test fun volunteerInterestsLoadAddRemoveAndAnnounceThemselves() {
+        launch().use {
+            waitForTag("interests-section")
+            // The saved interest is listed, with a control TalkBack reads as "Remove <interest>".
+            compose.onNodeWithTag("interest-row-Park cleanups").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithTag("interest-remove-Park cleanups").performScrollTo().assertContentDescriptionEquals("Remove Park cleanups")
+            compose.onNodeWithTag("interest-add").performScrollTo().assertIsNotEnabled()
+
+            compose.enterText("interest-input", "  Food bank ")
+            compose.onNodeWithTag("interest-add").performScrollTo().assertIsEnabled()
+            compose.tapSafely("interest-add")
+            waitForTag("interest-row-Food bank")
+            compose.onNodeWithTag("interest-input").performScrollTo().assertTextEquals("Add an interest", "", includeEditableText = true)
+
+            // A repeat (any letter case) is refused with a message, nothing is added.
+            compose.enterText("interest-input", "food BANK")
+            compose.tapSafely("interest-add")
+            waitForTag("interest-notice")
+            compose.onNodeWithTag("interest-notice").assertTextContains("already on your list")
+
+            compose.tapSafely("interest-remove-Park cleanups")
+            waitGone("interest-row-Park cleanups")
+            compose.onNodeWithTag("interest-row-Food bank").assertIsDisplayed()
         }
     }
 }

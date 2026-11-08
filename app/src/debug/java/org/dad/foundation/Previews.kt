@@ -222,7 +222,7 @@ class PreviewSettingsService : SettingsService {
         pushReferralConverted = true, pushStreakAtRisk = true, pushStreakMilestone = true,
         pushStreakLapsed = true, pushBadgeEarned = true, pushEventNearby = false,
         pushEventReminder = true, pushEventPromoted = false, pushGiftProcessed = true,
-        rankingsOptedOut = false, networkVisible = true, volunteer = true,
+        rankingsOptedOut = false, networkVisible = true, volunteer = true, volunteerInterests = listOf("Park cleanups"),
     )
 
     override suspend fun load(): SettingsSnapshot = SettingsSnapshot(

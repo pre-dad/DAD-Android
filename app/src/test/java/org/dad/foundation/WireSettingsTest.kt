@@ -97,6 +97,14 @@ class WireSettingsTest {
         assertFalse(after.preferences.networkVisible)
     }
 
+    @Test fun volunteerInterestsLoadAndAreSentWithTheSave() = runTest {
+        val rig = Rig(scope = backgroundScope) { 200 to profileJson(version = 4, interests = listOf("Park cleanups", "Food bank")) }
+        val loaded = rig.settings.load().preferences
+        assertEquals(listOf("Park cleanups", "Food bank"), loaded.volunteerInterests)
+        rig.settings.savePreferences(loaded.copy(volunteerInterests = listOf("Food bank")))
+        assertTrue(rig.http.requests.last().body.contains("\"volunteer_interests\":[\"Food bank\"]"))
+    }
+
     @Test fun saveMapsStaleThrottledInvalidAndOutageAnswers() = runTest {
         val p = Preferences(3, true, false, true, true, true, true, true, false, true, false, true, false, true, true)
         assertEquals(AccountFailure.Unavailable, failure { Rig(scope = backgroundScope) { 409 to "{}" }.settings.savePreferences(p) })

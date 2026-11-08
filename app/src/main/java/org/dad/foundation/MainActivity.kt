@@ -1121,6 +1121,7 @@ private fun SettingsContent(
             ToggleRow("Usage analytics", analytics.choice == true, "analytics-toggle", "shield") { analytics.choose(it) }
         }
     }
+    if (snapshot.preferences.volunteer) VolunteerInterestsSection(model, snapshot.preferences.volunteerInterests)
     if (analytics != null) {
         Text("First-party only: a temporary journey ID measures signup, sharing and giving. No names, email addresses or " +
             "payment details are sent.", style = MaterialTheme.typography.bodySmall)

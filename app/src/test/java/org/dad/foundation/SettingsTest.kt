@@ -5,12 +5,14 @@ import kotlinx.coroutines.yield
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,7 +68,10 @@ class SettingsTest {
         var slowSave: Boolean = false,
         var signOutFails: Boolean = false,
         var deleteFailure: AccountFailure? = null,
+        var saveFailure: AccountFailure? = null,
+        interests: List<String> = emptyList(),
     ) : SettingsService {
+        val saved = mutableListOf<Preferences>()
         var deleted = false
         var deleteCalls = 0
         var signedOut = false
@@ -75,7 +80,7 @@ class SettingsTest {
             pushReferralConverted = true, pushStreakAtRisk = true, pushStreakMilestone = true,
             pushStreakLapsed = true, pushBadgeEarned = true, pushEventNearby = false,
             pushEventReminder = true, pushEventPromoted = false, pushGiftProcessed = true,
-            rankingsOptedOut = false, networkVisible = true, volunteer = true,
+            rankingsOptedOut = false, networkVisible = true, volunteer = true, volunteerInterests = interests,
         )
         override suspend fun load(): SettingsSnapshot {
             if (failLoad) throw AccountFailure.SignedOut
@@ -83,6 +88,8 @@ class SettingsTest {
         }
         override suspend fun savePreferences(preferences: Preferences): SettingsSnapshot {
             if (slowSave) yield()
+            saveFailure?.let { throw it }
+            saved += preferences
             prefs = preferences.copy(version = preferences.version + 1)
             return SettingsSnapshot(ProfileSummary("d@x.com", "DONOR", "78701", "Austin", null), prefs)
         }
@@ -113,6 +120,86 @@ class SettingsTest {
         model.toggle("marketing_emails", true); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(4, model.snapshot?.preferences?.version)
         assertTrue(model.snapshot!!.preferences.marketingEmails)
+    }
+
+    // --- Volunteer interests ---
+    private fun TestScope.loaded(svc: FakeService = FakeService()): SettingsModel =
+        SettingsModel(svc).also { it.load(); dispatcher.scheduler.advanceUntilIdle() }
+
+    @Test fun interestRulesTrimCollapseDedupeAndLimit() {
+        assertEquals("Park cleanups", VolunteerInterests.normalize("  Park   cleanups \n"))
+        assertEquals(listOf("A", "B"), VolunteerInterests.add(listOf("A"), " B ").getOrThrow())
+        assertEquals(InterestRejection.EMPTY, (VolunteerInterests.add(emptyList(), "   ").exceptionOrNull() as InterestRejected).reason)
+        assertEquals(InterestRejection.DUPLICATE, (VolunteerInterests.add(listOf("Park cleanups"), "park  CLEANUPS").exceptionOrNull() as InterestRejected).reason)
+        assertTrue(VolunteerInterests.add(emptyList(), "x".repeat(60)).isSuccess)
+        assertEquals(InterestRejection.TOO_LONG, (VolunteerInterests.add(emptyList(), "x".repeat(61)).exceptionOrNull() as InterestRejected).reason)
+        // 60 characters outside the BMP still count as 60, matching the server's rune count.
+        assertTrue(VolunteerInterests.add(emptyList(), "\uD83C\uDF33".repeat(60)).isSuccess)
+        val full = List(VolunteerInterests.MAX_COUNT) { "interest $it" }
+        assertEquals(InterestRejection.FULL, (VolunteerInterests.add(full, "one more").exceptionOrNull() as InterestRejected).reason)
+        assertEquals(listOf("A"), VolunteerInterests.remove(listOf("A", "B"), "B"))
+    }
+
+    @Test fun existingInterestsLoadWithTheSnapshot() = runTest {
+        val model = loaded(FakeService(interests = listOf("Food bank")))
+        assertEquals(listOf("Food bank"), model.snapshot!!.preferences.volunteerInterests)
+    }
+
+    @Test fun addingAnInterestSavesTrimmedAndBumpsTheVersion() = runTest {
+        val svc = FakeService()
+        val model = loaded(svc)
+        assertTrue(model.addInterest("  Park cleanups  ")); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("Park cleanups"), model.snapshot!!.preferences.volunteerInterests)
+        assertEquals(4, model.snapshot!!.preferences.version)
+        assertNull(model.interestNotice)
+        assertEquals(listOf("Park cleanups"), svc.saved.single().volunteerInterests)
+    }
+
+    @Test fun aDuplicateOrOverlongOrBlankInterestSavesNothingAndExplainsWhy() = runTest {
+        val svc = FakeService(interests = listOf("Food bank"))
+        val model = loaded(svc)
+        assertFalse(model.addInterest("food BANK")); assertEquals(InterestRejection.DUPLICATE.message, model.interestNotice)
+        assertFalse(model.addInterest("x".repeat(61))); assertEquals(InterestRejection.TOO_LONG.message, model.interestNotice)
+        assertFalse(model.addInterest("  ")); assertEquals(InterestRejection.EMPTY.message, model.interestNotice)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(svc.saved.isEmpty())
+        assertTrue(model.addInterest("Tree planting")); assertNull(model.interestNotice)
+    }
+
+    @Test fun theTwentyFirstInterestIsRefused() = runTest {
+        val svc = FakeService(interests = List(VolunteerInterests.MAX_COUNT) { "interest $it" })
+        val model = loaded(svc)
+        assertFalse(model.addInterest("one more"))
+        assertEquals(InterestRejection.FULL.message, model.interestNotice)
+        assertTrue(svc.saved.isEmpty())
+    }
+
+    @Test fun removingAnInterestSavesTheShorterList() = runTest {
+        val model = loaded(FakeService(interests = listOf("A", "B")))
+        model.removeInterest("A"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("B"), model.snapshot!!.preferences.volunteerInterests)
+    }
+
+    @Test fun quickSuccessiveAddsAllLand() = runTest {
+        val model = loaded(FakeService(slowSave = true))
+        model.addInterest("A"); model.addInterest("B"); model.addInterest("C")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("A", "B", "C"), model.snapshot!!.preferences.volunteerInterests)
+        assertEquals(6, model.snapshot!!.preferences.version)
+    }
+
+    @Test fun aStaleSaveKeepsTheOldListShowsTheErrorAndTheNextSaveUsesTheLatestVersion() = runTest {
+        val svc = FakeService(interests = listOf("A"))
+        val model = loaded(svc)
+        svc.saveFailure = AccountFailure.Unavailable
+        model.addInterest("B"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("A"), model.snapshot!!.preferences.volunteerInterests)
+        assertNotNull(model.actionError)
+        svc.saveFailure = null
+        model.addInterest("B"); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(model.actionError)
+        assertEquals(listOf("A", "B"), model.snapshot!!.preferences.volunteerInterests)
+        assertEquals(3, svc.saved.single().version)
     }
 
     @Test fun deleteRequiresConfirmThenWipes() = runTest {
