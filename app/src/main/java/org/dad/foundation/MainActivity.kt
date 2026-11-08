@@ -201,6 +201,13 @@ class AccountModel(
             partnerSignedIn = !hasSession && active?.partner?.session?.isSignedIn == true
             booted = true
             active?.analytics?.emit(AnalyticsEvent.Plain(PlainEvent.APP_OPENED))
+            // Deferred attribution never holds up the launch: it runs beside it and shows the invitation if no one is signed in yet.
+            active?.installReferrer?.let { intake ->
+                viewModelScope.launch {
+                    val name = withContext(io) { intake.run() }
+                    if (name != null && state !is AccountState.Ready) invitation = "$name invited you to give with DAD."
+                }
+            }
             if (hasSession) gate.signedIn()?.let { destination = it }
             if (hasSession) load() else state = if (active == null) AccountState.Unavailable else AccountState.SignedOut
         }
@@ -475,6 +482,7 @@ class MainActivity : ComponentActivity() {
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
                         val product = ProductClient(origin, session, http)
+                        val links = LinkAttribution(WireLinkAttribution(origin, product, http), linkTokens, analytics)
                         val pushOptOuts = PrefsPushOptOuts(appContext)
                         val credentialAuth = WireCredentialAuth(origin, android.os.Build.MODEL, http)
                         val external = WireExternalSignIn(origin, android.os.Build.MODEL, http)
@@ -505,7 +513,9 @@ class MainActivity : ComponentActivity() {
                             analytics = analytics,
                             push = WireDonorPush(product),
                             pushTokens = firebasePushTokens(appContext),
-                            links = LinkAttribution(WireLinkAttribution(origin, product, http), linkTokens, analytics),
+                            links = links,
+                            installReferrer = InstallReferrerIntake(
+                                PlayInstallReferrer({ PlayReferrerConnection(appContext) }), PrefsInstallReferrerLedger(appContext), links),
                             external = ExternalSignInDeps(
                                 // No Credential Manager provider is linked, so a configured ID alone never switches a method on.
                                 capabilities = SignInCapabilities.of(SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)),

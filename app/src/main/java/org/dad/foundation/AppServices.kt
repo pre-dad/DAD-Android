@@ -61,6 +61,8 @@ class AppServices(
     val pushTokens: PushTokenProvider? = null,
     /** Referral and company-code link visits, kept and spent as the website's cookies are; null in the preview. */
     val links: LinkAttribution? = null,
+    /** Reads the Play install referrer once on the first launch; null where there is no Play Store (previews, the stub). */
+    val installReferrer: InstallReferrerIntake? = null,
 )
 
 /** DEBUG launch switches. Always all-false in a release build. */

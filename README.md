@@ -231,6 +231,11 @@ devices (`sessions`, `revokeSession`, `revokeOtherSessions`, and `logoutAll` to 
 programme (`employeeTeam`, `employeeEnroll` with a company code, `employeeJoinTeam`), and the referral code as a
 Google Wallet pass (`walletProviders` / `googlePass`, offered only when the server says Google Wallet is configured).
 
+Under the volunteer opt-in, Settings has a free-form interest list (`volunteer_interests`): type an interest and add it,
+remove one with its Remove button. Entries are trimmed, repeats (in any letter case) are refused, and the contract's
+limits apply on the device too: at most 20 interests of 60 characters. Each change saves the whole preference block at
+its current `version`, one save at a time, so a stale or failed save keeps the list as it was and shows the error.
+
 ## Partner portal (contract 2.9.0)
 
 A partner signs in with an emailed link: "Partner" on the start screen asks for a work email
@@ -295,3 +300,15 @@ wins, and a visit that keeps nothing discards it). The referral token goes with 
 (`startRecurringCheckout`'s `referral_token`, part of the command's idempotency fingerprint), so the referrer is credited
 as on the web; the company token is bound once the donor is signed in (`bindCompanyTouch`). Before sign-in an invite
 names the referrer on the start screen. Account deletion forgets both.
+
+**Play install referrer (deferred attribution).** On the first launch after install the app reads the Play install
+referrer once (`com.android.installreferrer:installreferrer:2.2`, from Google Maven; the version is the one the
+[Android developer guide](https://developer.android.com/google/play/installreferrer/library) shows) and feeds it
+through the same link path as a tapped invite: `invite=`/`ref=` to `captureReferral` (`LINK`), `irl=` to
+`captureReferral` (`IRL`), `company=` to `captureCompany`. The read runs off the main thread with a 5 second bound,
+never delays startup, and Play being unavailable or unsupported, a refused connection, a failed read, a timeout or
+a malformed or oversized string all count as "no referrer". Codes are validated (1 to 64 letters, digits, `_`, `-`)
+before use. The referrer is marked read as soon as it has answered, so it is captured at most once; the capture itself
+is best effort and is not retried after a failed network call. The mark survives account deletion. A launch closed
+before Play answers leaves it unread for the next one. Only Play installs have a referrer, so debug and sideloaded
+builds capture nothing.
