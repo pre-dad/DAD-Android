@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -33,8 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -44,11 +45,11 @@ import androidx.core.net.toUri
 internal enum class ScanBlock { NONE, DENIED, PERMANENTLY_DENIED }
 
 internal object ScanCopy {
-    const val HINT_INVALID = "That QR code isn’t an event check-in code. Keep scanning, or type the code."
-    const val DENIED = "Camera access is needed to scan. Allow it and try again, or type the code instead."
-    const val PERMANENTLY_DENIED = "Camera access is turned off for this app. Open Settings to allow it, or type the code instead."
-    const val UNAVAILABLE = "The camera isn’t available right now. Type the code instead."
-    const val PROMPT = "Point the camera at the QR code shown at the event."
+    @StringRes val HINT_INVALID = R.string.qr_that_qr_code_isnt_an_event_check
+    @StringRes val DENIED = R.string.qr_camera_access_is_needed_to_scan
+    @StringRes val PERMANENTLY_DENIED = R.string.qr_camera_access_is_turned_off_for
+    @StringRes val UNAVAILABLE = R.string.qr_the_camera_isnt_available_right
+    @StringRes val PROMPT = R.string.qr_point_the_camera_at_the_qr_code
 }
 
 /**
@@ -86,16 +87,16 @@ internal fun ScanQrSection(enabled: Boolean, onToken: (String) -> Unit, onScanSt
                 },
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("checkin-scan"),
-            ) { Text("Scan QR code") }
+            ) { Text(stringResource(R.string.qr_scan_qr_code)) }
             when (block) {
                 ScanBlock.NONE -> Unit
-                ScanBlock.DENIED -> Text(ScanCopy.DENIED, modifier = Modifier.testTag("scan-denied").semantics { liveRegion = LiveRegionMode.Polite })
+                ScanBlock.DENIED -> Text(stringResource(ScanCopy.DENIED), modifier = Modifier.testTag("scan-denied").semantics { liveRegion = LiveRegionMode.Polite })
                 ScanBlock.PERMANENTLY_DENIED -> {
-                    Text(ScanCopy.PERMANENTLY_DENIED, modifier = Modifier.testTag("scan-denied-permanent").semantics { liveRegion = LiveRegionMode.Polite })
+                    Text(stringResource(ScanCopy.PERMANENTLY_DENIED), modifier = Modifier.testTag("scan-denied-permanent").semantics { liveRegion = LiveRegionMode.Polite })
                     OutlinedButton(
                         onClick = { context.startActivity(settingsIntent(context.packageName)) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("scan-open-settings"),
-                    ) { Text("Open Settings") }
+                    ) { Text(stringResource(R.string.qr_open_settings)) }
                 }
             }
         }
@@ -107,7 +108,7 @@ private fun settingsIntent(packageName: String) =
 
 @Composable
 private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> Unit, onTypeInstead: () -> Unit) {
-    var hint by remember { mutableStateOf<String?>(null) }
+    var hint by remember { mutableStateOf<Int?>(null) }
     var status by remember { mutableStateOf<ScannerStatus?>(null) }
     var torchOn by rememberSaveable { mutableStateOf(false) }
     val currentOnToken by rememberUpdatedState(onToken)
@@ -118,21 +119,21 @@ private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> U
         OutlinedButton(
             onClick = onTypeInstead,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("scan-type-instead"),
-        ) { Text("Type the code instead") }
+        ) { Text(stringResource(R.string.qr_type_the_code_instead)) }
     }
     val bringIntoView = remember { BringIntoViewRequester() }
     LaunchedEffect(Unit) { bringIntoView.bringIntoView() }
 
     Column(Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoView).testTag("scanner-panel"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (status == ScannerStatus.Unavailable) {
-            Text(ScanCopy.UNAVAILABLE, modifier = Modifier.testTag("scan-unavailable").semantics { liveRegion = LiveRegionMode.Polite })
+            Text(stringResource(ScanCopy.UNAVAILABLE), modifier = Modifier.testTag("scan-unavailable").semantics { liveRegion = LiveRegionMode.Polite })
             typeInstead()
         } else {
-            Text(ScanCopy.PROMPT, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(ScanCopy.PROMPT), style = MaterialTheme.typography.bodyMedium)
             typeInstead()
             Box(
                 Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f).clip(RoundedCornerShape(16.dp)).testTag("scanner-viewfinder")
-                    .semantics { contentDescription = "Camera view for scanning the event QR code" },
+                    .contentDescribed(R.string.qr_camera_view_for_scanning_the_event),
                 contentAlignment = Alignment.Center,
             ) {
                 environment.source.Viewfinder(
@@ -151,9 +152,9 @@ private fun ScannerPanel(environment: ScannerEnvironment, onToken: (String) -> U
                 OutlinedButton(
                     onClick = { torchOn = !torchOn },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("scan-torch"),
-                ) { Text(if (torchOn) "Turn the light off" else "Turn the light on") }
+                ) { Text(if (torchOn) stringResource(R.string.qr_turn_the_light_off) else stringResource(R.string.qr_turn_the_light_on)) }
             }
-            hint?.let { Text(it, modifier = Modifier.testTag("scan-hint").semantics { liveRegion = LiveRegionMode.Polite }) }
+            hint?.let { Text(stringResource(it), modifier = Modifier.testTag("scan-hint").semantics { liveRegion = LiveRegionMode.Polite }) }
         }
     }
 }

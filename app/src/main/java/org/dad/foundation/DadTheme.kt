@@ -1,5 +1,6 @@
 package org.dad.foundation
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -100,6 +102,13 @@ object DadTheme {
 
 /** Marks a title for TalkBack heading navigation. */
 fun Modifier.dadHeading(): Modifier = semantics { heading() }
+
+/** [semantics] `contentDescription` from a string resource, resolved where the composition can read it. */
+@Composable
+fun Modifier.contentDescribed(@StringRes id: Int, vararg formatArgs: Any): Modifier {
+    val description = stringResource(id, *formatArgs)
+    return semantics { contentDescription = description }
+}
 
 /**
  * A top app bar whose only control is a back arrow. The arrow is an [IconButton] (never a filled
@@ -213,11 +222,12 @@ fun DadDestructiveTextButton(text: String, modifier: Modifier = Modifier, enable
 fun DadStreakBar(filled: Int, modifier: Modifier = Modifier, total: Int = 30) {
     val safeTotal = total.coerceAtLeast(1)
     val safeFilled = filled.coerceIn(0, safeTotal)
+    val description = stringResource(R.string.ui_streak_bar_description, safeFilled, safeTotal)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(10.dp)
-            .clearAndSetSemantics { contentDescription = "Streak: $safeFilled of $safeTotal days" },
+            .clearAndSetSemantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         repeat(safeTotal) { index ->

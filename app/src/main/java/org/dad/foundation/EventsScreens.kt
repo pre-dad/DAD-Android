@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -88,16 +89,16 @@ private fun EventList(model: EventsModel, onClose: (() -> Unit)?, onOpen: (Strin
         modifier = Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start).widthIn(max = 640.dp).fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("events-home"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Events & volunteering", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.home_events_volunteering), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         when (val phase = model.phase) {
             is EventsPhase.Loading -> CircularProgressIndicator(modifier = Modifier.testTag("events-loading"))
             is EventsPhase.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(phase.message, modifier = Modifier.testTag("events-error"))
-                DadPrimaryButton("Try again", Modifier.testTag("events-retry")) { model.load() }
+                Text(phase.message.asString(), modifier = Modifier.testTag("events-error"))
+                DadPrimaryButton(stringResource(R.string.common_try_again), Modifier.testTag("events-retry")) { model.load() }
             }
             is EventsPhase.Ready -> {
-                model.actionError?.let { Text(it, modifier = Modifier.testTag("events-action-error").semantics { liveRegion = LiveRegionMode.Polite }) }
-                if (model.events.isEmpty()) Text("No events right now. Check back soon.", modifier = Modifier.testTag("events-empty"))
+                model.actionError?.let { Text(it.asString(), modifier = Modifier.testTag("events-action-error").semantics { liveRegion = LiveRegionMode.Polite }) }
+                if (model.events.isEmpty()) Text(stringResource(R.string.events_no_events_right_now_check_back), modifier = Modifier.testTag("events-empty"))
                 model.events.forEach { EventRow(it, model.now(), onOpen) }
             }
         }
@@ -120,27 +121,27 @@ private fun EventRow(event: DonorEvent, now: Date, onOpen: (String) -> Unit) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(event.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(EventTime.start(event), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-start-${event.id}"))
-            Text(listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", ") + " · " + event.spotsLabel, style = MaterialTheme.typography.bodySmall)
+            Text(listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", ") + " · " + event.spotsLabel.asString(), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // State in text, not colour alone.
-                if (event.isInviteOnly) Text("Invite only", style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
-                statusLabel(event, now)?.let { Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("event-status-${event.id}")) }
+                if (event.isInviteOnly) Text(stringResource(R.string.events_invite_only), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
+                statusLabel(event, now)?.let { Text(it.asString(), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("event-status-${event.id}")) }
                 if (event.earlyBooking && event.availability(now) is EventAvailability.Reservable && event.bookingOpensAt?.after(now) == true) {
-                    Text("Early booking", style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("early-booking-${event.id}"))
+                    Text(stringResource(R.string.events_early_booking), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("early-booking-${event.id}"))
                 }
             }
         }
         IconButton(onClick = { onOpen(event.id) }, modifier = Modifier.size(48.dp).testTag("open-event-${event.id}")) {
-            DadSymbol("chevron", "View details for ${event.title}")
+            DadSymbol("chevron", stringResource(R.string.events_view_details_for, event.title))
         }
     }
 }
 
-private fun statusLabel(event: DonorEvent, now: Date): String? = when (event.availability(now)) {
-    EventAvailability.CheckedIn -> "Checked in"
-    EventAvailability.Reserved -> "You’re going"
-    EventAvailability.Waitlisted -> "On the waitlist"
-    EventAvailability.Cancelled -> "Cancelled"
+private fun statusLabel(event: DonorEvent, now: Date): UiText? = when (event.availability(now)) {
+    EventAvailability.CheckedIn -> UiText.res(R.string.events_checked_in)
+    EventAvailability.Reserved -> UiText.res(R.string.events_youre_going)
+    EventAvailability.Waitlisted -> UiText.res(R.string.events_on_the_waitlist)
+    EventAvailability.Cancelled -> UiText.res(R.string.events_cancelled)
     else -> null
 }
 
@@ -157,47 +158,47 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
         modifier = Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start).widthIn(max = 640.dp).fillMaxWidth().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("event-detail"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        DadTextButton("All events", Modifier.testTag("event-back"), onClick = onBack)
+        DadTextButton(stringResource(R.string.events_all_events), Modifier.testTag("event-back"), onClick = onBack)
         Text(event.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading().testTag("event-title"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(event.typeLabel, style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("event-type"))
-            if (event.isInviteOnly) Text("Invite only", style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
+            Text(event.typeLabel.asString(), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("event-type"))
+            if (event.isInviteOnly) Text(stringResource(R.string.events_invite_only), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
         }
         event.invitationNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("invitation-note")) }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("When", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.events_when), style = MaterialTheme.typography.labelLarge)
             Text(EventTime.range(event), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("event-time"))
-            Text("Where", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.events_where), style = MaterialTheme.typography.labelLarge)
             Text(
                 listOf(event.venue, event.address, event.city).filter { it.isNotBlank() }.joinToString("\n"),
                 style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("event-place"),
             )
-            Text(event.spotsLabel, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-spots"))
+            Text(event.spotsLabel.asString(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-spots"))
         }
         if (event.details.isNotBlank()) Text(event.details, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-details"))
 
-        model.actionError?.let { Text(it, modifier = Modifier.testTag("events-action-error").semantics { liveRegion = LiveRegionMode.Polite }) }
+        model.actionError?.let { Text(it.asString(), modifier = Modifier.testTag("events-action-error").semantics { liveRegion = LiveRegionMode.Polite }) }
         model.lastOutcome?.let { outcome ->
             Column(modifier = Modifier.testTag("reserve-confirm").semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(outcome.confirmationTitle, style = MaterialTheme.typography.titleMedium)
-                Text(outcome.confirmationDetail, style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { model.clearOutcome() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Done") }
+                Text(outcome.confirmationTitle.asString(), style = MaterialTheme.typography.titleMedium)
+                Text(outcome.confirmationDetail.asString(), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = { model.clearOutcome() }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.events_done)) }
             }
         }
 
         when (val availability = event.availability(now)) {
             is EventAvailability.Reservable ->
-                DadPrimaryButton(if (busy) "Reserving…" else "Reserve", Modifier.testTag("reserve-${event.id}")) { if (!busy) model.reserve(event.id) }
+                DadPrimaryButton(if (busy) stringResource(R.string.events_reserving) else stringResource(R.string.events_reserve), Modifier.testTag("reserve-${event.id}")) { if (!busy) model.reserve(event.id) }
             EventAvailability.Waitlistable ->
-                DadPrimaryButton(if (busy) "Joining…" else "Join waitlist", Modifier.testTag("waitlist-${event.id}")) { if (!busy) model.reserve(event.id) }
+                DadPrimaryButton(if (busy) stringResource(R.string.events_joining) else stringResource(R.string.events_join_waitlist), Modifier.testTag("waitlist-${event.id}")) { if (!busy) model.reserve(event.id) }
             is EventAvailability.NotYetOpen ->
-                Text("Booking opens ${EventTime.at(event, availability.opensAt)}.", modifier = Modifier.testTag("not-yet-open-${event.id}"))
-            EventAvailability.Started -> Text("This event has started, so it can’t be booked.", modifier = Modifier.testTag("started-${event.id}"))
-            EventAvailability.Cancelled -> Text("This event was cancelled.", modifier = Modifier.testTag("cancelled-${event.id}"))
-            EventAvailability.Reserved -> Text("You’re going. Your spot is reserved.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("going-${event.id}"))
-            EventAvailability.Waitlisted -> Text("You’re on the waitlist.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("waitlisted-${event.id}"))
+                Text(stringResource(R.string.events_booking_opens, EventTime.at(event, availability.opensAt)), modifier = Modifier.testTag("not-yet-open-${event.id}"))
+            EventAvailability.Started -> Text(stringResource(R.string.events_this_event_has_started_so_it_cant), modifier = Modifier.testTag("started-${event.id}"))
+            EventAvailability.Cancelled -> Text(stringResource(R.string.events_this_event_was_cancelled), modifier = Modifier.testTag("cancelled-${event.id}"))
+            EventAvailability.Reserved -> Text(stringResource(R.string.events_youre_going_your_spot_is_reserved), style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("going-${event.id}"))
+            EventAvailability.Waitlisted -> Text(stringResource(R.string.events_youre_on_the_waitlist), style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("waitlisted-${event.id}"))
             EventAvailability.CheckedIn -> Text(
-                "You’re checked in" + (event.checkedInAt?.let { " (${EventTime.at(event, it)})" } ?: "") + ".",
+                event.checkedInAt?.let { stringResource(R.string.events_checked_in_at, EventTime.at(event, it)) } ?: stringResource(R.string.events_checked_in_plain),
                 style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("checkedin-${event.id}"),
             )
         }
@@ -205,16 +206,16 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
         if (event.canCancel(now)) {
             if (confirmingCancel) {
                 Column(modifier = Modifier.testTag("cancel-confirm-${event.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (event.status == ReservationStatus.WAITLISTED) "Leave the waitlist?" else "Give up your spot?", style = MaterialTheme.typography.bodyLarge)
+                    Text(if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist) else stringResource(R.string.events_give_up_your_spot), style = MaterialTheme.typography.bodyLarge)
                     DadDestructiveTextButton(
-                        if (event.status == ReservationStatus.WAITLISTED) "Leave the waitlist" else "Give up my spot",
+                        if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist_2) else stringResource(R.string.events_give_up_my_spot),
                         Modifier.fillMaxWidth().testTag("cancel-confirm-go"), enabled = !busy,
                     ) { confirmingCancel = false; model.cancel(event.id) }
-                    DadSecondaryButton("Keep it", Modifier.fillMaxWidth().testTag("cancel-keep")) { confirmingCancel = false }
+                    DadSecondaryButton(stringResource(R.string.events_keep_it), Modifier.fillMaxWidth().testTag("cancel-keep")) { confirmingCancel = false }
                 }
             } else {
                 OutlinedButton(onClick = { confirmingCancel = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("cancel-${event.id}")) {
-                    Text(if (event.status == ReservationStatus.WAITLISTED) "Leave waitlist" else "Cancel my spot")
+                    Text(if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_waitlist) else stringResource(R.string.events_cancel_my_spot))
                 }
             }
         }
@@ -233,33 +234,33 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
 private fun CheckInSection(model: EventsModel, event: DonorEvent, now: Date) {
     val state = model.checkIn
     Column(Modifier.fillMaxWidth().testTag("checkin-section"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Check in", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.events_check_in), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         if (event.checkedInAt != null) {
-            Text("You’re already checked in.", modifier = Modifier.testTag("checkin-already"))
+            Text(stringResource(R.string.events_youre_already_checked_in), modifier = Modifier.testTag("checkin-already"))
             return@Column
         }
         if (!event.canCheckIn(now)) {
-            val closed = if (now.before(event.startsAt)) "Check-in opens when the event starts." else "Check-in for this event has closed."
+            val closed = if (now.before(event.startsAt)) stringResource(R.string.events_check_in_opens_when_the_event) else stringResource(R.string.events_check_in_for_this_event_has_closed)
             Text(closed, modifier = Modifier.testTag("checkin-closed"))
             return@Column
         }
         var code by rememberSaveable(event.id) { mutableStateOf("") }
         val checking = state is CheckInState.Checking
-        Text("Enter the code shown at the event, or scan its QR code.", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.events_enter_the_code_shown_at_the_event), style = MaterialTheme.typography.bodyMedium)
         OutlinedTextField(
             value = code, onValueChange = { code = it.take(CheckInCode.LENGTH + 8); model.resetCheckIn() },
-            label = { Text("Check-in code") }, singleLine = true, enabled = !checking,
+            label = { Text(stringResource(R.string.events_check_in_code)) }, singleLine = true, enabled = !checking,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
             modifier = Modifier.fillMaxWidth().testTag("checkin-code"),
         )
-        DadPrimaryButton(if (checking) "Checking in…" else "Check in", Modifier.testTag("checkin-submit")) { if (!checking) model.checkIn(event, code) }
+        DadPrimaryButton(if (checking) stringResource(R.string.events_checking_in) else stringResource(R.string.events_check_in), Modifier.testTag("checkin-submit")) { if (!checking) model.checkIn(event, code) }
         ScanQrSection(enabled = !checking, onToken = { model.checkIn(event, it) }, onScanStarted = { model.resetCheckIn() })
         when (state) {
             is CheckInState.Done -> Text(
-                if (state.alreadyCheckedIn) "You were already checked in." else "You’re checked in. Thank you for coming.",
+                if (state.alreadyCheckedIn) stringResource(R.string.events_you_were_already_checked_in) else stringResource(R.string.events_youre_checked_in_thank_you_for),
                 style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("checkin-result").semantics { liveRegion = LiveRegionMode.Polite },
             )
-            is CheckInState.Failed -> Text(state.message, modifier = Modifier.testTag("checkin-error").semantics { liveRegion = LiveRegionMode.Polite })
+            is CheckInState.Failed -> Text(state.message.asString(), modifier = Modifier.testTag("checkin-error").semantics { liveRegion = LiveRegionMode.Polite })
             else -> Unit
         }
     }
@@ -274,8 +275,8 @@ private fun AddToCalendar(model: EventsModel, event: DonorEvent) {
         OutlinedButton(
             onClick = { model.addToCalendar(event) }, enabled = state !is CalendarState.Fetching,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("add-calendar"),
-        ) { Text(if (state is CalendarState.Fetching) "Getting calendar file…" else "Add to calendar") }
-        if (state is CalendarState.Failed) Text(state.message, modifier = Modifier.testTag("calendar-error").semantics { liveRegion = LiveRegionMode.Polite })
+        ) { Text(if (state is CalendarState.Fetching) stringResource(R.string.events_getting_calendar_file) else stringResource(R.string.events_add_to_calendar)) }
+        if (state is CalendarState.Failed) Text(state.message.asString(), modifier = Modifier.testTag("calendar-error").semantics { liveRegion = LiveRegionMode.Polite })
     }
 }
 
@@ -284,6 +285,7 @@ private fun AddToCalendar(model: EventsModel, event: DonorEvent) {
 private fun CalendarShare(model: EventsModel) {
     val context = LocalContext.current
     val state = model.calendar
+    val chooserTitle = stringResource(R.string.events_add_to_calendar)
     LaunchedEffect(state) {
         if (state !is CalendarState.Ready) return@LaunchedEffect
         val file = withContext(Dispatchers.IO) { sharedFile(context, "calendar", "event.ics").also { it.writeBytes(state.bytes) } }
@@ -294,7 +296,7 @@ private fun CalendarShare(model: EventsModel) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         try {
-            context.startActivity(Intent.createChooser(send, "Add to calendar").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
             model.calendarShared()
         } catch (_: ActivityNotFoundException) {
             model.calendarUnavailable()
@@ -319,8 +321,8 @@ private fun ReportIssue(url: String) {
                 }
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("report-issue"),
-        ) { Text("Report an issue") }
-        if (failed) Text("There’s no email app on this device. You can write to ${mailto.schemeSpecificPart.substringBefore('?')}.", modifier = Modifier.testTag("report-issue-error"))
+        ) { Text(stringResource(R.string.events_report_an_issue)) }
+        if (failed) Text(stringResource(R.string.events_no_email_app, mailto.schemeSpecificPart.substringBefore('?')), modifier = Modifier.testTag("report-issue-error"))
     }
 }
 

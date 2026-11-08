@@ -19,8 +19,8 @@ data class NetworkMilestone(
     val remaining: Long,
 ) {
     /** "2 more to Circle of 10", or "1 more to …" for the singular. */
-    val progressLabel: String
-        get() = if (remaining == 1L) "1 more to $label" else "$remaining more to $label"
+    val progressLabel: UiText
+        get() = UiText.plural(R.plurals.network_milestone_remaining, remaining.toQuantity(), remaining, label)
 }
 
 /** One opted-in person the donor brought in (N-3): first name + last initial, as they chose it. */
@@ -29,7 +29,7 @@ data class NetworkInvitee(
     val active: Boolean,
 ) {
     /** "giving" / "paused": state in text (N-3). */
-    val statusLabel: String get() = if (active) "giving" else "paused"
+    val statusLabel: UiText get() = UiText.res(if (active) R.string.network_status_giving else R.string.network_status_paused)
 }
 
 /**
@@ -45,11 +45,11 @@ data class NetworkView(
     val anonymousActive: Long,
 ) {
     /** "12 people giving", singular-aware (N-1). */
-    val activeLabel: String
-        get() = if (activeCount == 1L) "1 person giving" else "$activeCount people giving"
+    val activeLabel: UiText
+        get() = UiText.plural(R.plurals.network_active_people, activeCount.toQuantity(), activeCount)
 
     /** Combined annualized giving across the network, e.g. "$3,480/yr" (N-1). */
-    val annualizedLabel: String get() = "${formatMinorUsd(annualizedMinor)}/yr"
+    val annualizedLabel: UiText get() = UiText.res(R.string.network_annualized, formatMinorUsd(annualizedMinor))
 
     /** Only the opted-in invitees are listable (N-3); anonymous referrals are never named. */
     val namedInvitees: List<NetworkInvitee> get() = invitees
@@ -62,20 +62,14 @@ data class NetworkView(
     val anonymousActiveCount: Long get() = anonymousActive
 
     /** The "and N more giving anonymously" line, or null when everyone active opted in. */
-    val anonymousLabel: String?
-        get() = when {
-            anonymousActive <= 0L -> null
-            anonymousActive == 1L -> "and 1 more giving anonymously"
-            else -> "and $anonymousActive more giving anonymously"
-        }
+    val anonymousLabel: UiText?
+        get() = if (anonymousActive <= 0L) null
+        else UiText.plural(R.plurals.network_anonymous_giving, anonymousActive.toQuantity(), anonymousActive)
 
     /** "2 people choose to stay anonymous", or null when everyone active opted in. */
-    val anonymousStayingLabel: String?
-        get() = when {
-            anonymousActive <= 0L -> null
-            anonymousActive == 1L -> "1 person chooses to stay anonymous"
-            else -> "$anonymousActive people choose to stay anonymous"
-        }
+    val anonymousStayingLabel: UiText?
+        get() = if (anonymousActive <= 0L) null
+        else UiText.plural(R.plurals.network_anonymous_staying, anonymousActive.toQuantity(), anonymousActive)
 
     /** True once every referral tier is reached (no next milestone). */
     val allTiersReached: Boolean get() = nextMilestone == null
@@ -92,7 +86,7 @@ data class Badge(
     val code: String,
     val title: String,
     val rule: String,
-    val perk: String,
+    val perk: UiText?,
     val earned: Boolean,
     val earnedAt: OffsetDateTime?,
     /** The city a city-ranked badge is for (`Top 50 in Chicago`), null for every other badge. */
@@ -108,14 +102,14 @@ data class Badge(
      * knows earned vs locked without relying on colour (B-1, WCAG). Earned: the title + "earned".
      * Locked: the title + "locked" + how to earn it.
      */
-    val accessibilityLabel: String
-        get() = if (earned) "$shownTitle, earned" else "$title, locked. $rule"
+    val accessibilityLabel: UiText
+        get() = if (earned) UiText.res(R.string.network_badge_earned_label, shownTitle) else UiText.res(R.string.network_badge_locked_label, title, rule)
 
     /** The secondary line under the title: the rule when locked, the perk when earned (the rule again for a badge with no perk). */
-    val detailLine: String get() = if (earned) perk.ifBlank { rule } else rule
+    val detailLine: UiText get() = if (earned) perk ?: UiText.plain(rule) else UiText.plain(rule)
 
     /** Whether this badge's perk is active (B-4 perk gating): only once earned. */
-    val perkActive: Boolean get() = earned && perk.isNotBlank()
+    val perkActive: Boolean get() = earned && perk != null
 
     /** Whether this earned badge unlocks invite-only events (E-5), keyed on the server's badge code. */
     val unlocksInviteOnlyEvents: Boolean get() = earned && code in PERK_GATING_CODES
@@ -128,12 +122,12 @@ data class Badge(
          * Perk copy for the server's perk key (PRD B-4). The key set is open: an unknown, non-empty key
          * still says the badge carries a perk rather than hiding it, and an empty key means no perk.
          */
-        fun perkCopy(key: String): String = when (key) {
-            "" -> ""
-            "FOUNDING_EVENTS" -> "Invite-only founding events"
-            "MILESTONE_EVENTS" -> "Invite-only milestone events"
-            "TEAM_CAPTAIN" -> "Invite-only events, a DAD merch item, 48-hour early event booking and opt-in name listing on initiative pages"
-            else -> "Unlocks a member perk"
+        fun perkCopy(key: String): UiText? = when (key) {
+            "" -> null
+            "FOUNDING_EVENTS" -> UiText.res(R.string.network_invite_only_founding_events)
+            "MILESTONE_EVENTS" -> UiText.res(R.string.network_invite_only_milestone_events)
+            "TEAM_CAPTAIN" -> UiText.res(R.string.network_invite_only_events_a_dad_merch)
+            else -> UiText.res(R.string.network_unlocks_a_member_perk)
         }
     }
 }
@@ -150,13 +144,13 @@ data class BadgeGrid(
     val locked: List<Badge> get() = badges.filter { !it.earned }
 
     /** "7 of 24 earned" — the headline count (B-2). */
-    val summaryLabel: String get() = "${earned.size} of ${badges.size} earned"
+    val summaryLabel: UiText get() = UiText.res(R.string.network_badges_summary, earned.size, badges.size)
 
     /** True when the donor holds any perk-gating badge (F, 1K, TC), i.e. invite-only events are open to them. */
     val hasInviteOnlyAccess: Boolean get() = badges.any { it.unlocksInviteOnlyEvents }
 
     /** The active perks the donor has unlocked (B-4), for the perk display. */
-    val activePerks: List<String> get() = earned.filter { it.perkActive }.map { it.perk }
+    val activePerks: List<UiText> get() = earned.filter { it.perkActive }.mapNotNull { it.perk }
 }
 
 // MARK: - Sharing visibility (N opt-in / A-5)
@@ -184,8 +178,8 @@ data class SharingState(
     val inPersonLink: String? get() = if (isPublic) irlLink else null
 
     /** The visibility line, e.g. "Shown as Alex C." or "Giving anonymously". */
-    val visibilityLabel: String
-        get() = publicName?.takeIf { it.isNotBlank() }?.let { "Shown as $it" } ?: "Giving anonymously"
+    val visibilityLabel: UiText
+        get() = publicName?.takeIf { it.isNotBlank() }?.let { UiText.res(R.string.network_shown_as, it) } ?: UiText.res(R.string.network_giving_anonymously)
 }
 
 // MARK: - Invite (R-1..R-4)
@@ -193,10 +187,10 @@ data class SharingState(
 /** One referral's first gift. It carries nothing about the referred donor; [kind] is an open string. */
 data class Conversion(val convertedAt: OffsetDateTime, val kind: String) {
     /** "Link" / "In person"; a kind a newer server adds is shown neutrally rather than dropped. */
-    val kindLabel: String get() = when (kind) {
-        "LINK" -> "Link"
-        "IRL" -> "In person"
-        else -> "Invite"
+    val kindLabel: UiText get() = when (kind) {
+        "LINK" -> UiText.res(R.string.home_link)
+        "IRL" -> UiText.res(R.string.network_in_person)
+        else -> UiText.res(R.string.main_invite)
     }
 }
 
@@ -216,10 +210,8 @@ data class ReferralInfo(
     val totalConverted: Long? get() = if (linkCount != null && irlCount != null) linkCount + irlCount else null
 
     /** The text that goes out with the link. */
-    fun shareMessage(publicOrigin: String): String {
-        val base = "Join me on Dollar A Day — give \$1 a day to local causes."
-        return link(publicOrigin)?.let { "$base $it" } ?: base
-    }
+    fun shareMessage(publicOrigin: String): UiText =
+        link(publicOrigin)?.let { UiText.res(R.string.network_share_message_with_link, it) } ?: UiText.res(R.string.network_join_me_on_dollar_a_day_give_1_a)
 
     fun link(publicOrigin: String): String? = Referral.inviteLink(publicOrigin, code)
     fun irlLink(publicOrigin: String): String? = Referral.inviteLink(publicOrigin, code, inPerson = true)

@@ -89,13 +89,13 @@ data class DonorEvent(
     val isCheckedIn: Boolean get() = status == ReservationStatus.CHECKED_IN || (status == ReservationStatus.RESERVED && checkedInAt != null)
 
     /** "Volunteer" / "Community" / "Invite-only"; a kind this build does not know is shown capitalised, never dropped. */
-    val typeLabel: String
+    val typeLabel: UiText
         get() = when (type.lowercase()) {
-            "volunteer" -> "Volunteer"
-            "community" -> "Community"
-            "invite_only" -> "Invite-only"
-            "" -> "Event"
-            else -> type.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+            "volunteer" -> UiText.res(R.string.events_volunteer)
+            "community" -> UiText.res(R.string.events_community)
+            "invite_only" -> UiText.res(R.string.events_invite_only_2)
+            "" -> UiText.res(R.string.events_event)
+            else -> UiText.plain(type.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() })
         }
 
     /** A reservation or waitlist place can be given up until the event starts (E-9); a cancelled event has none. */
@@ -131,13 +131,12 @@ data class DonorEvent(
     }
 
     /** "3 spots left" / "Full" / "Cancelled" line for the row and detail header. */
-    val spotsLabel: String
+    val spotsLabel: UiText
         get() = when {
-            cancelled -> "Cancelled"
-            isUncapped -> "Open to everyone"
-            spotsLeft <= 0 -> "Full"
-            spotsLeft == 1 -> "1 spot left"
-            else -> "$spotsLeft spots left"
+            cancelled -> UiText.res(R.string.events_cancelled)
+            isUncapped -> UiText.res(R.string.events_open_to_everyone)
+            spotsLeft <= 0 -> UiText.res(R.string.events_full)
+            else -> UiText.plural(R.plurals.events_spots_left, spotsLeft, spotsLeft)
         }
 }
 
@@ -188,10 +187,10 @@ enum class ReservationOutcome {
         }
     }
 
-    val confirmationTitle: String get() = if (this == WAITLISTED) "You're on the waitlist" else "You're going"
-    val confirmationDetail: String
-        get() = if (this == WAITLISTED) "We'll notify you if a spot opens up."
-        else "Your spot is confirmed. Add it to your calendar so you don't miss it."
+    val confirmationTitle: UiText get() = if (this == WAITLISTED) UiText.res(R.string.events_youre_on_the_waitlist_2) else UiText.res(R.string.events_youre_going)
+    val confirmationDetail: UiText
+        get() = if (this == WAITLISTED) UiText.res(R.string.events_well_notify_you_if_a_spot_opens_up)
+        else UiText.res(R.string.events_your_spot_is_confirmed_add_it_to)
 }
 
 // MARK: - Time display (E-3)

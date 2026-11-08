@@ -40,7 +40,7 @@ interface EventsService {
 sealed interface EventsPhase {
     data object Loading : EventsPhase
     data object Ready : EventsPhase
-    data class Failed(val message: String) : EventsPhase
+    data class Failed(val message: UiText) : EventsPhase
 }
 
 /** The check-in attempt on the open event (E-8). */
@@ -48,7 +48,7 @@ sealed interface CheckInState {
     data object Idle : CheckInState
     data object Checking : CheckInState
     data class Done(val alreadyCheckedIn: Boolean) : CheckInState
-    data class Failed(val message: String) : CheckInState
+    data class Failed(val message: UiText) : CheckInState
 }
 
 /** The add-to-calendar fetch (E-6): the screen hands [Ready] to the share sheet, then calls [EventsModel.calendarShared]. */
@@ -56,23 +56,23 @@ sealed interface CalendarState {
     data object Idle : CalendarState
     data class Fetching(val eventId: String) : CalendarState
     data class Ready(val eventId: String, val title: String, val bytes: ByteArray) : CalendarState
-    data class Failed(val message: String) : CalendarState
+    data class Failed(val message: UiText) : CalendarState
 }
 
 /** What the events screens say for each refusal. Never a server body: those are not user copy. */
 internal object EventsCopy {
-    const val SIGNED_OUT = "Please sign in again."
-    const val NOT_ELIGIBLE = "You’re not eligible for this event."
-    const val GONE = "This event is no longer available."
-    const val CHANGED = "This event changed while you were looking at it. We’ve refreshed it; please review and try again."
-    const val TOO_MANY = "Too many attempts. Please wait a moment and try again."
-    const val GENERIC = "Something went wrong. Please try again."
-    const val BAD_SHAPE = "That doesn’t look like an event check-in code. It is 66 characters long."
-    const val CODE_REFUSED = "That code didn’t work. Check that you hold a seat, the event is under way, and the code is the one shown at the event."
-    const val WRONG_EVENT = "That code is for a different event."
-    const val NOT_HELD = "Check-in is for donors who hold a seat. Waitlisted places can’t check in."
+    val SIGNED_OUT = UiText.res(R.string.common_please_sign_in_again)
+    val NOT_ELIGIBLE = UiText.res(R.string.events_youre_not_eligible_for_this_event)
+    val GONE = UiText.res(R.string.events_this_event_is_no_longer_available)
+    val CHANGED = UiText.res(R.string.events_this_event_changed_while_you_were)
+    val TOO_MANY = UiText.res(R.string.common_too_many_attempts_please_wait_a)
+    val GENERIC = UiText.res(R.string.common_something_went_wrong_please_try)
+    val BAD_SHAPE = UiText.res(R.string.events_that_doesnt_look_like_an_event)
+    val CODE_REFUSED = UiText.res(R.string.events_that_code_didnt_work_check_that)
+    val WRONG_EVENT = UiText.res(R.string.events_that_code_is_for_a_different_event)
+    val NOT_HELD = UiText.res(R.string.events_check_in_is_for_donors_who_hold_a)
 
-    fun general(error: Exception): String = when (error) {
+    fun general(error: Exception): UiText = when (error) {
         is AccountFailure.SignedOut -> SIGNED_OUT
         is AccountFailure.Forbidden -> NOT_ELIGIBLE
         is AccountFailure.NotFound -> GONE
@@ -96,7 +96,7 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
     var lastOutcome: ReservationOutcome? by mutableStateOf(null)
         private set
     /** A transient action error (reserve/cancel refusal etc.) shown inline without losing the list. */
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
     var checkIn: CheckInState by mutableStateOf(CheckInState.Idle)
         private set
@@ -223,13 +223,13 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
     /** A photo that held no readable QR code. */
     fun resetCheckIn() { if (!checkInFlight) checkIn = CheckInState.Idle }
 
-    private fun notOpenReason(event: DonorEvent): String = when {
-        event.cancelled -> "This event was cancelled."
-        event.checkedInAt != null -> "You’re already checked in."
-        event.status != ReservationStatus.RESERVED -> "You need a reserved seat to check in."
+    private fun notOpenReason(event: DonorEvent): UiText = when {
+        event.cancelled -> UiText.res(R.string.events_this_event_was_cancelled)
+        event.checkedInAt != null -> UiText.res(R.string.events_youre_already_checked_in)
+        event.status != ReservationStatus.RESERVED -> UiText.res(R.string.events_you_need_a_reserved_seat_to_check)
         else -> when (event.checkInWindow.state(clock())) {
-            is CheckInWindow.State.TooEarly -> "Check-in opens when the event starts."
-            CheckInWindow.State.TooLate -> "Check-in for this event has closed."
+            is CheckInWindow.State.TooEarly -> UiText.res(R.string.events_check_in_opens_when_the_event)
+            CheckInWindow.State.TooLate -> UiText.res(R.string.events_check_in_for_this_event_has_closed)
             CheckInWindow.State.Open -> EventsCopy.GENERIC
         }
     }
@@ -252,7 +252,7 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
     }
 
     fun calendarShared() { calendar = CalendarState.Idle }
-    fun calendarUnavailable() { calendar = CalendarState.Failed("There’s no app on this device that can take a calendar file.") }
+    fun calendarUnavailable() { calendar = CalendarState.Failed(UiText.res(R.string.events_theres_no_app_on_this_device_that)) }
 
     private suspend fun refresh(eventId: String) {
         // The action already succeeded; a failed re-read just leaves the row as it was until the next load.

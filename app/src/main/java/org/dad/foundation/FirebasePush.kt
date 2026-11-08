@@ -57,8 +57,8 @@ class PushNotifier(private val context: Context) {
         val pending = PendingIntent.getActivity(context, requestCode, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val built = android.app.Notification.Builder(context, channelId)
             .setSmallIcon(R.drawable.app_icon)
-            .setContentTitle(notice.title)
-            .setContentText(notice.body)
+            .setContentTitle(notice.title.resolve(context))
+            .setContentText(notice.body.resolve(context))
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
@@ -68,7 +68,7 @@ class PushNotifier(private val context: Context) {
 
     private fun ensureChannel(category: PushCategory?): String {
         val id = category?.channelId ?: GENERAL
-        val name = category?.label ?: "General"
+        val name = category?.label?.resolve(context) ?: context.getString(R.string.push_general_channel_name)
         manager.createNotificationChannel(NotificationChannel(id, name, NotificationManager.IMPORTANCE_DEFAULT))
         return id
     }

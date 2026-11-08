@@ -33,7 +33,7 @@ interface SettingsService {
 sealed interface SettingsPhase {
     data object Loading : SettingsPhase
     data object Ready : SettingsPhase
-    data class Failed(val message: String) : SettingsPhase
+    data class Failed(val message: UiText) : SettingsPhase
 }
 
 class SettingsModel(private val service: SettingsService) : ViewModel() {
@@ -44,7 +44,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
     /** True once the account is deleted or the donor signed out — the UI leaves the settings shell. */
     var signedOut: Boolean by mutableStateOf(false)
         private set
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
     /**
      * The server refused deletion (409) because a monthly gift is still set to renew or a checkout is open.
@@ -53,7 +53,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
     var deletionBlocked: Boolean by mutableStateOf(false)
         private set
     /** Why the last interest could not be added; cleared by the next add or remove. */
-    var interestNotice: String? by mutableStateOf(null)
+    var interestNotice: UiText? by mutableStateOf(null)
         private set
     private val saveLock = Mutex()
     private var leaving = false
@@ -117,7 +117,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
 
     /** Delete the account only when the confirm gate is satisfied, then wipe the local session. */
     fun deleteAccount(gate: DeleteAccountGate) {
-        if (!gate.isConfirmed) { actionError = "Type ${DeleteAccountGate.CONFIRM_WORD} to confirm."; return }
+        if (!gate.isConfirmed) { actionError = UiText.res(R.string.settings_type_word_to_confirm, DeleteAccountGate.CONFIRM_WORD); return }
         if (leaving) return
         leaving = true
         actionError = null
@@ -155,12 +155,12 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
         }
     }
 
-    private fun message(error: Exception): String = when (error) {
-        is AccountFailure.SignedOut -> "Please sign in again."
-        is AccountFailure.RateLimited -> "Too many attempts. Please wait a moment and try again."
+    private fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
+        is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
         is AccountFailure.DeletionBlocked ->
-            "We can’t delete your account while a monthly gift is active or a checkout is open. Cancel your monthly gift first, then try again."
-        else -> "Something went wrong. Please try again."
+            UiText.res(R.string.settings_we_cant_delete_your_account_while)
+        else -> UiText.res(R.string.common_something_went_wrong_please_try)
     }
 
     companion object {

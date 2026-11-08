@@ -45,7 +45,7 @@ class EventsTest {
     @Test fun anUncappedEventIsAlwaysReservableAndSaysSo() {
         val uncapped = event(capacity = 0, spotsLeft = 0)
         assertTrue(uncapped.availability(now) is EventAvailability.Reservable)
-        assertEquals("Open to everyone", uncapped.spotsLabel)
+        assertEquals("Open to everyone", uncapped.spotsLabel.textOrNull())
     }
     @Test fun notYetOpenBeforeBookingWindow() {
         val opens = Date(now.time + 3_600_000)
@@ -73,10 +73,10 @@ class EventsTest {
         assertFalse(checkedIn.canCancel(now))
     }
     @Test fun spotsLabel() {
-        assertEquals("5 spots left", event(spotsLeft = 5).spotsLabel)
-        assertEquals("1 spot left", event(spotsLeft = 1).spotsLabel)
-        assertEquals("Full", event(spotsLeft = 0).spotsLabel)
-        assertEquals("Cancelled", event(cancelled = true).spotsLabel)
+        assertEquals("5 spots left", event(spotsLeft = 5).spotsLabel.textOrNull())
+        assertEquals("1 spot left", event(spotsLeft = 1).spotsLabel.textOrNull())
+        assertEquals("Full", event(spotsLeft = 0).spotsLabel.textOrNull())
+        assertEquals("Cancelled", event(cancelled = true).spotsLabel.textOrNull())
     }
     @Test fun cancelIsOfferedUntilStartAndNeverForCancelledOrUnheld() {
         assertTrue(event(status = ReservationStatus.RESERVED).canCancel(now))
@@ -93,11 +93,11 @@ class EventsTest {
         assertTrue(event(type = "invite_only").isInviteOnly)
     }
     @Test fun typeLabelsKnownAndUnknownKinds() {
-        assertEquals("Volunteer", event(type = "volunteer").typeLabel)
-        assertEquals("Community", event(type = "community").typeLabel)
-        assertEquals("Invite-only", event(type = "invite_only").typeLabel)
-        assertEquals("Block party", event(type = "block_party").typeLabel)
-        assertEquals("Event", event(type = "").typeLabel)
+        assertEquals("Volunteer", event(type = "volunteer").typeLabel.textOrNull())
+        assertEquals("Community", event(type = "community").typeLabel.textOrNull())
+        assertEquals("Invite-only", event(type = "invite_only").typeLabel.textOrNull())
+        assertEquals("Block party", event(type = "block_party").typeLabel.textOrNull())
+        assertEquals("Event", event(type = "").typeLabel.textOrNull())
     }
 
     // --- Check-in window (E-8): between start and end, no early grace ---
@@ -137,8 +137,8 @@ class EventsTest {
     @Test fun reservationOutcomeCopy() {
         assertEquals(ReservationOutcome.WAITLISTED, ReservationOutcome.from("waitlisted"))
         assertEquals(ReservationOutcome.RESERVED, ReservationOutcome.from("reserved"))
-        assertEquals("You're on the waitlist", ReservationOutcome.WAITLISTED.confirmationTitle)
-        assertEquals("You're going", ReservationOutcome.RESERVED.confirmationTitle)
+        assertEquals("You’re on the waitlist", ReservationOutcome.WAITLISTED.confirmationTitle.textOrNull())
+        assertEquals("You’re going", ReservationOutcome.RESERVED.confirmationTitle.textOrNull())
     }
     @Test fun anUnknownResultStatusIsNotGuessed() {
         assertEquals(ReservationOutcome.RESERVED, ReservationOutcome.parse("RESERVED"))
@@ -379,9 +379,9 @@ class EventsTest {
         val service = FakeService()
         val model = modelOf(service)
         model.checkIn(live.copy(startsAt = Date(now.time + 60_000)), code)
-        assertEquals(CheckInState.Failed("Check-in opens when the event starts."), model.checkIn)
+        assertEquals("Check-in opens when the event starts.", (model.checkIn as CheckInState.Failed).message.text())
         model.checkIn(live.copy(endsAt = Date(now.time - 1)), code)
-        assertEquals(CheckInState.Failed("Check-in for this event has closed."), model.checkIn)
+        assertEquals("Check-in for this event has closed.", (model.checkIn as CheckInState.Failed).message.text())
         assertEquals(0, service.checkInCalls)
     }
 
@@ -404,7 +404,7 @@ class EventsTest {
     @Test fun anAlreadyCheckedInDonorIsToldSo() = runTest {
         val model = modelOf(FakeService())
         model.checkIn(live.copy(checkedInAt = now), code)
-        assertEquals(CheckInState.Failed("You’re already checked in."), model.checkIn)
+        assertEquals("You’re already checked in.", (model.checkIn as CheckInState.Failed).message.text())
     }
 
     @Test fun theServersRefusalOfACodeExplainsWhy() = runTest {

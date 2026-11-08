@@ -19,7 +19,7 @@ data class ProfileSummary(
     val city: String?,
     val phone: String?,
 ) {
-    val zipLabel: String get() = zip?.takeIf { it.isNotBlank() } ?: "Not set"
+    val zipLabel: UiText get() = zip?.takeIf { it.isNotBlank() }?.let(UiText::plain) ?: UiText.res(R.string.settings_not_set)
 }
 
 // MARK: - Notification + visibility preferences (§6.11)
@@ -50,28 +50,28 @@ data class Preferences(
     val volunteerInterests: List<String> = emptyList(),
 ) {
     /** A UI-facing toggle: its label, current value, and a copy producing the updated block. */
-    data class Toggle(val key: String, val label: String, val value: Boolean)
+    data class Toggle(val key: String, val label: UiText, val value: Boolean)
 
     /** The push-notification category toggles (§6.11), in display order. Payment-failure emails
      *  are deliberately absent — they are non-toggleable server-side. */
     val pushToggles: List<Toggle>
         get() = listOf(
-            Toggle("push_referral_converted", "Someone joined through you", pushReferralConverted),
-            Toggle("push_streak_at_risk", "Streak at risk", pushStreakAtRisk),
-            Toggle("push_streak_milestone", "Streak milestone", pushStreakMilestone),
-            Toggle("push_streak_lapsed", "Streak lapsed", pushStreakLapsed),
-            Toggle("push_badge_earned", "Badge earned", pushBadgeEarned),
-            Toggle("push_event_nearby", "Events nearby", pushEventNearby),
-            Toggle("push_event_reminder", "Event reminders", pushEventReminder),
-            Toggle("push_event_promoted", "Event promoted", pushEventPromoted),
-            Toggle("push_gift_processed", "Gift processed", pushGiftProcessed),
+            Toggle("push_referral_converted", UiText.res(R.string.common_someone_joined_through_you), pushReferralConverted),
+            Toggle("push_streak_at_risk", UiText.res(R.string.common_streak_at_risk), pushStreakAtRisk),
+            Toggle("push_streak_milestone", UiText.res(R.string.common_streak_milestone), pushStreakMilestone),
+            Toggle("push_streak_lapsed", UiText.res(R.string.common_streak_lapsed), pushStreakLapsed),
+            Toggle("push_badge_earned", UiText.res(R.string.common_badge_earned), pushBadgeEarned),
+            Toggle("push_event_nearby", UiText.res(R.string.common_events_nearby), pushEventNearby),
+            Toggle("push_event_reminder", UiText.res(R.string.common_event_reminders), pushEventReminder),
+            Toggle("push_event_promoted", UiText.res(R.string.common_event_promoted), pushEventPromoted),
+            Toggle("push_gift_processed", UiText.res(R.string.common_gift_processed), pushGiftProcessed),
         )
 
     /** The email toggles (§6.11). */
     val emailToggles: List<Toggle>
         get() = listOf(
-            Toggle("referral_emails", "Referral emails", referralEmails),
-            Toggle("marketing_emails", "Marketing emails", marketingEmails),
+            Toggle("referral_emails", UiText.res(R.string.settings_referral_emails), referralEmails),
+            Toggle("marketing_emails", UiText.res(R.string.settings_marketing_emails), marketingEmails),
         )
 
     /** The privacy/participation switches. rankingsOptedOut is inverted for display ("Show my
@@ -111,19 +111,18 @@ data class DeleteAccountGate(val typed: String) {
     /** True only when the donor typed the exact confirmation word (case-sensitive). */
     val isConfirmed: Boolean get() = typed == CONFIRM_WORD
 
-    val helpText: String
-        get() = "This permanently deletes your personal data. Your required gift records are kept. " +
-            "Type $CONFIRM_WORD to confirm."
+    val helpText: UiText
+        get() = UiText.res(R.string.settings_delete_account_help, CONFIRM_WORD)
 }
 
 // MARK: - Volunteer interests (E-1)
 
 /** Why an interest could not be added; the donor sees [message]. */
-enum class InterestRejection(val message: String) {
-    EMPTY("Type an interest to add."),
-    TOO_LONG("Keep an interest to ${VolunteerInterests.MAX_LENGTH} characters or fewer."),
-    DUPLICATE("That interest is already on your list."),
-    FULL("You can add up to ${VolunteerInterests.MAX_COUNT} interests. Remove one to add another."),
+enum class InterestRejection(val message: UiText) {
+    EMPTY(UiText.res(R.string.settings_type_an_interest_to_add)),
+    TOO_LONG(UiText.res(R.string.settings_keep_an_interest_to_characters, VolunteerInterests.MAX_LENGTH)),
+    DUPLICATE(UiText.res(R.string.settings_that_interest_is_already_on_your)),
+    FULL(UiText.res(R.string.settings_you_can_add_up_to_interests, VolunteerInterests.MAX_COUNT)),
 }
 
 /**
@@ -155,4 +154,4 @@ object VolunteerInterests {
     fun remove(current: List<String>, interest: String): List<String> = current.filterNot { it == interest }
 }
 
-class InterestRejected(val reason: InterestRejection) : Exception(reason.message)
+class InterestRejected(val reason: InterestRejection) : Exception(reason.name)

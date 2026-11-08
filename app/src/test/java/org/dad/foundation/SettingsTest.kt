@@ -223,7 +223,7 @@ class SettingsTest {
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.deleteAccount(DeleteAccountGate("DELETE")); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.deletionBlocked)
-        assertTrue(model.actionError!!.contains("Cancel your monthly gift first"))
+        assertTrue(model.actionError!!.text().contains("Cancel your monthly gift first"))
         assertFalse(model.signedOut)
         // Once the gift no longer renews the retry goes through, and the flag clears with it.
         svc.deleteFailure = null
@@ -314,7 +314,7 @@ class SettingsDeletionWiringTest {
         model.deleteAccount(DeleteAccountGate("DELETE"))
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(model.signedOut)
-        assertTrue(model.actionError!!.contains("Cancel your monthly gift first"))
+        assertTrue(model.actionError!!.text().contains("Cancel your monthly gift first"))
         assertEquals(listOf("delete"), service.calls)
         service.deleteFailure = null
         model.deleteAccount(DeleteAccountGate("DELETE"))
@@ -326,7 +326,7 @@ class SettingsDeletionWiringTest {
         val model = SettingsModel(Service(AccountFailure.RateLimited))
         model.deleteAccount(DeleteAccountGate("DELETE"))
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError)
+        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError.textOrNull())
         assertFalse(model.signedOut)
     }
 

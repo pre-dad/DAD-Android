@@ -41,10 +41,10 @@ class MilestoneTest {
     }
 
     @Test fun eachMilestoneHasItsLine() {
-        assertEquals("30 days. That's a month of aid, on the record.", milestoneLine(30))
-        assertEquals("7 days. A full week of aid, on the record.", milestoneLine(7))
-        assertEquals("100 days. Triple digits, on the record.", milestoneLine(100))
-        assertEquals("365 days. A full year of aid, on the record.", milestoneLine(365))
-        assertEquals("60 days. Every one on the record.", milestoneLine(60))
+        assertEquals("30 days. That’s a month of aid, on the record.", milestoneLine(30).textOrNull())
+        assertEquals("7 days. A full week of aid, on the record.", milestoneLine(7).textOrNull())
+        assertEquals("100 days. Triple digits, on the record.", milestoneLine(100).textOrNull())
+        assertEquals("365 days. A full year of aid, on the record.", milestoneLine(365).textOrNull())
+        assertEquals("60 days. Every one on the record.", milestoneLine(60).textOrNull())
     }
 }

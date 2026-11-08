@@ -30,7 +30,7 @@ fun DadGiftFraming(
     color: Color = DadTheme.color("ink"),
 ) {
     Column(
-        modifier = modifier.semantics { contentDescription = "$monthly, $daily" },
+        modifier = modifier.contentDescribed(R.string.ui_gift_framing_description, monthly, daily),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(monthly, modifier = monthlyModifier, style = MaterialTheme.typography.headlineMedium, color = color)
@@ -50,7 +50,7 @@ fun DadStatTile(title: String, value: String?, caption: String, modifier: Modifi
         if (value != null) {
             Text(value, style = MaterialTheme.typography.headlineMedium)
         } else {
-            Text("—", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = "Not available" })
+            Text("—", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.contentDescribed(R.string.common_not_available))
         }
         Text(caption, style = MaterialTheme.typography.bodySmall, color = DadTheme.color("muted"))
     }

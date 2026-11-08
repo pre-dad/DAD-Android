@@ -23,7 +23,7 @@ class MilestoneCardTest {
             if (visible) MilestoneCard(milestoneLine(30), onDismiss = { visible = false }, onShare = null)
         }
         compose.onNodeWithTag("milestone-card").assertIsDisplayed()
-        compose.onNode(hasText("30 days. That's a month of aid, on the record.")).assertIsDisplayed()
+        compose.onNode(hasText("30 days. That’s a month of aid, on the record.")).assertIsDisplayed()
         compose.onNodeWithTag("milestone-dismiss").performClick()
         compose.onNodeWithTag("milestone-card").assertDoesNotExist()
     }
