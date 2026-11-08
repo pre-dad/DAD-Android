@@ -197,11 +197,11 @@ internal fun PasswordSignInFlow(model: PasswordSignInModel, onSignedIn: () -> Un
     }
 }
 
-/** One-tap Google and passkey buttons when this build can run them; otherwise the "Not available yet" hint. */
+/** One-tap Google and passkey buttons when this build can run them; nothing is shown for a method this build cannot run. */
 @Composable
 internal fun ExternalMethods(external: ExternalSignInDeps, establish: Establish, generation: Int, onSignedIn: () -> Unit) {
     val tokens = external.googleTokens
-    if (external.capabilities.google && tokens != null) {
+    if (external.offersGoogle && tokens != null) {
         val model = androidx.lifecycle.viewmodel.compose.viewModel<GoogleSignInModel>(
             key = "google-sign-in-$generation", factory = GoogleSignInModel.factory(tokens, external.oidc, establish))
         LaunchedEffect(model.phase) { if (model.phase == ExternalSignInPhase.SignedIn) onSignedIn() }
@@ -210,16 +210,13 @@ internal fun ExternalMethods(external: ExternalSignInDeps, establish: Establish,
         Spacer(Modifier.height(12.dp))
     }
     val authenticator = external.authenticator
-    if (external.capabilities.passkey && authenticator != null) {
+    if (external.offersPasskey && authenticator != null) {
         val model = androidx.lifecycle.viewmodel.compose.viewModel<PasskeySignInModel>(
             key = "passkey-sign-in-$generation", factory = PasskeySignInModel.factory(authenticator, external.passkey, establish))
         LaunchedEffect(model.phase) { if (model.phase == ExternalSignInPhase.SignedIn) onSignedIn() }
         DadPrimaryButton("Sign in with a passkey", Modifier.testTag("method-passkey")) { model.start() }
         (model.phase as? ExternalSignInPhase.Failed)?.let { FieldError(it.message, "passkey-error") }
         Spacer(Modifier.height(12.dp))
-    }
-    if (external.capabilities.hasUnavailableMethod) {
-        Text("Google and passkey sign-in: not available yet.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("external-unavailable"))
     }
 }
 

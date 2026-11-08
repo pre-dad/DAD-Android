@@ -52,6 +52,9 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
      */
     var deletionBlocked: Boolean by mutableStateOf(false)
         private set
+    /** Why the last interest could not be added; cleared by the next add or remove. */
+    var interestNotice: String? by mutableStateOf(null)
+        private set
     private val saveLock = Mutex()
     private var leaving = false
 
@@ -72,14 +75,37 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
     /** Flip one preference toggle and persist. Saves run one at a time against the latest snapshot,
      *  so rapid taps cannot overwrite each other with a stale version. On failure the old snapshot
      *  stays and the error surfaces inline. */
-    fun toggle(key: String, value: Boolean) {
+    fun toggle(key: String, value: Boolean) = save { Result.success(it.with(key, value)) }
+
+    /**
+     * Adds a free-form volunteer interest (E-1) and persists the list. Returns whether it was accepted, so the screen
+     * can clear its field; a refusal leaves the reason in [interestNotice]. The rules run again against the latest
+     * snapshot when the save's turn comes, so quick successive adds neither lose one nor exceed the limit.
+     */
+    fun addInterest(raw: String): Boolean {
+        val current = snapshot?.preferences ?: return false
+        val check = VolunteerInterests.add(current.volunteerInterests, raw)
+        interestNotice = (check.exceptionOrNull() as? InterestRejected)?.reason?.message
+        if (check.isFailure) return false
+        save { latest -> VolunteerInterests.add(latest.volunteerInterests, raw).map { latest.copy(volunteerInterests = it) } }
+        return true
+    }
+
+    fun removeInterest(interest: String) {
+        interestNotice = null
+        save { Result.success(it.copy(volunteerInterests = VolunteerInterests.remove(it.volunteerInterests, interest))) }
+    }
+
+    /** Runs one save against the latest snapshot; a [change] that no longer applies (a rule now failing) saves nothing. */
+    private fun save(change: (Preferences) -> Result<Preferences>) {
         if (snapshot == null) return
         actionError = null
         viewModelScope.launch {
             saveLock.withLock {
                 val current = snapshot ?: return@withLock
+                val updated = change(current.preferences).getOrNull() ?: return@withLock
                 try {
-                    snapshot = service.savePreferences(current.preferences.with(key, value))
+                    snapshot = service.savePreferences(updated)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {

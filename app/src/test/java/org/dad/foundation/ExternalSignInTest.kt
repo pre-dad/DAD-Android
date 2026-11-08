@@ -30,7 +30,7 @@ class ExternalSignInTest {
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig("", "")))
         // configured, but no platform provider linked
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig(goodClient, "dad.example")))
-        assertTrue(SignInCapabilities.NONE.hasUnavailableMethod)
+        assertFalse(ExternalSignInDeps().offersGoogle); assertFalse(ExternalSignInDeps().offersPasskey)
     }
 
     @Test fun malformedConfigurationStaysOff() {
@@ -46,7 +46,10 @@ class ExternalSignInTest {
         assertTrue(google.google); assertFalse(google.passkey)
         val both = SignInCapabilities.of(config, googleProviderAvailable = true, passkeyProviderAvailable = true)
         assertTrue(both.isAvailable(SignInMethod.GOOGLE)); assertTrue(both.isAvailable(SignInMethod.PASSKEY))
-        assertFalse(both.hasUnavailableMethod)
+        val provided = ExternalSignInDeps(both, googleTokens = { "t" }, authenticator = { throw ExternalSignInError.Unsupported })
+        assertTrue(provided.offersGoogle); assertTrue(provided.offersPasskey)
+        assertFalse(ExternalSignInDeps(both).offersGoogle) // a capability without a provider shows nothing
+        assertFalse(ExternalSignInDeps(provided.capabilities.copy(google = false), googleTokens = { "t" }).offersGoogle)
         assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PHONE)); assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSWORD))
         assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.GOOGLE)); assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSKEY))
     }

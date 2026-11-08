@@ -229,8 +229,7 @@ private fun SignInMethods(
             Spacer(Modifier.height(8.dp))
             DadSecondaryButton("Sign in with email and password", Modifier.fillMaxWidth().testTag("method-password"), onClick = onPassword)
             Spacer(Modifier.height(12.dp))
-            // Google/passkey render only when available; the "not available yet" hint
-            // (external-unavailable) lives here under More options, not on the bare screen.
+            // Google/passkey render only when a provider is wired.
             ExternalMethods(external, establish, generation, onSignedIn)
         }
         Spacer(Modifier.height(24.dp))
