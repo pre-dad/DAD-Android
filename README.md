@@ -111,7 +111,7 @@ session; a real 401 refreshes once, then signs out). Passwords are masked, never
 
 **Built but switched off until configured:** Google sign-in (`oidcSignIn`) and passkeys
 (`beginDonorPasskeySignIn`/`finishDonorPasskeySignIn`). The server exchanges, models, UI states and stub-transport
-tests exist; the screen says "Not available yet" because no platform provider is linked. Sign in with Apple is
+tests exist; the sign-in screen hides both buttons while no platform provider is linked and shows each as soon as its provider is supplied. Sign in with Apple is
 not offered on Android. To turn them on you must supply:
 
 - **Both:** the AndroidX Credential Manager dependency (`androidx.credentials`, plus

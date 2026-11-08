@@ -21,7 +21,7 @@ import org.dad.foundation.generated.model.OidcSignInRequest
 // [GoogleIdTokenProvider] / [PasskeyAuthenticator] seams, which need Android Credential Manager (a
 // dependency the project does not ship) plus owner-supplied configuration. Everything else here is
 // platform-free and tested against stub transports. Each method is switched on only by
-// [SignInCapabilities]; by default both render as "Not available yet". Sign in with Apple is not
+// [SignInCapabilities]; by default neither is shown. Sign in with Apple is not
 // offered on Android (iOS uses the native AuthenticationServices sheet, which has no Android twin).
 
 /** Raw build configuration (Gradle properties). Both are blank in the repository; the owner supplies them. */
@@ -50,7 +50,6 @@ data class SignInCapabilities(val google: Boolean = false, val passkey: Boolean 
         SignInMethod.GOOGLE -> google
         SignInMethod.PASSKEY -> passkey
     }
-    val hasUnavailableMethod: Boolean get() = !(google && passkey)
 
     companion object {
         val NONE = SignInCapabilities()

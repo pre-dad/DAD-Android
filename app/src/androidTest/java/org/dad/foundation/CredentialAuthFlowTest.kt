@@ -178,12 +178,12 @@ class CredentialAuthFlowTest {
         }
     }
 
-    @Test fun googleAndPasskeyShowTheNotAvailableHint() {
+    @Test fun googleAndPasskeyAreHiddenWhileNoProviderIsWired() {
         launch().use {
             openMethods()
-            // The lower-emphasis methods and their "not available yet" hint now live under "More options".
             compose.tapSafely("more-options")
-            compose.onNodeWithTag("external-unavailable").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithTag("method-password").performScrollTo().assertIsDisplayed()
+            assertTrue(absent("external-unavailable"))
             assertTrue(absent("method-google"))
             assertTrue(absent("method-passkey"))
         }
