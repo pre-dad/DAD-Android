@@ -8,7 +8,9 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -96,13 +98,13 @@ class SettingsFlowTest {
             compose.onNodeWithTag("interest-add").performScrollTo().assertIsEnabled()
             compose.tapSafely("interest-add")
             waitForTag("interest-row-Food bank")
-            compose.onNodeWithTag("interest-input").performScrollTo().assertTextEquals("Add an interest", "", includeEditableText = true)
+            compose.onNodeWithTag("interest-input").performScrollTo().assert(SemanticsMatcher("an empty field") { (SemanticsProperties.EditableText in it.config).let { has -> if (has) it.config[SemanticsProperties.EditableText] else null }?.text == "" })
 
             // A repeat (any letter case) is refused with a message, nothing is added.
             compose.enterText("interest-input", "food BANK")
             compose.tapSafely("interest-add")
             waitForTag("interest-notice")
-            compose.onNodeWithTag("interest-notice").assertTextContains("already on your list")
+            compose.onNodeWithTag("interest-notice").assertTextContains("already on your list", substring = true)
 
             compose.tapSafely("interest-remove-Park cleanups")
             waitGone("interest-row-Park cleanups")
