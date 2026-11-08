@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -66,10 +67,10 @@ fun FirstGiftCelebration(
                     .clip(CircleShape).background(DadTheme.color("brand"), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                DadSymbol("check", "Gift confirmed", tint = DadTheme.color("ink"))
+                DadSymbol("check", stringResource(R.string.celebrate_gift_confirmed), tint = DadTheme.color("ink"))
             }
             Text(
-                "You're in. Welcome to the beginning.",
+                stringResource(R.string.celebrate_youre_in_welcome_to_the_beginning),
                 style = MaterialTheme.typography.headlineMedium, color = paper,
                 modifier = Modifier.dadHeading(),
             )
@@ -82,13 +83,13 @@ fun FirstGiftCelebration(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.testTag("celebration-founding").semantics(mergeDescendants = true) {},
                     ) {
-                        DadSymbol("star", "Founding donor badge", tint = DadTheme.color("brand"))
-                        Text("Founding Donor", style = MaterialTheme.typography.labelLarge, color = DadTheme.color("brand"))
+                        DadSymbol("star", stringResource(R.string.home_founding_donor_badge), tint = DadTheme.color("brand"))
+                        Text(stringResource(R.string.celebrate_founding_donor), style = MaterialTheme.typography.labelLarge, color = DadTheme.color("brand"))
                     }
                 }
             }
-            DadPrimaryButton("Invite", Modifier.testTag("celebration-invite"), onClick = onInvite)
-            DadTextButton("Done", Modifier.testTag("celebration-done"), contentColor = DadTheme.color("brand"), onClick = onDone)
+            DadPrimaryButton(stringResource(R.string.main_invite), Modifier.testTag("celebration-invite"), onClick = onInvite)
+            DadTextButton(stringResource(R.string.events_done), Modifier.testTag("celebration-done"), contentColor = DadTheme.color("brand"), onClick = onDone)
         }
     }
 }

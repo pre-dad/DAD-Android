@@ -34,7 +34,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -87,20 +90,20 @@ fun DonorHome(
         // KEEP EXACTLY: the failed-refresh notice over stale cards, the loading skeleton, the Preparing
         // card, the first-load Failed state and its retry. Only the Ready dashboard is re-ordered/restyled.
         model.refreshNotice?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium,
+            Text(it.asString(), style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.testTag("dashboard-notice").semantics { liveRegion = LiveRegionMode.Polite })
         }
         when (val phase = model.phase) {
             DashboardModel.Phase.Loading -> DashboardSkeleton()
             is DashboardModel.Phase.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(phase.message, modifier = Modifier.testTag("dashboard-error"))
-                Button(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("dashboard-retry")) { Text("Try again") }
+                Text(phase.message.asString(), modifier = Modifier.testTag("dashboard-error"))
+                Button(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("dashboard-retry")) { Text(stringResource(R.string.common_try_again)) }
             }
             is DashboardModel.Phase.Ready -> when (val state = phase.state) {
                 DashboardState.Preparing -> HomeCard("dashboard-preparing") {
-                    Text("Getting your dashboard ready", style = MaterialTheme.typography.titleMedium)
-                    Text("Your numbers appear here once your first gift has been counted.", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("dashboard-refresh")) { Text("Refresh") }
+                    Text(stringResource(R.string.home_getting_your_dashboard_ready), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.home_your_numbers_appear_here_once_your), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("dashboard-refresh")) { Text(stringResource(R.string.common_refresh)) }
                 }
                 // PRD-C order: (1) at-risk banner, (2) streak hero, (3) Link|IRL tiles — rendered inside
                 // DashboardCards in that order, with the initiative and the monthly-gift item below.
@@ -115,13 +118,13 @@ fun DonorHome(
         giving?.let { MonthlyGiftItem(it, onOpenGift) }
         if (onOpenEngagement != null) {
             HomeCard("engagement-card") {
-                Text("Badges, rankings & network", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-                Text("Your badges, standing, referral network and invite link.", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = onOpenEngagement, modifier = Modifier.heightIn(min = 48.dp).testTag("open-engagement")) { Text("See your impact") }
+                Text(stringResource(R.string.home_badges_rankings_network), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+                Text(stringResource(R.string.home_your_badges_standing_referral), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = onOpenEngagement, modifier = Modifier.heightIn(min = 48.dp).testTag("open-engagement")) { Text(stringResource(R.string.home_see_your_impact)) }
             }
         }
-        if (onOpenEvents != null) OutlinedButton(onClick = onOpenEvents, modifier = Modifier.heightIn(min = 48.dp).testTag("open-events")) { Text("Events & volunteering") }
-        OutlinedButton(onClick = onOpenHistory, modifier = Modifier.heightIn(min = 48.dp).testTag("open-history")) { Text("Gift history") }
+        if (onOpenEvents != null) OutlinedButton(onClick = onOpenEvents, modifier = Modifier.heightIn(min = 48.dp).testTag("open-events")) { Text(stringResource(R.string.home_events_volunteering)) }
+        OutlinedButton(onClick = onOpenHistory, modifier = Modifier.heightIn(min = 48.dp).testTag("open-history")) { Text(stringResource(R.string.common_gift_history)) }
     }
 }
 
@@ -132,17 +135,17 @@ fun DonorHome(
 private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
     // giving.load() is driven by DonorHome's top-level LaunchedEffect, matching the old GiftSummaryCard.
     HomeCard("gift-summary-card") {
-        Text("Your monthly gift", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.home_your_monthly_gift), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         // The tap target carries `open-gift` and is a MERGING clickable, so `gift-summary` must stay a
         // sibling OUTSIDE it: a testTag nested under a merging clickable folds into the parent and stops
         // resolving as its own node (GiftFlowTest addresses `gift-summary` and `open-gift` separately).
         Column(
             Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                .clickable(onClickLabel = "Open your monthly gift", role = Role.Button, onClick = onOpenGift)
+                .clickable(onClickLabel = stringResource(R.string.home_open_your_monthly_gift), role = Role.Button, onClick = onOpenGift)
                 .testTag("open-gift"),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            DadGiftFraming("$30/month", "$1 a day")
+            DadGiftFraming(stringResource(R.string.common_30_month), stringResource(R.string.common_1_a_day))
         }
         // The live state line keeps the gift-summary text that GiftFlowTest tracks on Home.
         Text(
@@ -163,28 +166,28 @@ private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
 @Composable
 private fun DashboardSkeleton() {
     Box(
-        Modifier.fillMaxWidth().testTag("dashboard-loading").semantics { contentDescription = "Loading your dashboard" },
+        Modifier.fillMaxWidth().testTag("dashboard-loading").contentDescribed(R.string.home_loading_your_dashboard),
         contentAlignment = Alignment.Center,
     ) {
         Column(Modifier.fillMaxWidth().alpha(0.35f).clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             HomeCard("skeleton-streak") {
-                Text("Founding donor", style = MaterialTheme.typography.labelLarge)
-                Text("00-day streak", style = MaterialTheme.typography.headlineMedium)
+                Text(stringResource(R.string.home_founding_donor), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.home_skeleton_streak_headline), style = MaterialTheme.typography.headlineMedium)
                 DadStreakBar(filled = 0)
-                Text("00 days to your 00-day milestone", style = MaterialTheme.typography.bodyMedium)
-                Text("Top 0% nationally", style = MaterialTheme.typography.titleSmall)
-                Text("#0 in your city", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.home_skeleton_next_milestone), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.home_skeleton_national_rank), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.home_skeleton_city_rank), style = MaterialTheme.typography.bodyMedium)
             }
             HomeCard("skeleton-impact") {
-                Text("Total given", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.home_total_given), style = MaterialTheme.typography.labelLarge)
                 Text("$0,000", style = MaterialTheme.typography.headlineMedium)
-                Text("0 initiatives funded · 0 events volunteered", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.home_skeleton_impact_counts), style = MaterialTheme.typography.bodyMedium)
             }
             HomeCard("skeleton-network") {
-                Text("Your network", style = MaterialTheme.typography.titleMedium)
-                Text("Together your network funds $0,000 a year")
-                Text("0 active donors", style = MaterialTheme.typography.bodyMedium)
-                Text("0 joined through you · $0 given", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.common_your_network), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.home_skeleton_network_funds))
+                Text(stringResource(R.string.home_skeleton_active_donors), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.home_skeleton_network_joined), style = MaterialTheme.typography.bodyMedium)
             }
         }
         CircularProgressIndicator()
@@ -195,20 +198,20 @@ private fun DashboardSkeleton() {
 @Composable
 private fun InitiativeSkeleton() {
     Box(
-        Modifier.fillMaxWidth().testTag("initiative-loading").semantics { contentDescription = "Loading today’s initiative" },
+        Modifier.fillMaxWidth().testTag("initiative-loading").contentDescribed(R.string.home_loading_todays_initiative),
         contentAlignment = Alignment.Center,
     ) {
         Column(Modifier.fillMaxWidth().alpha(0.35f).clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Today’s initiative", style = MaterialTheme.typography.titleLarge)
-            Text("Location · Program · Started Jan 1, 2025", style = MaterialTheme.typography.bodyMedium)
-            Text("A short summary of the initiative.")
+            Text(stringResource(R.string.home_todays_initiative), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.home_skeleton_initiative_meta), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.home_skeleton_initiative_summary))
             repeat(3) {
                 Column {
-                    Text("0,000 people", style = MaterialTheme.typography.titleMedium)
-                    Text("Metric", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.home_skeleton_metric_value), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.home_skeleton_metric_label), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Text(HomeInitiative.ATTRIBUTION_NOTE, style = MaterialTheme.typography.bodySmall)
+            Text(HomeInitiative.ATTRIBUTION_NOTE.asString(), style = MaterialTheme.typography.bodySmall)
         }
         CircularProgressIndicator()
     }
@@ -229,47 +232,52 @@ private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, mil
         // The baseline is seeded the first time this runs, so existing donors never see a card for a
         // milestone they reached before it existed. Dismissal is remembered per milestone in the store.
         if (milestones != null) {
+            val context = LocalContext.current
             val pending = remember(streak, milestones) { pendingMilestone(streak, milestones) }
             var dismissed by rememberSaveable(pending) { mutableStateOf(false) }
             if (pending != null && !dismissed) {
                 MilestoneCard(
                     headline = milestoneLine(pending),
                     onDismiss = { milestones.markSeen(pending); dismissed = true },
-                    onShare = onShareMilestone?.let { share -> { share(milestoneLine(pending)) } },
+                    onShare = onShareMilestone?.let { share -> { share(milestoneLine(pending).resolve(context)) } },
                 )
             }
         }
         // (3) Link | IRL tiles side by side, equal weight. A null referrals block means the figures are
         // unknown — the tiles show "—"/"Not available", never 0.
         HomeCard("impact-card") {
-            Text("Your invites", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.home_your_invites), style = MaterialTheme.typography.labelLarge)
             val referrals = dashboard.referrals
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 ReferralTile(
-                    title = "Link", count = referrals?.link, modifier = Modifier.weight(1f),
+                    title = stringResource(R.string.home_link), count = referrals?.link, modifier = Modifier.weight(1f),
                 )
                 ReferralTile(
-                    title = "IRL", count = referrals?.irl, modifier = Modifier.weight(1f),
+                    title = stringResource(R.string.home_irl), count = referrals?.irl, modifier = Modifier.weight(1f),
                 )
             }
             // Keep the existing "Total given" line and its dash-given tag (DashboardFlowTest pins it; "--"
             // for unknown comes from ImpactTotals.givenLabel, never a 0).
             Spacer(Modifier.height(4.dp))
-            Text("Total given", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.home_total_given), style = MaterialTheme.typography.labelLarge)
             Text(dashboard.impact.givenLabel, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("dash-given"))
             val funded = dashboard.impact.initiativesFunded
             val events = dashboard.impact.eventsVolunteered
             Text(
-                "$funded ${if (funded == 1) "initiative" else "initiatives"} funded · $events ${if (events == 1) "event" else "events"} volunteered",
+                stringResource(
+                    R.string.common_pair_dot,
+                    pluralStringResource(R.plurals.home_initiatives_funded, funded, funded),
+                    pluralStringResource(R.plurals.home_events_volunteered, events, events),
+                ),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         dashboard.network?.let { network ->
             HomeCard("network-card") {
-                Text("Your network", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-                Text("Together your network funds ${network.annualizedLabel} a year", modifier = Modifier.testTag("network-annualized"))
-                Text("${network.activeCount} active ${if (network.activeCount == 1L) "donor" else "donors"}", style = MaterialTheme.typography.bodyMedium)
-                dashboard.referrals?.let { Text("${it.joined} joined through you · ${it.totalLabel} given", style = MaterialTheme.typography.bodyMedium) }
+                Text(stringResource(R.string.common_your_network), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+                Text(stringResource(R.string.home_network_funds_per_year, network.annualizedLabel), modifier = Modifier.testTag("network-annualized"))
+                Text(pluralStringResource(R.plurals.home_active_donors, network.activeCount.toQuantity(), network.activeCount), style = MaterialTheme.typography.bodyMedium)
+                dashboard.referrals?.let { Text(pluralStringResource(R.plurals.home_joined_through_you_given, it.joined.toQuantity(), it.joined, it.totalLabel), style = MaterialTheme.typography.bodyMedium) }
             }
         }
     }
@@ -280,9 +288,9 @@ private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, mil
 @Composable
 private fun ReferralTile(title: String, count: Long?, modifier: Modifier = Modifier) {
     val caption = when {
-        count == null -> "Not available"
-        count == 0L -> "No invites yet"
-        else -> if (count == 1L) "1 joined" else "$count joined"
+        count == null -> stringResource(R.string.common_not_available)
+        count == 0L -> stringResource(R.string.home_no_invites_yet)
+        else -> pluralStringResource(R.plurals.home_referrals_joined, count.toQuantity(), count)
     }
     // count==null → pass null so the tile renders "—"; a real 0 shows "0" with the muted hint caption.
     DadStatTile(title = title, value = count?.toString(), caption = caption, modifier = modifier)
@@ -294,7 +302,7 @@ private fun ReferralTile(title: String, count: Long?, modifier: Modifier = Modif
  * card first enters, as a response to the milestone being reached.
  */
 @Composable
-internal fun MilestoneCard(headline: String, onDismiss: () -> Unit, onShare: (() -> Unit)?) {
+internal fun MilestoneCard(headline: UiText, onDismiss: () -> Unit, onShare: (() -> Unit)?) {
     val haptics = rememberDadHaptics()
     LaunchedEffect(Unit) { haptics.confirm() }
     Surface(
@@ -305,13 +313,13 @@ internal fun MilestoneCard(headline: String, onDismiss: () -> Unit, onShare: (()
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                headline, style = MaterialTheme.typography.titleMedium,
+                headline.asString(), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                DadTextButton("Dismiss", Modifier.testTag("milestone-dismiss"), contentColor = DadTheme.color("ink"), onClick = onDismiss)
+                DadTextButton(stringResource(R.string.home_dismiss), Modifier.testTag("milestone-dismiss"), contentColor = DadTheme.color("ink"), onClick = onDismiss)
                 if (onShare != null) {
-                    DadSecondaryButton("Share", Modifier.testTag("milestone-share"), contentColor = DadTheme.color("ink"), onClick = onShare)
+                    DadSecondaryButton(stringResource(R.string.common_share), Modifier.testTag("milestone-share"), contentColor = DadTheme.color("ink"), onClick = onShare)
                 }
             }
         }
@@ -322,7 +330,7 @@ internal fun MilestoneCard(headline: String, onDismiss: () -> Unit, onShare: (()
  *  "Update payment" text action that switches to Giving. Carries `streak-at-risk`. */
 @Composable
 private fun AtRiskBanner(byDate: String?, onOpenGift: () -> Unit) {
-    val line = if (byDate != null) "Your streak needs a new card by $byDate." else "Your streak needs a new card."
+    val line = if (byDate != null) stringResource(R.string.home_streak_needs_card_by, byDate) else stringResource(R.string.home_your_streak_needs_a_new_card)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -333,10 +341,10 @@ private fun AtRiskBanner(byDate: String?, onOpenGift: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DadSymbol("warning", contentDescription = "Warning", tint = DadTheme.color("warn"))
+            DadSymbol("warning", contentDescription = stringResource(R.string.common_warning), tint = DadTheme.color("warn"))
             Text(line, style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("warn"))
         }
-        DadTextButton("Update payment", onClick = onOpenGift)
+        DadTextButton(stringResource(R.string.home_update_payment), onClick = onOpenGift)
     }
 }
 
@@ -360,28 +368,28 @@ private fun StreakHeroCard(dashboard: HomeDashboard) {
                     // a bare testTag Row (no merge) would expose no text.
                     modifier = Modifier.testTag("founding-donor").semantics(mergeDescendants = true) {},
                 ) {
-                    DadSymbol("star", contentDescription = "Founding donor badge", tint = DadTheme.color("brand"))
-                    Text("Founding donor", style = MaterialTheme.typography.labelLarge, color = DadTheme.brandAccent(dark = true))
+                    DadSymbol("star", contentDescription = stringResource(R.string.home_founding_donor_badge), tint = DadTheme.color("brand"))
+                    Text(stringResource(R.string.home_founding_donor), style = MaterialTheme.typography.labelLarge, color = DadTheme.brandAccent(dark = true))
                 }
             }
-            Text("Giving streak", style = MaterialTheme.typography.labelLarge, color = DadTheme.color("dkmut"))
+            Text(stringResource(R.string.home_giving_streak), style = MaterialTheme.typography.labelLarge, color = DadTheme.color("dkmut"))
             val streak = dashboard.streak
             if (streak != null) {
-                Text(streak.headline, style = MaterialTheme.typography.displayMedium, modifier = Modifier.dadHeading().testTag("streak-count"))
+                Text(streak.headline.asString(), style = MaterialTheme.typography.displayMedium, modifier = Modifier.dadHeading().testTag("streak-count"))
                 streak.ladder?.let { ladder ->
                     DadStreakBar(filled = ladder.bar.count { it }, total = ladder.bar.size.coerceAtLeast(1))
-                    ladder.nextLabel?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("streak-next"), color = DadTheme.color("dkmut")) }
+                    ladder.nextLabel?.let { Text(it.asString(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("streak-next"), color = DadTheme.color("dkmut")) }
                 }
             } else {
                 // The server says the figure is not known: say so rather than show a zero streak.
-                Text("Your streak isn’t available right now.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("streak-unknown"), color = DadTheme.color("paper"))
+                Text(stringResource(R.string.home_your_streak_isnt_available_right), style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("streak-unknown"), color = DadTheme.color("paper"))
             }
             when (val rank = dashboard.rank) {
                 is RankLine.Ranked -> {
-                    rank.standing.nationalLabel?.let { Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.testTag("rank-national"), color = DadTheme.color("paper")) }
-                    rank.standing.cityLabel?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("rank-city"), color = DadTheme.color("dkmut")) }
+                    rank.standing.nationalLabel?.let { Text(it.asString(), style = MaterialTheme.typography.titleSmall, modifier = Modifier.testTag("rank-national"), color = DadTheme.color("paper")) }
+                    rank.standing.cityLabel?.let { Text(it.asString(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("rank-city"), color = DadTheme.color("dkmut")) }
                 }
-                RankLine.NotRankedYet -> Text("Not ranked yet.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("rank-unranked"), color = DadTheme.color("dkmut"))
+                RankLine.NotRankedYet -> Text(stringResource(R.string.common_not_ranked_yet), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("rank-unranked"), color = DadTheme.color("dkmut"))
                 RankLine.OptedOut -> Unit // S-4: a hidden donor shows no rank line at all
             }
         }
@@ -391,30 +399,30 @@ private fun StreakHeroCard(dashboard: HomeDashboard) {
 @Composable
 private fun InitiativeCard(phase: DashboardModel.InitiativePhase, onRetry: () -> Unit, onSpend: ((String, String) -> Unit)? = null) {
     HomeCard("initiative-card") {
-        Text("Today your $1 funded", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.home_today_your_1_funded), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         when (phase) {
             DashboardModel.InitiativePhase.Loading -> InitiativeSkeleton()
             DashboardModel.InitiativePhase.None ->
-                Text("Nothing is in today’s rotation yet. Check back tomorrow.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("initiative-none"))
+                Text(stringResource(R.string.home_nothing_is_in_todays_rotation_yet), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("initiative-none"))
             DashboardModel.InitiativePhase.Failed -> {
-                Text("Today’s initiative isn’t available right now.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("initiative-error"))
-                OutlinedButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag("initiative-retry")) { Text("Try again") }
+                Text(stringResource(R.string.home_todays_initiative_isnt_available), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("initiative-error"))
+                OutlinedButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag("initiative-retry")) { Text(stringResource(R.string.common_try_again)) }
             }
             is DashboardModel.InitiativePhase.Ready -> {
                 val initiative = phase.initiative
                 Text(initiative.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("initiative-title"))
-                Text("${initiative.location} · ${initiative.kind.lowercase().replaceFirstChar { it.uppercase() }} · Started ${friendlyDate(initiative.startedOn)}", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.home_initiative_meta, initiative.location, initiative.kind.lowercase().replaceFirstChar { it.uppercase() }, friendlyDate(initiative.startedOn)), style = MaterialTheme.typography.bodyMedium)
                 if (initiative.summary.isNotEmpty()) Text(initiative.summary)
                 initiative.headlineMetrics.forEach { metric ->
                     Column(Modifier.semantics(mergeDescendants = true) {}) {
-                        Text(metric.valueLabel, style = MaterialTheme.typography.titleMedium)
+                        Text(metric.valueLabel.asString(), style = MaterialTheme.typography.titleMedium)
                         Text(metric.label, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                Text(HomeInitiative.ATTRIBUTION_NOTE, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("initiative-note"))
+                Text(HomeInitiative.ATTRIBUTION_NOTE.asString(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("initiative-note"))
                 if (onSpend != null) {
                     OutlinedButton(onClick = { onSpend(initiative.id, initiative.title) }, modifier = Modifier.heightIn(min = 48.dp).testTag("open-spend")) {
-                        Text("Where the money went")
+                        Text(stringResource(R.string.common_where_the_money_went))
                     }
                 }
             }
@@ -434,27 +442,27 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 16.dp)) {
-                Text("Gift history", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
+                Text(stringResource(R.string.common_gift_history), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
                 listOf("" to model.summary, "-prior" to model.priorSummary).forEach { (suffix, summary) ->
                     if (summary == null) return@forEach
                     HomeCard("history-summary$suffix") {
-                        Text("${summary.year} total", style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.home_year_total, summary.year), style = MaterialTheme.typography.labelLarge)
                         Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total$suffix"))
-                        Text("Sandbox records, not tax receipts.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.home_sandbox_records_not_tax_receipts), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
         when (val phase = model.phase) {
-            GiftHistoryModel.Phase.Loading -> item { CircularProgressIndicator(Modifier.testTag("history-loading").semantics { contentDescription = "Loading your gifts" }) }
+            GiftHistoryModel.Phase.Loading -> item { CircularProgressIndicator(Modifier.testTag("history-loading").contentDescribed(R.string.home_loading_your_gifts)) }
             is GiftHistoryModel.Phase.Failed -> item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(phase.message, modifier = Modifier.testTag("history-error"))
-                    Button(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("history-retry")) { Text("Try again") }
+                    Text(phase.message.asString(), modifier = Modifier.testTag("history-error"))
+                    Button(onClick = { model.load() }, modifier = Modifier.heightIn(min = 48.dp).testTag("history-retry")) { Text(stringResource(R.string.common_try_again)) }
                 }
             }
             GiftHistoryModel.Phase.Ready ->
-                if (model.gifts.isEmpty()) item { Text("No gifts yet. Once you give, each gift appears here.", modifier = Modifier.testTag("history-empty")) }
+                if (model.gifts.isEmpty()) item { Text(stringResource(R.string.home_no_gifts_yet_once_you_give_each), modifier = Modifier.testTag("history-empty")) }
                 else {
                     itemsIndexed(model.gifts, key = { _, gift -> gift.id }) { index, gift -> GiftRow(model, gift, index) }
                     item { HistoryFooter(model) }
@@ -467,14 +475,14 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
 @Composable
 private fun HistoryFooter(model: GiftHistoryModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (model.isLoadingMore) CircularProgressIndicator(Modifier.testTag("history-more-loading").semantics { contentDescription = "Loading more gifts" })
-        model.moreError?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("history-more-error")) }
+        if (model.isLoadingMore) CircularProgressIndicator(Modifier.testTag("history-more-loading").contentDescribed(R.string.home_loading_more_gifts))
+        model.moreError?.let { Text(it.asString(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("history-more-error")) }
         if (model.hasMore && !model.isLoadingMore) {
             OutlinedButton(onClick = { model.requestMore() }, modifier = Modifier.heightIn(min = 48.dp).testTag("history-more")) {
-                Text(if (model.moreError == null) "Load more" else "Try again")
+                Text(if (model.moreError == null) stringResource(R.string.home_load_more) else stringResource(R.string.common_try_again))
             }
         }
-        if (model.reachedLimit) Text("Showing your ${GiftHistoryModel.MAX_ROWS} most recent gifts.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("history-limit"))
+        if (model.reachedLimit) Text(stringResource(R.string.home_showing_most_recent_gifts, GiftHistoryModel.MAX_ROWS), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("history-limit"))
     }
 }
 
@@ -484,14 +492,14 @@ private fun GiftRow(model: GiftHistoryModel, gift: HomeGift, index: Int) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(
             Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                .clickable(onClickLabel = if (open) "Hide the gift record" else "Show the gift record", role = Role.Button) {
+                .clickable(onClickLabel = if (open) stringResource(R.string.home_hide_the_gift_record) else stringResource(R.string.home_show_the_gift_record), role = Role.Button) {
                     if (open) model.hideReceipt() else model.showReceipt(gift.id)
                 }
                 .testTag("gift-row-$index"),
         ) {
             Text(friendlyDate(gift.paidAt), style = MaterialTheme.typography.titleMedium)
-            Text("${gift.frequencyLabel} · ${gift.netLabel}", style = MaterialTheme.typography.bodyLarge)
-            gift.refundLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            Text(stringResource(R.string.common_pair_dot, gift.frequencyLabel.asString(), gift.netLabel), style = MaterialTheme.typography.bodyLarge)
+            gift.refundLabel?.let { Text(it.asString(), style = MaterialTheme.typography.bodySmall) }
         }
         if (open) ReceiptDetail(model.receipt)
     }
@@ -500,17 +508,17 @@ private fun GiftRow(model: GiftHistoryModel, gift: HomeGift, index: Int) {
 @Composable
 private fun ReceiptDetail(phase: GiftHistoryModel.ReceiptPhase?) {
     when (phase) {
-        is GiftHistoryModel.ReceiptPhase.Loading -> CircularProgressIndicator(Modifier.testTag("receipt-loading").semantics { contentDescription = "Loading the gift record" })
-        is GiftHistoryModel.ReceiptPhase.Failed -> Text(phase.message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("receipt-error"))
+        is GiftHistoryModel.ReceiptPhase.Loading -> CircularProgressIndicator(Modifier.testTag("receipt-loading").contentDescribed(R.string.home_loading_the_gift_record))
+        is GiftHistoryModel.ReceiptPhase.Failed -> Text(phase.message.asString(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("receipt-error"))
         is GiftHistoryModel.ReceiptPhase.Ready -> {
             val receipt = phase.receipt
             HomeCard("receipt-detail") {
-                Text("Gift record", style = MaterialTheme.typography.titleSmall, modifier = Modifier.dadHeading())
-                Text("Amount ${receipt.gift.amountLabel}")
-                if (receipt.gift.refundedMinor > 0) Text("Refunded ${formatMinorUsd(receipt.gift.refundedMinor)}")
-                Text("Net ${receipt.gift.netLabel}")
-                receipt.refunds.forEach { Text("Refund ${formatMinorUsd(it.amountMinor)} · ${it.status.replaceFirstChar { c -> c.uppercase() }}", style = MaterialTheme.typography.bodySmall) }
-                if (!receipt.taxReceipt) Text("This is a sandbox record, not a tax receipt.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.home_gift_record), style = MaterialTheme.typography.titleSmall, modifier = Modifier.dadHeading())
+                Text(stringResource(R.string.home_receipt_amount, receipt.gift.amountLabel))
+                if (receipt.gift.refundedMinor > 0) Text(stringResource(R.string.home_receipt_refunded, formatMinorUsd(receipt.gift.refundedMinor)))
+                Text(stringResource(R.string.home_receipt_net, receipt.gift.netLabel))
+                receipt.refunds.forEach { Text(stringResource(R.string.home_receipt_refund_line, formatMinorUsd(it.amountMinor), it.status.replaceFirstChar { c -> c.uppercase() }), style = MaterialTheme.typography.bodySmall) }
+                if (!receipt.taxReceipt) Text(stringResource(R.string.home_this_is_a_sandbox_record_not_a_tax), style = MaterialTheme.typography.bodySmall)
             }
         }
         null -> Unit

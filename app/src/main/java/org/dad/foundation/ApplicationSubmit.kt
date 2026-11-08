@@ -32,8 +32,12 @@ import java.util.UUID
 // receipt is therefore stored first, and a definitive refusal is the only thing that forgets it again.
 
 /** The organization types the website offers. The server stores the value as free text; this is the picker's list. */
-enum class PartnerOrganizationType(val label: String) {
-    CORPORATE("Corporate"), NONPROFIT("Nonprofit"), FOUNDATION("Foundation"), GOVERNMENT("Government"), OTHER("Other")
+enum class PartnerOrganizationType(val wire: String, val label: UiText) {
+    CORPORATE("Corporate", UiText.res(R.string.appsubmit_corporate)),
+    NONPROFIT("Nonprofit", UiText.res(R.string.appsubmit_nonprofit)),
+    FOUNDATION("Foundation", UiText.res(R.string.appsubmit_foundation)),
+    GOVERNMENT("Government", UiText.res(R.string.appsubmit_government)),
+    OTHER("Other", UiText.res(R.string.common_other)),
 }
 
 data class PartnerApplication(
@@ -151,7 +155,7 @@ class WirePartnerApplication(
 
     private fun PartnerApplication.toRequest(receipt: String) = ApplyWithReceiptRequest(
         application = ApplyWithReceiptRequestApplication(
-            organization = organization, website = website, type = type.label, contactName = contactName,
+            organization = organization, website = website, type = type.wire, contactName = contactName,
             title = title, workEmail = workEmail, phone = phone, workforceSize = workforceSize,
         ),
         receipt = receipt,
@@ -167,7 +171,7 @@ sealed interface ApplicationSubmitPhase {
     data object Editing : ApplicationSubmitPhase
     data object Submitting : ApplicationSubmitPhase
     data object Submitted : ApplicationSubmitPhase
-    data class Failed(val message: String) : ApplicationSubmitPhase
+    data class Failed(val message: UiText) : ApplicationSubmitPhase
 }
 
 /**
@@ -246,10 +250,10 @@ class PartnerApplicationModel(
     }
 
     companion object {
-        const val INVALID = "We couldn’t accept that application. Check each field. If this work email already has an application under review, wait for that decision."
-        const val CONFLICT = "That application changed while it was being sent. Review it and submit again."
-        const val FORBIDDEN = "This build can’t send an application. Apply on the website instead."
-        const val UNCONFIRMED = "We couldn’t confirm your application was received. Check your connection and retry; nothing will be sent twice."
+        val INVALID = UiText.res(R.string.appsubmit_we_couldnt_accept_that_application)
+        val CONFLICT = UiText.res(R.string.appsubmit_that_application_changed_while_it)
+        val FORBIDDEN = UiText.res(R.string.appsubmit_this_build_cant_send_an)
+        val UNCONFIRMED = UiText.res(R.string.appsubmit_we_couldnt_confirm_your)
 
         /** The server takes only https addresses; a bare host gets the https scheme the website's form adds. */
         fun normalizedWebsite(raw: String): String? {
@@ -261,11 +265,11 @@ class PartnerApplicationModel(
             return full
         }
 
-        fun waitMessage(seconds: Int?): String {
-            if (seconds == null || seconds <= 0) return "Too many attempts. Please wait a moment and try again."
-            val wait = if (seconds < 60) "$seconds second${if (seconds == 1) "" else "s"}"
-            else ((seconds + 59) / 60).let { "$it minute${if (it == 1) "" else "s"}" }
-            return "Too many attempts. Please wait $wait and try again."
+        fun waitMessage(seconds: Int?): UiText {
+            if (seconds == null || seconds <= 0) return UiText.res(R.string.common_too_many_attempts_please_wait_a)
+            val wait = if (seconds < 60) UiText.plural(R.plurals.appsubmit_wait_seconds, seconds)
+            else ((seconds + 59) / 60).let { UiText.plural(R.plurals.appsubmit_wait_minutes, it) }
+            return UiText.res(R.string.appsubmit_too_many_attempts_wait, wait)
         }
 
         fun factory(

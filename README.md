@@ -42,8 +42,15 @@ its own Gradle distribution.
 
 ```sh
 node scripts/check-foundation.mjs
+node scripts/check-hardcoded-strings.mjs
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
 ```
+
+All user-visible text lives in `app/src/main/res/values/strings.xml`: Compose reads it with `stringResource` /
+`pluralStringResource`, and models carry a `UiText` (a string or plural resource id plus arguments, never a
+`Context`) that the screen resolves with `asString()`. `scripts/check-hardcoded-strings.mjs` fails on a literal
+in a `Text(...)`, button, `contentDescription` or sentence-shaped value under `app/src/main`; model tests resolve
+`UiText` against the real `strings.xml` with `TestStrings`.
 
 Open this folder in Android Studio and run the app on Android 8/API 26 or newer.
 By default a debug build uses a labeled synthetic account through the session API (`preview_signed_out` starts it signed out; code 123456 signs in). The `stub_backend` extra runs the REAL sign-in, session, settings and donor-home code on a scripted in-process transport (debug source set only) for the instrumentation tests; `stub_signed_in` starts with a stored session, and `stub_dashboard_empty` / `stub_dashboard_fail_first` / `stub_dashboard_unranked` pick the donor-home scenario. Android

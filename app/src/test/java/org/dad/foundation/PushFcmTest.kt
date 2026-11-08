@@ -107,11 +107,11 @@ class PushFcmTest {
         val notice = PushNotices.from(data("GIFT_PROCESSED"), optOuts())!!
         assertEquals(PushCategory.GIFT_PROCESSED, notice.category)
         assertEquals(PushTap("GIFT_PROCESSED", "/account/gifts"), notice.tap)
-        assertEquals("Gift processed", notice.title)
+        assertEquals("Gift processed", notice.title.textOrNull())
     }
 
     @Test fun aServerTitleWinsOverTheCategoryLabel() {
-        assertEquals("Keep it going", PushNotices.from(data("STREAK_AT_RISK", title = "Keep it going"), optOuts())!!.title)
+        assertEquals("Keep it going", PushNotices.from(data("STREAK_AT_RISK", title = "Keep it going"), optOuts())!!.title.textOrNull())
     }
 
     @Test fun anOptedOutCategoryIsDropped() {
@@ -122,7 +122,7 @@ class PushFcmTest {
     @Test fun anUnknownCategoryStillShowsOnTheGeneralChannel() {
         val notice = PushNotices.from(data("SOMETHING_NEW"), optOuts())!!
         assertNull(notice.category)
-        assertEquals("DAD", notice.title)
+        assertEquals("DAD", notice.title.textOrNull())
     }
 
     @Test fun malformedMessagesShowNothing() {
@@ -132,10 +132,10 @@ class PushFcmTest {
 
     @Test fun aMissingBodyFallsBackToTheTitleAndThenTheCategoryLabel() {
         val blank = PushNotices.from(data("GIFT_PROCESSED", body = "   "), optOuts())!!
-        assertEquals("Gift processed", blank.title)
-        assertEquals("Gift processed", blank.body)
+        assertEquals("Gift processed", blank.title.textOrNull())
+        assertEquals("Gift processed", blank.body.textOrNull())
         val titled = PushNotices.from(data("GIFT_PROCESSED", body = null, title = "Thanks"), optOuts())!!
-        assertEquals("Thanks", titled.body)
+        assertEquals("Thanks", titled.body.textOrNull())
     }
 
     // DAD-Main sends a notification block (title, body, tag = id) plus data (category, path).
@@ -143,16 +143,16 @@ class PushFcmTest {
 
     @Test fun theNotificationBlockSuppliesTheTextWhenDataCarriesOnlyRouting() {
         val notice = PushNotices.from(data("GIFT_PROCESSED", body = null), optOuts(), shown)!!
-        assertEquals("Your gift was processed", notice.title)
-        assertEquals("Your test gift was processed.", notice.body)
+        assertEquals("Your gift was processed", notice.title.textOrNull())
+        assertEquals("Your test gift was processed.", notice.body.textOrNull())
         assertEquals("job-7", notice.id)
         assertEquals(PushTap("GIFT_PROCESSED", "/account/gifts"), notice.tap)
     }
 
     @Test fun theNotificationBlockWinsOverDataText() {
         val notice = PushNotices.from(data("GIFT_PROCESSED", body = "data body", title = "data title"), optOuts(), shown)!!
-        assertEquals("Your gift was processed", notice.title)
-        assertEquals("Your test gift was processed.", notice.body)
+        assertEquals("Your gift was processed", notice.title.textOrNull())
+        assertEquals("Your test gift was processed.", notice.body.textOrNull())
     }
 
     @Test fun aDataOnlyMessageHasNoId() {
@@ -161,8 +161,8 @@ class PushFcmTest {
 
     @Test fun aBlankNotificationBlockFallsBackToData() {
         val notice = PushNotices.from(data("GIFT_PROCESSED"), optOuts(), PushDisplay(" ", null, ""))!!
-        assertEquals("Gift processed", notice.title)
-        assertEquals("Your gift was processed.", notice.body)
+        assertEquals("Gift processed", notice.title.textOrNull())
+        assertEquals("Your gift was processed.", notice.body.textOrNull())
         assertNull(notice.id)
     }
 
@@ -176,7 +176,7 @@ class PushFcmTest {
         for (wire in listOf("PARTNER_APPROVED", "PARTNER_METRICS_VERIFIED", "EVENT_CANCELLED")) {
             val notice = PushNotices.from(data(wire, path = "/partner"), optOuts(), shown)!!
             assertNull(wire, notice.category)
-            assertEquals(wire, "Your gift was processed", notice.title)
+            assertEquals(wire, "Your gift was processed", notice.title.text())
         }
     }
 

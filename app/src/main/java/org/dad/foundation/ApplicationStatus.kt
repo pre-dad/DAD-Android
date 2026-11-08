@@ -45,20 +45,20 @@ sealed interface ApplicationState {
 
 data class ApplicationStatusInfo(val organization: String, val state: ApplicationState) {
     /** One sentence for the applicant. No contact details or staff notes ever reach the app. */
-    val message: String
+    val message: UiText
         get() = when (state) {
-            ApplicationState.Pending -> "Your application for $organization is being reviewed. We’ll email you when it’s decided."
-            ApplicationState.Approved -> "$organization is approved. Request a sign-in link with your work email to open the portal."
-            ApplicationState.Rejected -> "$organization wasn’t approved. Contact DAD support if you have questions."
-            is ApplicationState.Other -> "We’re updating the status of your application for $organization. Check back soon."
+            ApplicationState.Pending -> UiText.res(R.string.appstatus_pending_message, organization)
+            ApplicationState.Approved -> UiText.res(R.string.appstatus_approved_message, organization)
+            ApplicationState.Rejected -> UiText.res(R.string.appstatus_rejected_message, organization)
+            is ApplicationState.Other -> UiText.res(R.string.appstatus_other_message, organization)
         }
 
-    val title: String
+    val title: UiText
         get() = when (state) {
-            ApplicationState.Pending -> "Application under review"
-            ApplicationState.Approved -> "Application approved"
-            ApplicationState.Rejected -> "Application not approved"
-            is ApplicationState.Other -> "Application status"
+            ApplicationState.Pending -> UiText.res(R.string.appstatus_application_under_review)
+            ApplicationState.Approved -> UiText.res(R.string.appstatus_application_approved)
+            ApplicationState.Rejected -> UiText.res(R.string.appstatus_application_not_approved)
+            is ApplicationState.Other -> UiText.res(R.string.appstatus_application_status)
         }
 }
 
@@ -102,7 +102,7 @@ sealed interface ApplicationStatusPhase {
     /** No receipt, or the server no longer knows it: show nothing. */
     data object None : ApplicationStatusPhase
     data class Loaded(val info: ApplicationStatusInfo) : ApplicationStatusPhase
-    data class Failed(val message: String) : ApplicationStatusPhase
+    data class Failed(val message: UiText) : ApplicationStatusPhase
 }
 
 class ApplicationStatusModel(private val service: ApplicationStatusService) : ViewModel() {
@@ -123,8 +123,8 @@ class ApplicationStatusModel(private val service: ApplicationStatusService) : Vi
             } catch (error: Exception) {
                 if (prior is ApplicationStatusPhase.Loaded) return@launch
                 phase = ApplicationStatusPhase.Failed(
-                    if (error is AccountFailure.RateLimited) "Too many attempts. Please wait a moment and try again."
-                    else "We couldn’t check your application right now. Please try again in a moment.",
+                    if (error is AccountFailure.RateLimited) UiText.res(R.string.common_too_many_attempts_please_wait_a)
+                    else UiText.res(R.string.appstatus_we_couldnt_check_your_application),
                 )
             }
         }

@@ -177,7 +177,7 @@ class GivingModelTest {
         assertFalse(model.isConfirming)
         assertEquals(reads + 3, service.recurringReads)
         assertEquals(active, model.recurring)
-        assertEquals("Your gift is set up.", model.notice)
+        assertEquals("Your gift is set up.", model.notice.textOrNull())
         assertEquals(5, model.selection.dailyDollars)
     }
 
@@ -189,7 +189,7 @@ class GivingModelTest {
         model.handoffFinished(); advanceUntilIdle()
         assertEquals("polling is bounded at 5 reads", reads + 5, service.recurringReads)
         assertEquals(RecurringState.None, model.recurring)
-        assertTrue(model.notice!!.startsWith("We haven’t seen a new gift yet"))
+        assertTrue(model.notice!!.text().startsWith("We haven’t seen a new gift yet"))
         assertFalse(model.isConfirming)
     }
 
@@ -231,7 +231,7 @@ class GivingModelTest {
         }
         model.handoffFinished(); advanceUntilIdle()
         assertEquals(active, model.recurring)
-        assertEquals("Your gift is set up.", model.notice)
+        assertEquals("Your gift is set up.", model.notice.textOrNull())
     }
 
     @Test fun aSessionEndingWhilePollingStopsThePoll() = runTest {
@@ -271,7 +271,7 @@ class GivingModelTest {
         service.state = active   // the gift appeared (another device) after the screen last read
         model.startGift(); advanceUntilIdle()
         assertEquals(active, model.recurring)
-        assertEquals("You already have a monthly gift. We’ve refreshed it.", (model.phase as GivingPhase.Failed).message)
+        assertEquals("You already have a monthly gift. We’ve refreshed it.", (model.phase as GivingPhase.Failed).message.textOrNull())
         assertNull(model.handoff)
     }
 
@@ -280,7 +280,7 @@ class GivingModelTest {
         val model = loaded(service)
         model.startGift(); advanceUntilIdle()
         assertEquals(RecurringState.None, model.recurring)
-        assertTrue((model.phase as GivingPhase.Failed).message.contains("checkout is already open"))
+        assertTrue((model.phase as GivingPhase.Failed).message.text().contains("checkout is already open"))
         service.startError = null
         model.startGift(); advanceUntilIdle()
         assertNotNull("the donor can try again once it lapses", model.handoff)
@@ -300,7 +300,7 @@ class GivingModelTest {
             val service = Fake().apply { startError = error }
             val model = loaded(service)
             model.startGift(); advanceUntilIdle()
-            assertEquals(error.toString(), message, (model.phase as GivingPhase.Failed).message)
+            assertEquals(error.toString(), message, (model.phase as GivingPhase.Failed).message.text())
             assertNull(model.handoff)
         }
     }
@@ -320,7 +320,7 @@ class GivingModelTest {
         model.startGift(); advanceUntilIdle()
         model.handoffUnavailable()
         assertNull(model.handoff)
-        assertTrue((model.phase as GivingPhase.Failed).message.contains("couldn’t open the secure payment page"))
+        assertTrue((model.phase as GivingPhase.Failed).message.text().contains("couldn’t open the secure payment page"))
     }
 
     // --- change amount ---
@@ -332,7 +332,7 @@ class GivingModelTest {
         model.applySelection(); advanceUntilIdle()
         assertEquals(1, service.changeCalls)
         assertEquals(30000, (model.recurring as RecurringState.Active).amountMinor)
-        assertEquals("Saved. Your next renewal will be $300.", model.notice)
+        assertEquals("Saved. Your next renewal will be $300.", model.notice.textOrNull())
         assertEquals(GivingPhase.Idle, model.phase)
     }
 
@@ -375,7 +375,7 @@ class GivingModelTest {
         val model = loaded(service)
         model.applySelection(); advanceUntilIdle()
         assertEquals(0, service.changeCalls)
-        assertEquals("That’s already your gift amount.", model.notice)
+        assertEquals("That’s already your gift amount.", model.notice.textOrNull())
     }
 
     @Test fun aConflictOnChangeRereadsSoTheDonorReviewsCurrentFigures() = runTest {
@@ -386,7 +386,7 @@ class GivingModelTest {
         model.applySelection(); advanceUntilIdle()
         assertEquals(60000, (model.recurring as RecurringState.Active).amountMinor)
         assertEquals(20, model.selection.dailyDollars)
-        assertTrue((model.phase as GivingPhase.Failed).message.startsWith("Your gift changed while you were looking at it"))
+        assertTrue((model.phase as GivingPhase.Failed).message.text().startsWith("Your gift changed while you were looking at it"))
     }
 
     @Test fun changingAnEndingGiftOrNoGiftIsRefusedWithoutARequest() = runTest {
@@ -399,7 +399,7 @@ class GivingModelTest {
         val noneModel = loaded(none)
         noneModel.applySelection(); advanceUntilIdle()
         assertEquals(0, none.changeCalls)
-        assertEquals("Set up a gift before changing the amount.", (noneModel.phase as GivingPhase.Failed).message)
+        assertEquals("Set up a gift before changing the amount.", (noneModel.phase as GivingPhase.Failed).message.textOrNull())
     }
 
     @Test fun aDoubleTappedSaveChangesOnce() = runTest {
@@ -459,7 +459,7 @@ class GivingModelTest {
         service.state = RecurringState.Ending(sub, 15000, periodEnd, periodEnd)   // cancelled on another device
         model.cancel(); advanceUntilIdle()
         assertTrue(model.recurring.isEnding)
-        assertTrue((model.phase as GivingPhase.Failed).message.startsWith("Your gift changed"))
+        assertTrue((model.phase as GivingPhase.Failed).message.text().startsWith("Your gift changed"))
     }
 
     @Test fun cancellingWithNoActiveGiftIsRefused() = runTest {
@@ -467,7 +467,7 @@ class GivingModelTest {
         val model = loaded(service)
         model.cancel(); advanceUntilIdle()
         assertEquals(0, service.cancelCalls)
-        assertEquals("There’s no active gift to cancel.", (model.phase as GivingPhase.Failed).message)
+        assertEquals("There’s no active gift to cancel.", (model.phase as GivingPhase.Failed).message.textOrNull())
     }
 
     // --- payment method ---
@@ -482,7 +482,7 @@ class GivingModelTest {
         val reads = service.recurringReads
         service.onRecurring = { n -> if (n == reads + 2) service.payment = PaymentMethodState(PaymentMethodState.Kind.APPLIED, periodEnd) }
         model.handoffFinished(); advanceUntilIdle()
-        assertEquals("Your payment method was updated.", model.notice)
+        assertEquals("Your payment method was updated.", model.notice.textOrNull())
         assertEquals(PaymentMethodState.Kind.APPLIED, model.payment?.kind)
     }
 
@@ -491,7 +491,7 @@ class GivingModelTest {
         val model = loaded(service)
         model.updatePayment(); advanceUntilIdle()
         model.handoffFinished(); advanceUntilIdle()
-        assertTrue(model.notice!!.startsWith("We’re still waiting for the payment provider"))
+        assertTrue(model.notice!!.text().startsWith("We’re still waiting for the payment provider"))
     }
 
     @Test fun eachFinishedPaymentOutcomeHasItsOwnNotice() = runTest {
@@ -505,7 +505,7 @@ class GivingModelTest {
             val model = loaded(service)
             model.updatePayment(); advanceUntilIdle()
             model.handoffFinished(); advanceUntilIdle()
-            assertEquals(kind.name, notice, model.notice)
+            assertEquals(kind.name, notice, model.notice.textOrNull())
         }
     }
 
@@ -514,7 +514,7 @@ class GivingModelTest {
         val model = loaded(service)
         model.updatePayment(); advanceUntilIdle()
         assertNull(model.handoff)
-        assertEquals("Your payment method was updated.", model.notice)
+        assertEquals("Your payment method was updated.", model.notice.textOrNull())
         assertEquals(GivingPhase.Idle, model.phase)
     }
 
@@ -539,7 +539,7 @@ class GivingModelTest {
         val service = Fake(active).apply { beginPath = PaymentPath.GooglePay }
         val model = loaded(service)
         model.updatePayment(); advanceUntilIdle()
-        assertEquals("Google Pay isn’t available in this build yet.", (model.phase as GivingPhase.Failed).message)
+        assertEquals("Google Pay isn’t available in this build yet.", (model.phase as GivingPhase.Failed).message.textOrNull())
     }
 
     // --- misc ---

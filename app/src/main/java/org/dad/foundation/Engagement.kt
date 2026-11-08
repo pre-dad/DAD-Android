@@ -60,14 +60,14 @@ data class RankingStanding(
      * `national_percentile`: 1 = top 1%, 2 = top 2%), so it is shown as-is, never inverted as `100 - x`.
      * Clamped to 1..100 (never "Top 0%" or "Top 120%"); null when opted out / unknown.
      */
-    val nationalLabel: String? get() = nationalPercentile?.takeUnless { optedOut }?.let { "Top ${it.coerceIn(1, 100)}% nationally" }
+    val nationalLabel: UiText? get() = nationalPercentile?.takeUnless { optedOut }?.let { UiText.res(R.string.eng_top_percent_nationally, it.coerceIn(1, 100)) }
 
     /** "#4 in Austin", or null when opted out / unknown. */
-    val cityLabel: String? get() {
+    val cityLabel: UiText? get() {
         if (optedOut) return null
         val c = city ?: return null
         val rank = cityRank ?: return null
-        return "#$rank in $c"
+        return UiText.res(R.string.eng_rank_in_city, rank, c)
     }
 }
 

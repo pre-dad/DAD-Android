@@ -27,11 +27,11 @@ class GivingTest {
     @Test fun dailyAmountTimes30IsMonthlyCents() {
         val one = GiftAmount.ofDailyDollars(1)!!
         assertEquals(3000, one.monthlyMinor) // $1/day -> $30/mo -> 3000¢
-        assertEquals("$1/day", one.dailyLabel)
-        assertEquals("$30/mo", one.monthlyLabel)
+        assertEquals("$1/day", one.dailyLabel.textOrNull())
+        assertEquals("$30/mo", one.monthlyLabel.textOrNull())
         val five = GiftAmount.ofDailyDollars(5)!!
         assertEquals(15000, five.monthlyMinor)
-        assertEquals("$150/mo", five.monthlyLabel)
+        assertEquals("$150/mo", five.monthlyLabel.textOrNull())
     }
 
     @Test fun amountClampsToThirtyDollarCeiling() {
@@ -78,8 +78,8 @@ class GivingTest {
         val parser = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
         val periodEnd = parser.parse("2026-12-15")!!
         val copy = CancelCopy.confirmation(periodEnd, utc, Locale.US)
-        assertTrue(copy.contains("Dec 15, 2026"))
-        assertTrue(copy.contains("your streak ends"))
+        assertTrue(copy.text().contains("Dec 15, 2026"))
+        assertTrue(copy.text().contains("your streak ends"))
     }
 
     // --- model state machine ---
@@ -184,11 +184,11 @@ class GivingTest {
 
     @Test fun giftHeadingCoversEveryState() {
         val d = Date(0)
-        assertEquals("Your monthly gift", giftHeading(false, RecurringState.None))
-        assertEquals("Start a monthly gift", giftHeading(true, RecurringState.None))
-        assertEquals("Your gift is on its way", giftHeading(true, RecurringState.Preparing))
-        assertEquals("Your monthly gift", giftHeading(true, RecurringState.Active("s", 3000, d)))
-        assertEquals("Your gift is ending", giftHeading(true, RecurringState.Ending("s", 3000, d, d)))
+        assertEquals("Your monthly gift", giftHeading(false, RecurringState.None).textOrNull())
+        assertEquals("Start a monthly gift", giftHeading(true, RecurringState.None).textOrNull())
+        assertEquals("Your gift is on its way", giftHeading(true, RecurringState.Preparing).textOrNull())
+        assertEquals("Your monthly gift", giftHeading(true, RecurringState.Active("s", 3000, d)).textOrNull())
+        assertEquals("Your gift is ending", giftHeading(true, RecurringState.Ending("s", 3000, d, d)).textOrNull())
     }
 
     // --- presets and long dates ---

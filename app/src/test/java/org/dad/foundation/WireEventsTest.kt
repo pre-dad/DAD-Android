@@ -87,7 +87,7 @@ class WireEventsTest {
     @Test fun anUncappedEventHasNullSpotsLeft() = runTest {
         val event = Rig(backgroundScope) { 200 to list(view(capacity = 0, spots = "null")) }.wire.events().first()
         assertTrue(event.isUncapped)
-        assertEquals("Open to everyone", event.spotsLabel)
+        assertEquals("Open to everyone", event.spotsLabel.textOrNull())
     }
 
     @Test fun unknownEnumValuesDoNotFailTheList() = runTest {
@@ -101,7 +101,7 @@ class WireEventsTest {
         assertEquals(2, events.size)
         val unknown = events.first { it.id == id1 }
         assertEquals("block_party", unknown.type)
-        assertEquals("Block party", unknown.typeLabel)
+        assertEquals("Block party", unknown.typeLabel.textOrNull())
         assertEquals(ReservationStatus.NONE, unknown.status)
         assertEquals(ReservationStatus.WAITLISTED, events.first { it.id == id2 }.status)
     }
