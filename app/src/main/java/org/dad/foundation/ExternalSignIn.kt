@@ -67,10 +67,21 @@ sealed class ExternalSignInError : Exception() {
     data object Unsupported : ExternalSignInError()
 }
 
-/** Produces a Google `id_token` through the platform account sheet (Credential Manager). */
-fun interface GoogleIdTokenProvider { suspend fun idToken(): String }
+/**
+ * Produces a Google `id_token` through the platform account sheet (Credential Manager). [nonce] is fresh for
+ * this attempt and must be bound into the provider request (`GetGoogleIdOption.setNonce(nonce)`), so the
+ * returned id_token carries it and the server can reject a replayed token.
+ */
+fun interface GoogleIdTokenProvider { suspend fun idToken(nonce: String): String }
 
-interface OidcSignInService { suspend fun signIn(idToken: String): Credentials }
+/** [nonce] is the same raw value the provider was given; the server accepts it raw or as lowercase hex SHA-256. */
+interface OidcSignInService { suspend fun signIn(idToken: String, nonce: String): Credentials }
+
+/** A single-use, unguessable value for one Google sign-in attempt: 32 random bytes, base64url. Never logged or stored. */
+object SignInNonce {
+    private val random = java.security.SecureRandom()
+    fun generate(): String = ByteArray(32).also(random::nextBytes).base64Url()
+}
 
 class PasskeyChallenge(val ceremony: String, val challenge: ByteArray, val relyingParty: String?)
 class PasskeyAssertion(
@@ -102,7 +113,7 @@ internal fun PasskeyAssertion.credentialJson(): Map<String, Any> {
 
 /** Used when no API origin is configured (release): every call fails clearly. */
 object UnconfiguredExternalSignIn : OidcSignInService, PasskeySignInService {
-    override suspend fun signIn(idToken: String): Credentials = throw AccountFailure.InvalidConfiguration
+    override suspend fun signIn(idToken: String, nonce: String): Credentials = throw AccountFailure.InvalidConfiguration
     override suspend fun begin(): PasskeyChallenge = throw AccountFailure.InvalidConfiguration
     override suspend fun finish(challenge: PasskeyChallenge, assertion: PasskeyAssertion): Credentials = throw AccountFailure.InvalidConfiguration
 }
@@ -116,9 +127,10 @@ class WireExternalSignIn(
     private val url: HttpUrl = validatedOrigin(origin)
     private fun api() = nativeRetrofit(url, baseClient).create(AccountApi::class.java)
 
-    override suspend fun signIn(idToken: String): Credentials = decoding {
-        if (idToken.isEmpty() || idToken.toByteArray().size > 8192) throw AccountFailure.InvalidInput
-        val request = OidcSignInRequest(idToken, deviceName?.take(64), OidcSignInRequest.Platform.ANDROID)
+    override suspend fun signIn(idToken: String, nonce: String): Credentials = decoding {
+        if (idToken.isEmpty() || idToken.toByteArray().size > 8192 || nonce.length !in 1..256) throw AccountFailure.InvalidInput
+        val request = OidcSignInRequest(idToken = idToken, nonce = nonce, deviceName = deviceName?.take(64),
+            platform = OidcSignInRequest.Platform.ANDROID)
         val value = api().oidcSignIn("google", request).requireBody()
         nativeCredentials(value.accessToken, value.refreshToken, value.expiresIn)
     }
@@ -148,6 +160,7 @@ sealed interface ExternalSignInPhase {
 
 class GoogleSignInModel(
     private val tokens: GoogleIdTokenProvider, private val service: OidcSignInService, private val establish: Establish,
+    private val newNonce: () -> String = SignInNonce::generate,
 ) : ViewModel() {
     var phase: ExternalSignInPhase by mutableStateOf(ExternalSignInPhase.Idle)
         private set
@@ -157,8 +170,9 @@ class GoogleSignInModel(
         phase = ExternalSignInPhase.Working
         viewModelScope.launch {
             try {
-                val token = tokens.idToken()
-                establish { service.signIn(token) }
+                val nonce = newNonce()
+                val token = tokens.idToken(nonce)
+                establish { service.signIn(token, nonce) }
                 phase = ExternalSignInPhase.SignedIn
             } catch (cancelled: CancellationException) {
                 throw cancelled
