@@ -212,11 +212,11 @@ class WirePartnerStatusTest {
     }
 
     @Test fun theApplicantSeesOneSentencePerState() {
-        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Pending).message.contains("being reviewed"))
-        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Approved).message.contains("sign-in link"))
-        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Rejected).message.contains("wasn’t approved"))
+        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Pending).message.text().contains("being reviewed"))
+        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Approved).message.text().contains("sign-in link"))
+        assertTrue(ApplicationStatusInfo("Acme", ApplicationState.Rejected).message.text().contains("wasn’t approved"))
         val unknown = ApplicationStatusInfo("Acme", ApplicationState.from("SOMETHING_NEW"))
-        assertEquals("Application status", unknown.title)
-        assertFalse(unknown.message.contains("SOMETHING_NEW"))
+        assertEquals("Application status", unknown.title.textOrNull())
+        assertFalse(unknown.message.text().contains("SOMETHING_NEW"))
     }
 }

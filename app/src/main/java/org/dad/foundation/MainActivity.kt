@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import android.os.Bundle
 import android.content.Intent
+import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.activity.ComponentActivity
@@ -65,7 +66,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -111,10 +111,10 @@ class AccountModel(
     var hasSession: Boolean by mutableStateOf(false)
         private set
     /** A line for the unauthenticated screen: a failed sign-in link, an ended session, or an unconfigured build. */
-    var notice: String? by mutableStateOf(null)
+    var notice: UiText? by mutableStateOf(null)
         private set
     /** "<name> invited you", after an invite link was opened before sign-in. */
-    var invitation: String? by mutableStateOf(null)
+    var invitation: UiText? by mutableStateOf(null)
         private set
     /** Bumped on every sign-in/sign-out so per-session view models are never reused across sessions. */
     var generation: Int by mutableIntStateOf(0)
@@ -205,7 +205,7 @@ class AccountModel(
             active?.installReferrer?.let { intake ->
                 viewModelScope.launch {
                     val name = withContext(io) { intake.run() }
-                    if (name != null && state !is AccountState.Ready) invitation = "$name invited you to give with DAD."
+                    if (name != null && state !is AccountState.Ready) invitation = UiText.res(R.string.main_name_invited_you_to_give, name)
                 }
             }
             if (hasSession) gate.signedIn()?.let { destination = it }
@@ -224,7 +224,7 @@ class AccountModel(
     }
 
     /** Sign-out, account deletion or a revoked session: back to sign-in. */
-    fun onSignedOut(message: String? = null) {
+    fun onSignedOut(message: UiText? = null) {
         notice = message
         pushRegistered = false
         destination = null
@@ -354,7 +354,7 @@ class AccountModel(
             is LinkIntent.Referral -> viewModelScope.launch {
                 val links = ensureServices()?.links ?: return@launch
                 val name = withContext(io) { links.captureReferral(intent.code, intent.inPerson) }
-                if (name != null && state !is AccountState.Ready) invitation = "$name invited you to give with DAD."
+                if (name != null && state !is AccountState.Ready) invitation = UiText.res(R.string.main_name_invited_you_to_give, name)
             }.let { null }
             is LinkIntent.Company -> viewModelScope.launch {
                 val links = ensureServices()?.links ?: return@launch
@@ -369,8 +369,8 @@ class AccountModel(
     }
 
     companion object {
-        const val LINK_FAILED = "That sign-in link didn’t work. It may have expired — request a new one."
-        const val SESSION_ENDED = "Your session has ended. Please sign in again."
+        val LINK_FAILED = UiText.res(R.string.main_that_sign_in_link_didnt_work_it)
+        val SESSION_ENDED = UiText.res(R.string.main_your_session_has_ended_please_sign)
     }
 }
 
@@ -570,16 +570,16 @@ class MainActivity : ComponentActivity() {
                 if (explainPush) {
                     AlertDialog(
                         onDismissRequest = { explainPush = false; pushLedger.asked = true },
-                        title = { Text("Turn on notifications?") },
-                        text = { Text("DAD can let you know when someone joins through you, when your streak needs a gift, and about your events. You choose which in Settings.") },
+                        title = { Text(stringResource(R.string.main_turn_on_notifications)) },
+                        text = { Text(stringResource(R.string.main_dad_can_let_you_know_when_someone)) },
                         confirmButton = {
                             TextButton(onClick = {
                                 explainPush = false
                                 pushLedger.asked = true
                                 notificationPermission.launch(PushPermissionPolicy.PERMISSION)
-                            }) { Text("Continue") }
+                            }) { Text(stringResource(R.string.common_continue)) }
                         },
-                        dismissButton = { TextButton(onClick = { explainPush = false; pushLedger.asked = true }) { Text("Not now") } },
+                        dismissButton = { TextButton(onClick = { explainPush = false; pushLedger.asked = true }) { Text(stringResource(R.string.main_not_now)) } },
                     )
                 }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -711,12 +711,13 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
     // down (same key), so Home's own load still runs once.
     val dash: DashboardModel? = dashboard?.let { viewModel(key = "home-${model.generation}", factory = DashboardModel.factory(it)) }
     val milestones = remember { PrefsMilestoneStore(context) }
+    val shareChooserTitle = stringResource(R.string.common_share)
     val shareMilestone: (String) -> Unit = { line ->
         val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(android.content.Intent.EXTRA_TEXT, line)
         }
-        try { context.startActivity(android.content.Intent.createChooser(send, "Share")) } catch (_: android.content.ActivityNotFoundException) { }
+        try { context.startActivity(android.content.Intent.createChooser(send, shareChooserTitle)) } catch (_: android.content.ActivityNotFoundException) { }
     }
     val celebrating = giving?.celebrating == true
     // A just-created Founding status has to be fetched; the chip stays absent until the flag is known true.
@@ -750,17 +751,17 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
             modifier = if (giving != null && celebrating) Modifier.clearAndSetSemantics {} else Modifier,
             topBar = {
                 when (pushed) {
-                    Pushed.Settings -> DadBackBar("settings-back", "Back") { pushed = null }
-                    Pushed.History -> DadBackBar("history-close", "Back") { pushed = null }
+                    Pushed.Settings -> DadBackBar("settings-back", stringResource(R.string.common_back)) { pushed = null }
+                    Pushed.History -> DadBackBar("history-close", stringResource(R.string.common_back)) { pushed = null }
                     // Gift pushed from Settings' cancel-gift: back returns to Settings (carries `gift-close`).
-                    Pushed.Gift -> DadBackBar("gift-close", "Back") { pushed = Pushed.Settings }
+                    Pushed.Gift -> DadBackBar("gift-close", stringResource(R.string.common_back)) { pushed = Pushed.Settings }
                     Pushed.Spend -> Unit // InitiativeSpendScreen owns its app bar
                     null -> when (tab) {
                         DonorTab.HOME -> HomeTopBar(model, onSettings = if (service != null) ({ pushed = Pushed.Settings }) else null)
                         // The close affordance on a tab returns to Home, preserving the prior close→Home contract.
-                        DonorTab.CIRCLE -> if (engagementService != null) DadBackBar("engagement-close", "Back") { tab = DonorTab.HOME }
-                        DonorTab.EVENTS -> if (eventsService != null) DadBackBar("events-back", "Back") { tab = DonorTab.HOME }
-                        DonorTab.GIVING -> if (giving != null) DadBackBar("gift-close", "Back") { tab = DonorTab.HOME }
+                        DonorTab.CIRCLE -> if (engagementService != null) DadBackBar("engagement-close", stringResource(R.string.common_back)) { tab = DonorTab.HOME }
+                        DonorTab.EVENTS -> if (eventsService != null) DadBackBar("events-back", stringResource(R.string.common_back)) { tab = DonorTab.HOME }
+                        DonorTab.GIVING -> if (giving != null) DadBackBar("gift-close", stringResource(R.string.common_back)) { tab = DonorTab.HOME }
                     }
                 }
             },
@@ -775,7 +776,7 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                         containerColor = DadTheme.color("brand"),
                         contentColor = DadTheme.color("ink"),
                         modifier = Modifier.testTag("invite-fab"),
-                    ) { Text("Invite", style = MaterialTheme.typography.labelLarge) }
+                    ) { Text(stringResource(R.string.main_invite), style = MaterialTheme.typography.labelLarge) }
                 }
             },
             bottomBar = {
@@ -785,14 +786,14 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                             selected = tab == DonorTab.HOME,
                             onClick = { tab = DonorTab.HOME },
                             icon = { Text("\u2302", modifier = Modifier.clearAndSetSemantics {}) },
-                            label = { Text("Home") },
+                            label = { Text(stringResource(R.string.main_home)) },
                             modifier = Modifier.testTag("tab-home"),
                         )
                         NavigationBarItem(
                             selected = tab == DonorTab.CIRCLE,
                             onClick = { tab = DonorTab.CIRCLE },
                             icon = { Text("\u25CE", modifier = Modifier.clearAndSetSemantics {}) },
-                            label = { Text("Circle") },
+                            label = { Text(stringResource(R.string.main_circle)) },
                             enabled = engagementService != null,
                             modifier = Modifier.testTag("tab-circle"),
                         )
@@ -800,7 +801,7 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                             selected = tab == DonorTab.EVENTS,
                             onClick = { tab = DonorTab.EVENTS },
                             icon = { Text("\u2605", modifier = Modifier.clearAndSetSemantics {}) },
-                            label = { Text("Events") },
+                            label = { Text(stringResource(R.string.main_events)) },
                             enabled = eventsService != null,
                             modifier = Modifier.testTag("tab-events"),
                         )
@@ -808,7 +809,7 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                             selected = tab == DonorTab.GIVING,
                             onClick = { tab = DonorTab.GIVING },
                             icon = { Text("\u2661", modifier = Modifier.clearAndSetSemantics {}) },
-                            label = { Text("Giving") },
+                            label = { Text(stringResource(R.string.main_giving)) },
                             enabled = giving != null,
                             modifier = Modifier.testTag("tab-giving"),
                         )
@@ -883,8 +884,8 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
             BackHandler { giving.acknowledgeCelebration() }
             val amount = giving.selection
             FirstGiftCelebration(
-                amountMonthly = formatUsdMinor(amount.monthlyMinor) + "/month",
-                amountDaily = "$${amount.dailyDollars} a day",
+                amountMonthly = stringResource(R.string.give_amount_per_month, formatUsdMinor(amount.monthlyMinor)),
+                amountDaily = stringResource(R.string.give_dollars_a_day, amount.dailyDollars),
                 founding = dash?.foundingDonor == true,
                 onInvite = { giving.acknowledgeCelebration(); pushed = null; tab = DonorTab.CIRCLE },
                 onDone = { giving.acknowledgeCelebration() },
@@ -976,9 +977,9 @@ private fun DadBrandTile(modifier: Modifier = Modifier) {
             .heightIn(min = 32.dp)
             .background(DadTheme.color("brand"), RoundedCornerShape(DadTheme.radius("field")))
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .semantics { contentDescription = "DAD" },
+            .contentDescribed(R.string.auth_brand_tile_description),
         contentAlignment = Alignment.Center,
-    ) { Text("D", style = MaterialTheme.typography.titleMedium, color = DadTheme.color("ink")) }
+    ) { Text(stringResource(R.string.auth_brand_tile_letter), style = MaterialTheme.typography.titleMedium, color = DadTheme.color("ink")) }
 }
 
 /** The Home top app bar: the title and the account avatar (opens Settings) in the actions slot. */
@@ -990,14 +991,14 @@ private fun HomeTopBar(model: AccountModel, onSettings: (() -> Unit)?) {
         // The brand tile is the leading element (the old "DAD" wordmark lived in the body header,
         // removed in this phase); it carries a description so the mark is not colour alone.
         navigationIcon = { DadBrandTile(Modifier.padding(start = 16.dp)) },
-        title = { Text(if (publicName != null) "Hi, $publicName" else "Welcome back", modifier = Modifier.dadHeading()) },
+        title = { Text(if (publicName != null) stringResource(R.string.main_hi_name, publicName) else stringResource(R.string.common_welcome_back), modifier = Modifier.dadHeading()) },
         actions = {
             if (onSettings != null) {
                 val initial = ((model.state as? AccountState.Ready)?.profile?.publicName?.trim()?.firstOrNull()
                     ?: 'A').uppercaseChar().toString()
                 IconButton(
                     onClick = onSettings,
-                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Account and settings" }.testTag("open-settings"),
+                    modifier = Modifier.heightIn(min = 48.dp).contentDescribed(R.string.main_account_and_settings).testTag("open-settings"),
                 ) { Text(initial, style = MaterialTheme.typography.titleMedium) }
             }
         },
@@ -1019,14 +1020,14 @@ private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {})
         // account sub-states (loading / unavailable / signed-out) keep an on-screen answer here.
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             when (model.state) {
-                AccountState.Loading -> { CircularProgressIndicator(); Text("Loading your account…") }
+                AccountState.Loading -> { CircularProgressIndicator(); Text(stringResource(R.string.main_loading_your_account)) }
                 is AccountState.Ready -> Unit // the Ready greeting moved to the TopAppBar title
                 AccountState.Unavailable -> {
-                    Text("Your account is unavailable right now.", style = MaterialTheme.typography.titleLarge)
-                    Text("Please try again in a moment.")
-                    DadPrimaryButton("Try again") { model.load() }
+                    Text(stringResource(R.string.main_your_account_is_unavailable_right), style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.main_please_try_again_in_a_moment))
+                    DadPrimaryButton(stringResource(R.string.common_try_again)) { model.load() }
                 }
-                AccountState.SignedOut -> Text("You’re signed out.")
+                AccountState.SignedOut -> Text(stringResource(R.string.main_youre_signed_out))
             }
         }
         // Settings (sign-out and the store-mandated in-app account deletion) is reachable from the
@@ -1034,7 +1035,7 @@ private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {})
         Spacer(Modifier.height(20.dp))
         home()
         Spacer(Modifier.height(28.dp))
-        if (BuildConfig.DAD_API_ORIGIN.isBlank()) Text("Preview · Sample account", style = MaterialTheme.typography.labelLarge)
+        if (BuildConfig.DAD_API_ORIGIN.isBlank()) Text(stringResource(R.string.main_preview_sample_account), style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -1061,9 +1062,9 @@ internal fun SettingsHome(
             .testTag("settings-home"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.main_settings), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         if (model.signedOut) {
-            Text("You're signed out.", modifier = Modifier.testTag("settings-signed-out"))
+            Text(stringResource(R.string.main_youre_signed_out), modifier = Modifier.testTag("settings-signed-out"))
             return@Column
         }
         when (val phase = model.phase) {
@@ -1071,8 +1072,8 @@ internal fun SettingsHome(
                 CircularProgressIndicator(modifier = Modifier.testTag("settings-loading"))
             is SettingsPhase.Failed ->
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(phase.message, modifier = Modifier.testTag("settings-error"))
-                    DadPrimaryButton("Try again") { model.load() }
+                    Text(phase.message.asString(), modifier = Modifier.testTag("settings-error"))
+                    DadPrimaryButton(stringResource(R.string.common_try_again)) { model.load() }
                 }
             is SettingsPhase.Ready -> model.snapshot?.let { snapshot ->
                 SettingsContent(model, snapshot, confirmingDelete, deleteTyped,
@@ -1081,7 +1082,7 @@ internal fun SettingsHome(
                     analytics = analytics)
             }
         }
-        model.actionError?.let { Text(it, modifier = Modifier.testTag("settings-action-error")) }
+        model.actionError?.let { Text(it.asString(), modifier = Modifier.testTag("settings-action-error")) }
     }
 }
 
@@ -1094,7 +1095,7 @@ private fun SettingsContent(
 ) {
     // Sections group the account the way a donor thinks of it; Sign out and Delete sit apart at the bottom so a
     // routine toggle is never next to a destructive action.
-    SettingsHeading("Profile")
+    SettingsHeading(stringResource(R.string.main_profile))
     // Role is immutable (D-1), ZIP drives streak day rollover. A plain Row, not a ListItem: ListItem always merges
     // its descendants, which would fold the tagged email text into the row.
     Row(
@@ -1105,69 +1106,68 @@ private fun SettingsContent(
         DadSymbol("person", "", Modifier.clearAndSetSemantics {})
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(snapshot.profile.email, style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("settings-email"))
-            if (management == null) Text("ZIP: ${snapshot.profile.zipLabel}", style = MaterialTheme.typography.bodyMedium)
+            if (management == null) Text(stringResource(R.string.main_zip_label, snapshot.profile.zipLabel.asString()), style = MaterialTheme.typography.bodyMedium)
         }
     }
     if (management != null) {
         EmailChangeSection(viewModel(key = "email-change-$generation", factory = EmailChangeModel.factory(snapshot.profile.email, management)))
         ProfileDetailsSection(viewModel(key = "details-$generation", factory = ProfileDetailsModel.factory(snapshot.profile, management)))
     }
-    SettingsHeading("Notifications")
+    SettingsHeading(stringResource(R.string.main_notifications))
     // Payment-failure email is absent by design (non-toggleable server-side).
-    SettingsToggleSection("Emails", snapshot.preferences.emailToggles, model)
-    SettingsToggleSection("Notifications", snapshot.preferences.pushToggles, model)
-    SettingsHeading("Privacy")
+    SettingsToggleSection(stringResource(R.string.main_emails), snapshot.preferences.emailToggles, model)
+    SettingsToggleSection(stringResource(R.string.main_notifications), snapshot.preferences.pushToggles, model)
+    SettingsHeading(stringResource(R.string.main_privacy))
     Column {
-        ToggleRow("Show my ranking", snapshot.preferences.showRanking, "ranking-toggle", "star") {
+        ToggleRow(stringResource(R.string.common_show_my_ranking), snapshot.preferences.showRanking, "ranking-toggle", "star") {
             model.toggle("rankings_opted_out", !it) // inverted: showing = not opted out
         }
-        ToggleRow("Network visible", snapshot.preferences.networkVisible, "network-toggle", "person") {
+        ToggleRow(stringResource(R.string.main_network_visible), snapshot.preferences.networkVisible, "network-toggle", "person") {
             model.toggle("network_visible", it)
         }
-        ToggleRow("Volunteer opt-in", snapshot.preferences.volunteer, "volunteer-toggle", "calendar") {
+        ToggleRow(stringResource(R.string.main_volunteer_opt_in), snapshot.preferences.volunteer, "volunteer-toggle", "calendar") {
             model.toggle("volunteer", it)
         }
         if (analytics != null) {
-            ToggleRow("Usage analytics", analytics.choice == true, "analytics-toggle", "shield") { analytics.choose(it) }
+            ToggleRow(stringResource(R.string.main_usage_analytics), analytics.choice == true, "analytics-toggle", "shield") { analytics.choose(it) }
         }
     }
     if (snapshot.preferences.volunteer) VolunteerInterestsSection(model, snapshot.preferences.volunteerInterests)
     if (analytics != null) {
-        Text("First-party only: a temporary journey ID measures signup, sharing and giving. No names, email addresses or " +
-            "payment details are sent.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.main_analytics_first_party_note), style = MaterialTheme.typography.bodySmall)
     }
-    if (password != null || management != null) SettingsHeading("Security")
+    if (password != null || management != null) SettingsHeading(stringResource(R.string.main_security))
     password?.let { PasswordSection(it) }
     if (management != null) {
         SessionsSection(viewModel(key = "sessions-$generation", factory = DeviceSessionsModel.factory(management))) { onSignedOut?.invoke() }
-        SettingsHeading("Account")
+        SettingsHeading(stringResource(R.string.main_account))
         EmployerSection(viewModel(key = "employer-$generation", factory = EmployerModel.factory(management)))
     }
     HorizontalDivider()
-    DadSecondaryButton("Sign out", modifier = Modifier.testTag("settings-signout")) { model.signOut() }
+    DadSecondaryButton(stringResource(R.string.common_sign_out), modifier = Modifier.testTag("settings-signout")) { model.signOut() }
     // Delete account (store-mandated, §6.12): a typed-word confirm gate, inline.
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Delete account", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.main_delete_account), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         if (!confirmingDelete) {
-            DadDestructiveTextButton("Delete my account", modifier = Modifier.testTag("delete-start")) { onConfirmingChange(true) }
+            DadDestructiveTextButton(stringResource(R.string.main_delete_my_account), modifier = Modifier.testTag("delete-start")) { onConfirmingChange(true) }
         } else {
-            Text(DeleteAccountGate(deleteTyped).helpText, style = MaterialTheme.typography.bodySmall)
+            Text(DeleteAccountGate(deleteTyped).helpText.asString(), style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(
                 value = deleteTyped, onValueChange = onTypedChange,
-                label = { Text("Confirmation word") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("delete-input"),
+                label = { Text(stringResource(R.string.main_confirmation_word)) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("delete-input"),
             )
             DadDestructiveTextButton(
-                "Permanently delete",
+                stringResource(R.string.main_permanently_delete),
                 modifier = Modifier.testTag("delete-confirm"),
                 enabled = DeleteAccountGate(deleteTyped).isConfirmed,
             ) { model.deleteAccount(DeleteAccountGate(deleteTyped)) }
             // The server refuses deletion while a monthly gift is set to renew (or a checkout is open): rather than
             // a dead end, offer the real cancel-gift flow, then the donor comes back here and deletes.
             if (model.deletionBlocked && onCancelGift != null) {
-                DadSecondaryButton("Cancel my monthly gift", modifier = Modifier.testTag("delete-cancel-gift")) { onCancelGift() }
+                DadSecondaryButton(stringResource(R.string.main_cancel_my_monthly_gift), modifier = Modifier.testTag("delete-cancel-gift")) { onCancelGift() }
             }
             // The safe default is the one filled primary on this screen.
-            DadPrimaryButton("Keep my account") { onConfirmingChange(false); onTypedChange("") }
+            DadPrimaryButton(stringResource(R.string.main_keep_my_account)) { onConfirmingChange(false); onTypedChange("") }
         }
     }
 }
@@ -1176,7 +1176,7 @@ private fun SettingsContent(
 private fun SettingsToggleSection(title: String, toggles: List<Preferences.Toggle>, model: SettingsModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.titleSmall)
-        toggles.forEach { t -> ToggleRow(t.label, t.value, "pref-${t.key}", "bell") { model.toggle(t.key, it) } }
+        toggles.forEach { t -> ToggleRow(t.label.asString(), t.value, "pref-${t.key}", "bell") { model.toggle(t.key, it) } }
     }
 }
 

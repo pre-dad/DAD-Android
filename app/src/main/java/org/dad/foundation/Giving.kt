@@ -21,10 +21,10 @@ value class GiftAmount private constructor(val dailyDollars: Int) : Comparable<G
     val monthlyMinor: Int get() = dailyDollars * CENTS_PER_DAILY_DOLLAR
 
     /** "$5/day" — the headline the set-gift screen shows. */
-    val dailyLabel: String get() = "$$dailyDollars/day"
+    val dailyLabel: UiText get() = UiText.res(R.string.give_daily_label, dailyDollars)
 
     /** "$150/mo" — the monthly equivalent, derived, never entered directly. */
-    val monthlyLabel: String get() = "$${monthlyMinor / 100}/mo"
+    val monthlyLabel: UiText get() = UiText.res(R.string.give_monthly_label, monthlyMinor / 100)
 
     override fun compareTo(other: GiftAmount): Int = dailyDollars.compareTo(other.dailyDollars)
 
@@ -174,23 +174,23 @@ data class PaymentMethodState(val kind: Kind, val completedAt: Date? = null) {
  * testable (no OS dialog), the lesson the iOS side learned the hard way.
  */
 object CancelCopy {
-    fun confirmation(periodEnd: Date, timeZone: TimeZone = TimeZone.getDefault(), locale: Locale = Locale.US): String {
+    fun confirmation(periodEnd: Date, timeZone: TimeZone = TimeZone.getDefault(), locale: Locale = Locale.US): UiText {
         val formatter = DateFormat.getDateInstance(DateFormat.MEDIUM, locale)
         formatter.timeZone = timeZone
         val date = formatter.format(periodEnd)
-        return "Your gift stays active until $date. After that it won't renew and your streak ends."
+        return UiText.res(R.string.give_cancel_confirmation, date)
     }
 }
 
-fun giftHeading(hasLoaded: Boolean, recurring: RecurringState): String =
+fun giftHeading(hasLoaded: Boolean, recurring: RecurringState): UiText =
     if (!hasLoaded) {
-        "Your monthly gift"
+        UiText.res(R.string.home_your_monthly_gift)
     } else {
         when (recurring) {
-            is RecurringState.None -> "Start a monthly gift"
-            is RecurringState.Preparing -> "Your gift is on its way"
-            is RecurringState.Active -> "Your monthly gift"
-            is RecurringState.Ending -> "Your gift is ending"
+            is RecurringState.None -> UiText.res(R.string.give_start_a_monthly_gift)
+            is RecurringState.Preparing -> UiText.res(R.string.give_your_gift_is_on_its_way)
+            is RecurringState.Active -> UiText.res(R.string.home_your_monthly_gift)
+            is RecurringState.Ending -> UiText.res(R.string.give_your_gift_is_ending)
         }
     }
 

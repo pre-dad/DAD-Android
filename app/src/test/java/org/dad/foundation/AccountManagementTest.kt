@@ -109,7 +109,7 @@ class AccountManagementModelTest {
         val service = Fake().apply { failure = AccountFailure.InvalidInput }
         val model = ProfileDetailsModel(profile, service).apply { zip = "" }
         model.save()
-        assertEquals(DetailsPhase.Failed("Check the ZIP code and phone number, then try again."), model.phase)
+        assertEquals("Check the ZIP code and phone number, then try again.", (model.phase as DetailsPhase.Failed).message.text())
     }
 
     @Test fun emailChangeNeedsANewPlausibleAddressAndNamesAConflict() {
@@ -125,7 +125,7 @@ class AccountManagementModelTest {
         service.failure = AccountFailure.Conflict
         val conflicted = EmailChangeModel("alex@example.org", service).apply { email = "taken@example.org" }
         conflicted.submit()
-        assertEquals(EmailChangePhase.Failed("That address can’t replace your account email. Existing accounts are never merged."), conflicted.phase)
+        assertEquals("That address can’t replace your account email. Existing accounts are never merged.", (conflicted.phase as EmailChangePhase.Failed).message.text())
     }
 
     @Test fun sessionsRevokeOneThenOthersAndAGoneOneReloads() {
@@ -140,7 +140,7 @@ class AccountManagementModelTest {
         assertNull(model.actionError)
         assertEquals(LoadPhase.Ready, model.phase)
         model.revokeOthers()
-        assertEquals("Signed out of every other device.", model.notice)
+        assertEquals("Signed out of every other device.", model.notice.textOrNull())
     }
 
     @Test fun signOutEverywhereLeavesOnlyWhenConfirmed() {
@@ -162,7 +162,7 @@ class AccountManagementModelTest {
         assertEquals(EmployerTeam(null, null, emptyList()), model.team)
         model.companyCode = "WRONG"
         model.enroll()
-        assertEquals("That company code isn’t recognized. Check it with your employer and try again.", model.actionError)
+        assertEquals("That company code isn’t recognized. Check it with your employer and try again.", model.actionError.textOrNull())
         model.companyCode = " ACME42 "
         model.enroll()
         assertNull(model.actionError)
@@ -181,7 +181,7 @@ class AccountManagementModelTest {
         service.failure = AccountFailure.Conflict
         model.companyCode = "OTHER"
         model.enroll()
-        assertEquals("Your account is already linked to another employer.", model.actionError)
+        assertEquals("Your account is already linked to another employer.", model.actionError.textOrNull())
     }
 
     private class FakeWallet(var available: Boolean = true, var url: String = "https://pay.google.com/gp/v/save/abc", var fails: Boolean = false) : WalletPassService {

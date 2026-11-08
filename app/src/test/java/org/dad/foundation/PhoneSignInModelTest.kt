@@ -65,7 +65,7 @@ class PhoneSignInModelTest {
         val m = model(fake)
         m.phone = "+14155551234"; m.requestCode()
         m.code = "654321"; m.verify()
-        assertEquals(PhoneSignInPhase.Failed("That code didn’t match. Check it and try again."), m.phase)
+        assertEquals("That code didn’t match. Check it and try again.", (m.phase as PhoneSignInPhase.Failed).message.text())
         assertTrue(m.isAwaitingCode)
         fake.verifyFailure = null
         m.retryCodeEntry()
@@ -79,13 +79,13 @@ class PhoneSignInModelTest {
             AccountFailure.InvalidInput to "That phone number doesn’t look right. Check it and try again.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
             AccountFailure.Unavailable to "We couldn’t reach DAD. Please try again in a moment.",
-            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED,
+            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED.text(),
             IllegalStateException("boom") to "Something went wrong. Please try again.",
         )
         cases.forEach { (failure, message) ->
             val m = model(Fake(requestFailure = failure))
             m.phone = "+14155551234"; m.requestCode()
-            assertEquals(PhoneSignInPhase.Failed(message), m.phase)
+            assertEquals(message, (m.phase as PhoneSignInPhase.Failed).message.text())
             assertFalse(m.isAwaitingCode)
         }
     }
@@ -93,7 +93,7 @@ class PhoneSignInModelTest {
     @Test fun throttledVerificationShowsTheThrottleMessage() {
         val m = model(Fake(verifyFailure = AccountFailure.RateLimited))
         m.phone = "+14155551234"; m.requestCode(); m.code = "000000"; m.verify()
-        assertEquals(PhoneSignInPhase.Failed("Too many attempts. Please wait a moment and try again."), m.phase)
+        assertEquals("Too many attempts. Please wait a moment and try again.", (m.phase as PhoneSignInPhase.Failed).message.text())
     }
 
     @Test fun aSessionThatDiscardsTheSignInIsReportedAsFailureNotSuccess() {

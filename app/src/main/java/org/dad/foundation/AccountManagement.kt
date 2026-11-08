@@ -82,11 +82,11 @@ object ProfileRules {
     } catch (_: java.net.URISyntaxException) { false }
 }
 
-private const val SOMETHING_WENT_WRONG = "Something went wrong. Please try again."
+private val SOMETHING_WENT_WRONG = UiText.res(R.string.common_something_went_wrong_please_try)
 
-private fun generic(error: Exception): String = when (error) {
-    is AccountFailure.SignedOut -> "Please sign in again."
-    is AccountFailure.RateLimited -> "Too many attempts. Please wait a moment and try again."
+private fun generic(error: Exception): UiText = when (error) {
+    is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
+    is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
     else -> SOMETHING_WENT_WRONG
 }
 
@@ -94,7 +94,7 @@ sealed interface DetailsPhase {
     data object Idle : DetailsPhase
     data object Saving : DetailsPhase
     data object Saved : DetailsPhase
-    data class Failed(val message: String) : DetailsPhase
+    data class Failed(val message: UiText) : DetailsPhase
 }
 
 class ProfileDetailsModel(initial: ProfileSummary, private val service: AccountManagementService) : ViewModel() {
@@ -128,7 +128,7 @@ class ProfileDetailsModel(initial: ProfileSummary, private val service: AccountM
                 throw cancelled
             } catch (error: Exception) {
                 phase = DetailsPhase.Failed(
-                    if (error is AccountFailure.InvalidInput) "Check the ZIP code and phone number, then try again." else generic(error))
+                    if (error is AccountFailure.InvalidInput) UiText.res(R.string.acct_check_the_zip_code_and_phone) else generic(error))
             }
         }
     }
@@ -143,7 +143,7 @@ sealed interface EmailChangePhase {
     data object Editing : EmailChangePhase
     data object Submitting : EmailChangePhase
     data object Sent : EmailChangePhase
-    data class Failed(val message: String) : EmailChangePhase
+    data class Failed(val message: UiText) : EmailChangePhase
 }
 
 class EmailChangeModel(private val current: String, private val service: AccountManagementService) : ViewModel() {
@@ -167,9 +167,9 @@ class EmailChangeModel(private val current: String, private val service: Account
                 throw cancelled
             } catch (error: Exception) {
                 phase = EmailChangePhase.Failed(when (error) {
-                    is AccountFailure.InvalidInput -> "Check the email address and try again."
-                    is AccountFailure.Conflict -> "That address can’t replace your account email. Existing accounts are never merged."
-                    is AccountFailure.Unavailable -> "We couldn’t request the change right now. Please try again in a moment."
+                    is AccountFailure.InvalidInput -> UiText.res(R.string.acct_check_the_email_address_and_try)
+                    is AccountFailure.Conflict -> UiText.res(R.string.acct_that_address_cant_replace_your)
+                    is AccountFailure.Unavailable -> UiText.res(R.string.acct_we_couldnt_request_the_change)
                     else -> generic(error)
                 })
             }
@@ -187,7 +187,7 @@ class EmailChangeModel(private val current: String, private val service: Account
 sealed interface LoadPhase {
     data object Loading : LoadPhase
     data object Ready : LoadPhase
-    data class Failed(val message: String) : LoadPhase
+    data class Failed(val message: UiText) : LoadPhase
 }
 
 class DeviceSessionsModel(private val service: AccountManagementService) : ViewModel() {
@@ -197,9 +197,9 @@ class DeviceSessionsModel(private val service: AccountManagementService) : ViewM
         private set
     var busy by mutableStateOf(false)
         private set
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
-    var notice: String? by mutableStateOf(null)
+    var notice: UiText? by mutableStateOf(null)
         private set
     /** True once "sign out on every device" ended this session too. */
     var signedOut by mutableStateOf(false)
@@ -216,7 +216,7 @@ class DeviceSessionsModel(private val service: AccountManagementService) : ViewM
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                phase = LoadPhase.Failed("Your signed-in devices couldn’t be loaded right now. Please try again in a moment.")
+                phase = LoadPhase.Failed(UiText.res(R.string.acct_your_signed_in_devices_couldnt_be))
             }
         }
     }
@@ -225,7 +225,7 @@ class DeviceSessionsModel(private val service: AccountManagementService) : ViewM
 
     fun revokeOthers() = act {
         sessions = service.revokeOtherSessions()
-        notice = "Signed out of every other device."
+        notice = UiText.res(R.string.acct_signed_out_of_every_other_device)
     }
 
     fun signOutEverywhere() = act {
@@ -243,7 +243,7 @@ class DeviceSessionsModel(private val service: AccountManagementService) : ViewM
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AccountFailure.NotFound) { busy = false; load() }
             catch (_: AccountFailure.SignedOut) { signedOut = true }
-            catch (_: Exception) { actionError = "Sign-out wasn’t confirmed. Refresh the list to check before trying again." }
+            catch (_: Exception) { actionError = UiText.res(R.string.acct_sign_out_wasnt_confirmed_refresh) }
             finally { busy = false }
         }
     }
@@ -262,7 +262,7 @@ class EmployerModel(private val service: AccountManagementService) : ViewModel()
     var teamName by mutableStateOf("")
     var busy by mutableStateOf(false)
         private set
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
 
     val canEnroll: Boolean get() = companyCode.isNotBlank() && !busy
@@ -277,7 +277,7 @@ class EmployerModel(private val service: AccountManagementService) : ViewModel()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                phase = LoadPhase.Failed("Your employer details couldn’t be loaded right now. Please try again in a moment.")
+                phase = LoadPhase.Failed(UiText.res(R.string.acct_your_employer_details_couldnt_be))
             }
         }
     }
@@ -285,8 +285,8 @@ class EmployerModel(private val service: AccountManagementService) : ViewModel()
     fun enroll() {
         if (!canEnroll) return
         val code = companyCode.trim()
-        act(invalid = "That company code isn’t recognized. Check it with your employer and try again.",
-            conflict = "Your account is already linked to another employer.") {
+        act(invalid = UiText.res(R.string.acct_that_company_code_isnt_recognized),
+            conflict = UiText.res(R.string.acct_your_account_is_already_linked_to)) {
             service.enroll(code)
             companyCode = ""
         }
@@ -295,13 +295,13 @@ class EmployerModel(private val service: AccountManagementService) : ViewModel()
     fun joinTeam() {
         if (!canJoinTeam) return
         val name = teamName.trim()
-        act(invalid = "That team name couldn’t be saved. Use up to 80 characters.", conflict = null) {
+        act(invalid = UiText.res(R.string.acct_that_team_name_couldnt_be_saved), conflict = null) {
             service.joinTeam(name)
             teamName = ""
         }
     }
 
-    private fun act(invalid: String, conflict: String?, work: suspend () -> Unit) {
+    private fun act(invalid: UiText, conflict: UiText?, work: suspend () -> Unit) {
         busy = true
         actionError = null
         viewModelScope.launch {
@@ -340,7 +340,7 @@ class WalletPassModel(private val service: WalletPassService) : ViewModel() {
         private set
     var preparing by mutableStateOf(false)
         private set
-    var error: String? by mutableStateOf(null)
+    var error: UiText? by mutableStateOf(null)
         private set
     /** A validated save link ready to open; the screen clears it once opened. */
     var saveUrl: String? by mutableStateOf(null)
@@ -376,7 +376,7 @@ class WalletPassModel(private val service: WalletPassService) : ViewModel() {
     fun openFailed() { error = FAILURE }
 
     companion object {
-        const val FAILURE = "The Wallet pass couldn’t be prepared. Please try again. Your on-screen code still works."
+        val FAILURE = UiText.res(R.string.acct_the_wallet_pass_couldnt_be)
         fun factory(service: WalletPassService): ViewModelProvider.Factory = viewModelFactory { initializer { WalletPassModel(service) } }
     }
 }

@@ -154,7 +154,7 @@ class WireExternalSignIn(
 sealed interface ExternalSignInPhase {
     data object Idle : ExternalSignInPhase
     data object Working : ExternalSignInPhase
-    data class Failed(val message: String) : ExternalSignInPhase
+    data class Failed(val message: UiText) : ExternalSignInPhase
     data object SignedIn : ExternalSignInPhase
 }
 
@@ -182,12 +182,12 @@ class GoogleSignInModel(
         }
     }
 
-    internal fun message(error: Exception): String = when (error) {
-        is ExternalSignInError.Unsupported -> "Google sign-in isn’t available on this device."
-        is AccountFailure.SignedOut -> "We couldn’t find a DAD account for that Google sign-in. Create your account with your email first."
-        is AccountFailure.RateLimited -> "Too many attempts. Please wait a moment and try again."
-        is AccountFailure.Unavailable -> "Google sign-in isn’t available right now. Please try again in a moment."
-        else -> "Something went wrong. Please try again."
+    internal fun message(error: Exception): UiText = when (error) {
+        is ExternalSignInError.Unsupported -> UiText.res(R.string.extsignin_google_sign_in_isnt_available_on)
+        is AccountFailure.SignedOut -> UiText.res(R.string.extsignin_we_couldnt_find_a_dad_account_for)
+        is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
+        is AccountFailure.Unavailable -> UiText.res(R.string.extsignin_google_sign_in_isnt_available)
+        else -> UiText.res(R.string.common_something_went_wrong_please_try)
     }
 
     companion object {
@@ -219,12 +219,12 @@ class PasskeySignInModel(
         }
     }
 
-    internal fun message(error: Exception): String = when (error) {
-        is ExternalSignInError.Unsupported -> "Passkeys aren’t available on this device."
-        is AccountFailure.SignedOut -> "That passkey didn’t work. Try another sign-in method."
-        is AccountFailure.RateLimited -> "Too many attempts. Please wait a moment and try again."
-        is AccountFailure.Unavailable -> "Passkey sign-in isn’t available right now. Please try again in a moment."
-        else -> "Something went wrong. Please try again."
+    internal fun message(error: Exception): UiText = when (error) {
+        is ExternalSignInError.Unsupported -> UiText.res(R.string.extsignin_passkeys_arent_available_on_this)
+        is AccountFailure.SignedOut -> UiText.res(R.string.extsignin_that_passkey_didnt_work_try)
+        is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
+        is AccountFailure.Unavailable -> UiText.res(R.string.extsignin_passkey_sign_in_isnt_available)
+        else -> UiText.res(R.string.common_something_went_wrong_please_try)
     }
 
     companion object {

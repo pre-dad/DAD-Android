@@ -102,14 +102,14 @@ class PartnerApplicationModelTest {
         model.submit()
         advanceUntilIdle()
         val failed = model.phase as ApplicationSubmitPhase.Failed
-        assertTrue(failed.message.contains("2 minutes"))
+        assertTrue(failed.message.text().contains("2 minutes"))
         assertTrue("a throttle keeps the attempt to resend", model.isLocked)
     }
 
     @Test fun theWaitMessageRoundsSecondsToMinutesAndFallsBackWhenUnknown() {
-        assertTrue(PartnerApplicationModel.waitMessage(30).contains("30 seconds"))
-        assertTrue(PartnerApplicationModel.waitMessage(1).contains("1 second"))
-        assertTrue(PartnerApplicationModel.waitMessage(61).contains("2 minutes"))
-        assertTrue(PartnerApplicationModel.waitMessage(null).contains("wait a moment"))
+        assertTrue(PartnerApplicationModel.waitMessage(30).text().contains("30 seconds"))
+        assertTrue(PartnerApplicationModel.waitMessage(1).text().contains("1 second"))
+        assertTrue(PartnerApplicationModel.waitMessage(61).text().contains("2 minutes"))
+        assertTrue(PartnerApplicationModel.waitMessage(null).text().contains("wait a moment"))
     }
 }

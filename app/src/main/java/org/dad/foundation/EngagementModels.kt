@@ -55,7 +55,7 @@ interface EngagementService {
 sealed interface EngagementPhase {
     data object Loading : EngagementPhase
     data object Ready : EngagementPhase
-    data class Failed(val message: String) : EngagementPhase
+    data class Failed(val message: UiText) : EngagementPhase
 }
 
 /**
@@ -69,10 +69,10 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
     var snapshot: EngagementSnapshot? by mutableStateOf(null)
         private set
     /** A failed ranking toggle shows inline; the loaded screen and the prior standing stay put. */
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
     /** Shown above stale content when a refresh failed. */
-    var refreshNotice: String? by mutableStateOf(null)
+    var refreshNotice: UiText? by mutableStateOf(null)
         private set
     /** The session ended (a refresh was refused twice): the shell must route to sign-in. */
     var signedOut: Boolean by mutableStateOf(false)
@@ -80,7 +80,7 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
     /** The rankings choice being saved; clearing it reverts the card to the standing the server last confirmed. */
     var pendingOptIn: Boolean? by mutableStateOf(null)
         private set
-    var nameError: String? by mutableStateOf(null)
+    var nameError: UiText? by mutableStateOf(null)
         private set
     var isSavingName: Boolean by mutableStateOf(false)
         private set
@@ -148,7 +148,7 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
     fun choosePublicName(raw: String) {
         val name = raw.trim()
         if (isSavingName) return
-        if (name.length !in 1..MAX_PUBLIC_NAME) { nameError = "Enter a name between 1 and $MAX_PUBLIC_NAME characters."; return }
+        if (name.length !in 1..MAX_PUBLIC_NAME) { nameError = UiText.res(R.string.eng_enter_a_name_between_1_and, MAX_PUBLIC_NAME); return }
         isSavingName = true
         nameError = null
         viewModelScope.launch {
@@ -160,8 +160,8 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
             } catch (error: Exception) {
                 if (error is AccountFailure.SignedOut) signedOut = true
                 nameError = when (error) {
-                    is AccountFailure.InvalidInput -> "That name can’t be used. Try another."
-                    is AccountFailure.Forbidden -> "Invite links aren’t available for this account."
+                    is AccountFailure.InvalidInput -> UiText.res(R.string.eng_that_name_cant_be_used_try_another)
+                    is AccountFailure.Forbidden -> UiText.res(R.string.eng_invite_links_arent_available_for)
                     else -> homeMessage(error)
                 }
                 isSavingName = false
@@ -186,7 +186,7 @@ class InitiativeSpendModel(private val service: EngagementService, private val i
         data class Ready(val spend: InitiativeSpend) : Phase
         /** The initiative has no published spend (404). */
         data object Unpublished : Phase
-        data class Failed(val message: String) : Phase
+        data class Failed(val message: UiText) : Phase
     }
 
     var phase: Phase by mutableStateOf(Phase.Loading)

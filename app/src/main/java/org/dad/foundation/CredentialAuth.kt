@@ -80,14 +80,14 @@ object UnconfiguredCredentialAuth : SignupService, SignInLinkService, PasswordSi
     override suspend fun signIn(email: String, password: String): Credentials = throw AccountFailure.InvalidConfiguration
 }
 
-private const val RATE_LIMITED = "Too many attempts. Please wait a moment and try again."
-private const val SOMETHING_WENT_WRONG = "Something went wrong. Please try again."
+private val RATE_LIMITED = UiText.res(R.string.common_too_many_attempts_please_wait_a)
+private val SOMETHING_WENT_WRONG = UiText.res(R.string.common_something_went_wrong_please_try)
 
 sealed interface SignupPhase {
     data object Editing : SignupPhase
     data object Submitting : SignupPhase
     data class Sent(val email: String) : SignupPhase
-    data class Failed(val message: String) : SignupPhase
+    data class Failed(val message: UiText) : SignupPhase
 }
 
 class SignupModel(private val service: SignupService) : ViewModel() {
@@ -122,10 +122,10 @@ class SignupModel(private val service: SignupService) : ViewModel() {
     /** Back to the form after a failure or to change the address; entered values are kept. */
     fun edit() { phase = SignupPhase.Editing }
 
-    internal fun message(error: Exception): String = when (error) {
-        is AccountFailure.InvalidInput -> "Check your name, email, city and ZIP code, then try again."
+    internal fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.InvalidInput -> UiText.res(R.string.cred_check_your_name_email_city_and_zip)
         is AccountFailure.RateLimited -> RATE_LIMITED
-        is AccountFailure.Unavailable -> "We couldn’t send your sign-in link right now. Please try again in a moment."
+        is AccountFailure.Unavailable -> UiText.res(R.string.common_we_couldnt_send_your_sign_in_link)
         is AccountFailure.InvalidConfiguration -> PhoneSignInModel.NOT_CONFIGURED
         else -> SOMETHING_WENT_WRONG
     }
@@ -139,7 +139,7 @@ sealed interface SignInLinkPhase {
     data object Editing : SignInLinkPhase
     data object Submitting : SignInLinkPhase
     data class Sent(val email: String) : SignInLinkPhase
-    data class Failed(val message: String) : SignInLinkPhase
+    data class Failed(val message: UiText) : SignInLinkPhase
 }
 
 class SignInLinkModel(private val service: SignInLinkService) : ViewModel() {
@@ -167,10 +167,10 @@ class SignInLinkModel(private val service: SignInLinkService) : ViewModel() {
 
     fun edit() { phase = SignInLinkPhase.Editing }
 
-    internal fun message(error: Exception): String = when (error) {
-        is AccountFailure.InvalidInput -> "Check your email address, then try again."
+    internal fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.InvalidInput -> UiText.res(R.string.common_check_your_email_address_then_try)
         is AccountFailure.RateLimited -> RATE_LIMITED
-        is AccountFailure.Unavailable -> "We couldn’t send your sign-in link right now. Please try again in a moment."
+        is AccountFailure.Unavailable -> UiText.res(R.string.common_we_couldnt_send_your_sign_in_link)
         is AccountFailure.InvalidConfiguration -> PhoneSignInModel.NOT_CONFIGURED
         else -> SOMETHING_WENT_WRONG
     }
@@ -183,7 +183,7 @@ class SignInLinkModel(private val service: SignInLinkService) : ViewModel() {
 sealed interface PasswordSignInPhase {
     data object Editing : PasswordSignInPhase
     data object Submitting : PasswordSignInPhase
-    data class Failed(val message: String) : PasswordSignInPhase
+    data class Failed(val message: UiText) : PasswordSignInPhase
     data object SignedIn : PasswordSignInPhase
 }
 
@@ -215,11 +215,11 @@ class PasswordSignInModel(private val service: PasswordSignInService, private va
         }
     }
 
-    internal fun message(error: Exception): String = when (error) {
-        is AccountFailure.SignedOut -> "The email or password is incorrect."
-        is AccountFailure.InvalidInput -> "Check your email and password, then try again."
+    internal fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.SignedOut -> UiText.res(R.string.cred_the_email_or_password_is_incorrect)
+        is AccountFailure.InvalidInput -> UiText.res(R.string.cred_check_your_email_and_password_then)
         is AccountFailure.RateLimited -> RATE_LIMITED
-        is AccountFailure.Unavailable -> "We couldn’t reach DAD. Please try again in a moment."
+        is AccountFailure.Unavailable -> UiText.res(R.string.common_we_couldnt_reach_dad_please_try)
         is AccountFailure.InvalidConfiguration -> PhoneSignInModel.NOT_CONFIGURED
         else -> SOMETHING_WENT_WRONG
     }
@@ -234,7 +234,7 @@ sealed interface PasswordChangePhase {
     data object Editing : PasswordChangePhase
     data object Saving : PasswordChangePhase
     data object Saved : PasswordChangePhase
-    data class Failed(val message: String) : PasswordChangePhase
+    data class Failed(val message: UiText) : PasswordChangePhase
 }
 
 /** Set or change the password from Settings. A wrong current password keeps the session; only a real 401 signs out. */
@@ -248,8 +248,8 @@ class PasswordChangeModel(private val service: PasswordSettingsService) : ViewMo
     var newPassword by mutableStateOf("")
     var confirmPassword by mutableStateOf("")
 
-    val newPasswordHint: String?
-        get() = if (newPassword.isEmpty() || CredentialRules.isAcceptableNewPassword(newPassword)) null else "Use 12 to 72 characters."
+    val newPasswordHint: UiText?
+        get() = if (newPassword.isEmpty() || CredentialRules.isAcceptableNewPassword(newPassword)) null else UiText.res(R.string.cred_use_12_to_72_characters)
     val confirmMismatch: Boolean get() = confirmPassword.isNotEmpty() && confirmPassword != newPassword
     val canSave: Boolean
         get() = phase !is PasswordChangePhase.Saving && CredentialRules.isAcceptableNewPassword(newPassword) &&
@@ -276,12 +276,12 @@ class PasswordChangeModel(private val service: PasswordSettingsService) : ViewMo
 
     fun edit() { phase = PasswordChangePhase.Editing }
 
-    internal fun message(error: Exception): String = when (error) {
-        is AccountFailure.PasswordIncorrect -> "Your current password didn’t match. Check it and try again."
-        is AccountFailure.InvalidInput -> "Use a password of 12 to 72 characters."
+    internal fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.PasswordIncorrect -> UiText.res(R.string.cred_your_current_password_didnt_match)
+        is AccountFailure.InvalidInput -> UiText.res(R.string.cred_use_a_password_of_12_to_72)
         is AccountFailure.RateLimited -> RATE_LIMITED
-        is AccountFailure.SignedOut -> "Please sign in again."
-        is AccountFailure.Unavailable -> "We couldn’t save your password right now. Please try again in a moment."
+        is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
+        is AccountFailure.Unavailable -> UiText.res(R.string.cred_we_couldnt_save_your_password)
         is AccountFailure.InvalidConfiguration -> PhoneSignInModel.NOT_CONFIGURED
         else -> SOMETHING_WENT_WRONG
     }

@@ -16,6 +16,9 @@ jobs:
           node-version: '24'
       - run: node scripts/check-foundation.mjs
       - run: node --test scripts/check-foundation.test.mjs
+      - name: User-visible text lives in string resources
+        run: node scripts/check-hardcoded-strings.mjs
+      - run: node --test scripts/check-hardcoded-strings.test.mjs
       - name: Foundation drift (advisory)
         run: node scripts/check-foundation-drift.mjs
       - run: node --test scripts/check-foundation-drift.test.mjs

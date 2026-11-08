@@ -60,23 +60,23 @@ class EngagementTest {
         assertNull(out.nationalLabel)
         assertNull(out.cityLabel)
         val ranked = RankingStanding.fromDashboard(2, "Austin", 4, rankingsOptedOut = false)
-        assertEquals("#4 in Austin", ranked.cityLabel)
+        assertEquals("#4 in Austin", ranked.cityLabel.textOrNull())
     }
 
     @Test fun rankingLabelsWhenOptedIn() {
         val standing = RankingStanding(nationalPercentile = 2, city = "Austin", cityRank = 4)
         assertFalse(standing.isOptedOut)
         // The server value is already the top bucket: 2 reads "Top 2%", not "Top 98%".
-        assertEquals("Top 2% nationally", standing.nationalLabel)
-        assertEquals("Top 1% nationally", RankingStanding(1, null, null).nationalLabel)
-        assertEquals("Top 50% nationally", RankingStanding(50, null, null).nationalLabel)
-        assertEquals("Top 98% nationally", RankingStanding(98, null, null).nationalLabel)
-        assertEquals("#4 in Austin", standing.cityLabel)
+        assertEquals("Top 2% nationally", standing.nationalLabel.textOrNull())
+        assertEquals("Top 1% nationally", RankingStanding(1, null, null).nationalLabel.textOrNull())
+        assertEquals("Top 50% nationally", RankingStanding(50, null, null).nationalLabel.textOrNull())
+        assertEquals("Top 98% nationally", RankingStanding(98, null, null).nationalLabel.textOrNull())
+        assertEquals("#4 in Austin", standing.cityLabel.textOrNull())
     }
 
     @Test fun topPercentileNeverReadsZero() {
-        assertEquals("Top 1% nationally", RankingStanding(0, null, null).nationalLabel)
-        assertEquals("Top 1% nationally", RankingStanding(-3, null, null).nationalLabel)
+        assertEquals("Top 1% nationally", RankingStanding(0, null, null).nationalLabel.textOrNull())
+        assertEquals("Top 1% nationally", RankingStanding(-3, null, null).nationalLabel.textOrNull())
     }
 
     // --- Spend-by-category (A-3): totals ---
@@ -87,7 +87,7 @@ class EngagementTest {
     }
 
     @Test fun topPercentileNeverReadsAboveOneHundred() {
-        assertEquals("Top 100% nationally", RankingStanding(120, null, null).nationalLabel)
+        assertEquals("Top 100% nationally", RankingStanding(120, null, null).nationalLabel.textOrNull())
     }
 
     // --- Model state machine ---
@@ -106,7 +106,7 @@ class EngagementTest {
             failLoad?.let { throw it }
             return EngagementSnapshot(
                 impact = ImpactTotals(124_000, 3, 2),
-                badges = BadgeGrid(listOf(Badge("F", "Founding Donor", "rule", "perk", earned = true, earnedAt = null))),
+                badges = BadgeGrid(listOf(Badge("F", "Founding Donor", "rule", UiText.plain("perk"), earned = true, earnedAt = null))),
                 ranking = ranking(),
                 network = NetworkView(5, 348_000, null, emptyList(), 2),
                 referral = if (needsName) null else ReferralInfo("ALEX", 2, 1, emptyList()),
@@ -192,7 +192,7 @@ class EngagementTest {
         model.setRankingOptIn(true)
         assertFalse(model.displayedRanking!!.isOptedOut)
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Top 2% nationally", model.displayedRanking!!.nationalLabel)
+        assertEquals("Top 2% nationally", model.displayedRanking!!.nationalLabel.textOrNull())
     }
 
     @Test fun failedToggleRevertsAndShowsAnInlineError() = runTest {
@@ -243,12 +243,12 @@ class EngagementTest {
         val model = EngagementModel(service)
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.choosePublicName("Alex"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("That name can’t be used. Try another.", model.nameError)
+        assertEquals("That name can’t be used. Try another.", model.nameError.textOrNull())
         assertTrue(model.snapshot!!.needsPublicName)
         assertFalse(model.isSavingName)
         service.failName = AccountFailure.Forbidden
         model.choosePublicName("Alex"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Invite links aren’t available for this account.", model.nameError)
+        assertEquals("Invite links aren’t available for this account.", model.nameError.textOrNull())
     }
 
     @Test fun spendModelReadsPublishedUnpublishedAndFailed() = runTest {

@@ -79,7 +79,7 @@ class CredentialAuthModelsTest {
         ).forEach { (failure, message) ->
             val model = SignInLinkModel(FakeLink(failure)).apply { email = "alex@example.org" }
             model.submit()
-            assertEquals(SignInLinkPhase.Failed(message), model.phase)
+            assertEquals(message, (model.phase as SignInLinkPhase.Failed).message.text())
         }
     }
 
@@ -121,18 +121,18 @@ class CredentialAuthModelsTest {
             AccountFailure.InvalidInput to "Check your name, email, city and ZIP code, then try again.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
             AccountFailure.Unavailable to "We couldn’t send your sign-in link right now. Please try again in a moment.",
-            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED,
+            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED.text(),
         ).forEach { (failure, copy) ->
             val m = filled(FakeSignup(failure))
             m.submit()
-            assertEquals(SignupPhase.Failed(copy), m.phase)
+            assertEquals(copy, (m.phase as SignupPhase.Failed).message.text())
             assertEquals("alex@example.org", m.email.trim())
             m.edit()
             assertEquals(SignupPhase.Editing, m.phase)
         }
         val m = filled(FakeSignup(IllegalStateException("boom")))
         m.submit()
-        assertEquals(SignupPhase.Failed("Something went wrong. Please try again."), m.phase)
+        assertEquals("Something went wrong. Please try again.", (m.phase as SignupPhase.Failed).message.text())
     }
 
     @Test fun signupIsSingleFlight() {
@@ -188,12 +188,12 @@ class CredentialAuthModelsTest {
             AccountFailure.InvalidInput to "Check your email and password, then try again.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
             AccountFailure.Unavailable to "We couldn’t reach DAD. Please try again in a moment.",
-            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED,
+            AccountFailure.InvalidConfiguration to PhoneSignInModel.NOT_CONFIGURED.text(),
         ).forEach { (failure, copy) ->
             val m = PasswordSignInModel(FakePasswordSignIn(failure), passThrough)
             m.email = "a@b.co"; m.password = "some-password"
             m.submit()
-            assertEquals(PasswordSignInPhase.Failed(copy), m.phase)
+            assertEquals(copy, (m.phase as PasswordSignInPhase.Failed).message.text())
             assertEquals("", m.password)
             assertEquals("a@b.co", m.email)
             assertFalse(m.phase.toString().contains("some-password"))
@@ -246,7 +246,7 @@ class CredentialAuthModelsTest {
         val fake = FakePasswords()
         val m = PasswordChangeModel(fake)
         m.newPassword = "short"; m.confirmPassword = "short"
-        assertFalse(m.canSave); assertEquals("Use 12 to 72 characters.", m.newPasswordHint)
+        assertFalse(m.canSave); assertEquals("Use 12 to 72 characters.", m.newPasswordHint.textOrNull())
         m.newPassword = "brand-new-password"
         assertNull(m.newPasswordHint)
         assertTrue(m.confirmMismatch); assertFalse(m.canSave)
@@ -272,7 +272,7 @@ class CredentialAuthModelsTest {
     @Test fun aWrongCurrentPasswordStaysSignedIn() {
         val m = ready(FakePasswords(AccountFailure.PasswordIncorrect))
         m.save()
-        assertEquals(PasswordChangePhase.Failed("Your current password didn’t match. Check it and try again."), m.phase)
+        assertEquals("Your current password didn’t match. Check it and try again.", (m.phase as PasswordChangePhase.Failed).message.text())
         assertFalse(m.signedOut)
         assertEquals("brand-new-password", m.newPassword) // values kept so the donor can fix the typo
     }
@@ -281,7 +281,7 @@ class CredentialAuthModelsTest {
         val m = ready(FakePasswords(AccountFailure.SignedOut))
         m.save()
         assertTrue(m.signedOut)
-        assertEquals(PasswordChangePhase.Failed("Please sign in again."), m.phase)
+        assertEquals("Please sign in again.", (m.phase as PasswordChangePhase.Failed).message.text())
     }
 
     @Test fun changePasswordFailureCopy() {
@@ -292,7 +292,7 @@ class CredentialAuthModelsTest {
         ).forEach { (failure, copy) ->
             val m = ready(FakePasswords(failure))
             m.save()
-            assertEquals(PasswordChangePhase.Failed(copy), m.phase)
+            assertEquals(copy, (m.phase as PasswordChangePhase.Failed).message.text())
             assertFalse(m.signedOut)
         }
     }

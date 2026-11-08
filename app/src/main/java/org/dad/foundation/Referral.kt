@@ -73,12 +73,12 @@ class ReferralShareAction(private val sharer: ReferralSharer, private val analyt
 class AndroidReferralSharer(private val context: Context) : ReferralSharer {
     override fun share(link: String, channel: String) {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
-        try { context.startActivity(Intent.createChooser(send, "Share your invite").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        try { context.startActivity(Intent.createChooser(send, context.getString(R.string.referral_share_chooser_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         catch (_: android.content.ActivityNotFoundException) { }
     }
 
     override fun copy(link: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Dollar A Day invite", link))
+        clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.referral_clip_label), link))
     }
 }

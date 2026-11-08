@@ -58,16 +58,16 @@ class WireDashboardTest {
         val state = rig.wire.dashboard() as DashboardState.Ready
         val d = state.dashboard
         assertTrue(d.foundingDonor)
-        assertEquals("18-day streak", d.streak?.headline)
-        assertEquals("12 days to your 30-day milestone", d.streak?.ladder?.nextLabel)
+        assertEquals("18-day streak", d.streak?.headline.textOrNull())
+        assertEquals("12 days to your 30-day milestone", d.streak?.ladder?.nextLabel.textOrNull())
         assertEquals(18, d.streak?.ladder?.bar?.count { it })
         assertEquals(30, d.streak?.ladder?.bar?.size)
         assertFalse(d.streak!!.atRisk)
         assertNull(d.streak.graceEndsAt)
         val rank = (d.rank as RankLine.Ranked).standing
         // national_percentile is already the top bucket: 2 is "Top 2%", never "Top 98%".
-        assertEquals("Top 2% nationally", rank.nationalLabel)
-        assertEquals("#4 in Austin", rank.cityLabel)
+        assertEquals("Top 2% nationally", rank.nationalLabel.textOrNull())
+        assertEquals("#4 in Austin", rank.cityLabel.textOrNull())
         assertEquals("$1,240", d.impact.givenLabel)
         assertEquals(4, d.impact.initiativesFunded)
         assertEquals(2, d.impact.eventsVolunteered)
@@ -117,7 +117,7 @@ class WireDashboardTest {
         val rank = """{"national_percentile":1,"city":null,"city_rank":null,"computed_at":"2026-10-30T00:00:00Z"}"""
         val d = (Rig(scope = backgroundScope) { 200 to ready(rank = rank) }.wire.dashboard() as DashboardState.Ready).dashboard
         val standing = (d.rank as RankLine.Ranked).standing
-        assertEquals("Top 1% nationally", standing.nationalLabel)
+        assertEquals("Top 1% nationally", standing.nationalLabel.textOrNull())
         assertNull(standing.cityLabel)
     }
 
@@ -134,9 +134,9 @@ class WireDashboardTest {
         assertEquals("Meals on Wheels", initiative.title)
         assertEquals("PROGRAM", initiative.kind)
         assertEquals("2025-01-02", initiative.startedOn)
-        assertEquals(listOf("1,200 people", "$4.25", "3"), initiative.headlineMetrics.map { it.valueLabel })
+        assertEquals(listOf("1,200 people", "$4.25", "3"), initiative.headlineMetrics.map { it.valueLabel.text() })
         assertEquals("/donor/me/today-initiative", rig.http.requests.single().path)
-        assertTrue(HomeInitiative.ATTRIBUTION_NOTE.contains("display attribution, not designated giving"))
+        assertTrue(HomeInitiative.ATTRIBUTION_NOTE.text().contains("display attribution, not designated giving"))
     }
 
     @Test fun nothingInRotationIsNullNotAnError() = runTest {
@@ -153,9 +153,9 @@ class WireDashboardTest {
         val first = rig.wire.gifts(0)
         assertEquals(50, first.gifts.size)
         assertEquals(50, first.nextOffset)
-        assertEquals("Monthly", first.gifts[0].frequencyLabel)
+        assertEquals("Monthly", first.gifts[0].frequencyLabel.textOrNull())
         assertEquals("$25", first.gifts[0].netLabel)
-        assertEquals("$5 refunded", first.gifts[0].refundLabel)
+        assertEquals("$5 refunded", first.gifts[0].refundLabel.textOrNull())
         val sent = rig.http.requests.single()
         assertEquals("/donor/me/gifts", sent.path)
         assertEquals("offset=0", sent.query)

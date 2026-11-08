@@ -50,9 +50,9 @@ class PartnerTest {
         val o = overview(42)
         assertEquals("$5,000", o.committed.label)
         assertNull(o.deployed.label) // unverified -> hidden, never estimated
-        assertEquals("42 of 120", o.enrolledLabel)
+        assertEquals("42 of 120", o.enrolledLabel.textOrNull())
         assertNull(overview(null).enrolledLabel) // <5 suppressed -> null
-        assertTrue(o.verifiedLine!!.contains("Verified by DAD"))
+        assertTrue(o.verifiedLine!!.text().contains("Verified by DAD"))
     }
 
     // --- Our People suppression (EM-3) ---
@@ -60,7 +60,7 @@ class PartnerTest {
         val sup = PartnerPeople(3, 120, 40_000, 20_000, 10, 60, 1, suppressed = true)
         assertNull(sup.givenLabel)
         assertNull(sup.matchedLabel)
-        assertTrue(sup.suppressionNotice!!.contains("Fewer than 5"))
+        assertTrue(sup.suppressionNotice!!.text().contains("Fewer than 5"))
         val shown = PartnerPeople(42, 120, 40_000, 20_000, 10, 60, 3, suppressed = false)
         assertEquals("$400", shown.givenLabel)
         assertNull(shown.suppressionNotice)
@@ -72,7 +72,7 @@ class PartnerTest {
         val i = PartnerInitiative("i", "T", "S", InitiativeStatus.ACTIVE, "West", 100_000, 50_000, metrics)
         assertEquals(3, i.headlineMetrics.size)
         assertEquals("$1,000", i.committedLabel)
-        assertEquals("Active", i.status.label)
+        assertEquals("Active", i.status.label.textOrNull())
     }
 
     // --- Model ---
@@ -291,13 +291,13 @@ class PartnerTest {
         val svc = FakeService()
         val model = loaded(svc)
         model.inviteUser("b@x.com", "  ", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Enter their name.", model.actionError)
+        assertEquals("Enter their name.", model.actionError.textOrNull())
         model.inviteUser(" new@acme.com ", " Nell ", PartnerRole.ADMIN); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(Triple("new@acme.com", "Nell", PartnerRole.ADMIN), svc.invited.single())
-        assertEquals("Invitation sent to new@acme.com.", model.notice)
+        assertEquals("Invitation sent to new@acme.com.", model.notice.textOrNull())
         svc.actionError = AccountFailure.Conflict
         model.inviteUser("taken@acme.com", "Tak", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("That email already signs in to DAD with another role or organization.", model.actionError)
+        assertEquals("That email already signs in to DAD with another role or organization.", model.actionError.textOrNull())
     }
 
     @Test fun anEndedSessionDuringAnActionLeavesThePortal() = runTest {
@@ -318,7 +318,7 @@ class PartnerTest {
         assertTrue(svc.profiles.isEmpty())
         model.saveProfile(" Acme Co ", " Builds wells. "); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("Acme Co" to "Builds wells.", svc.profiles.single())
-        assertEquals("Organization profile saved.", model.notice)
+        assertEquals("Organization profile saved.", model.notice.textOrNull())
     }
 
     @Test fun viewerCannotEditProfileWorkforceLogoOrExport() = runTest {
@@ -353,7 +353,7 @@ class PartnerTest {
         model.saveLogo(null); dispatcher.scheduler.advanceUntilIdle()
         assertNull(model.snapshot!!.logo)
         assertEquals(listOf<ByteArray?>(null), svc.logos)
-        assertEquals("Logo removed.", model.notice)
+        assertEquals("Logo removed.", model.notice.textOrNull())
     }
 
     @Test fun exportHandsOverAPdfOnceAndAnAgedOutReportSaysSo() = runTest {
@@ -365,7 +365,7 @@ class PartnerTest {
         assertNull(model.report)
         model.download(model.snapshot!!.exports.first()); dispatcher.scheduler.advanceUntilIdle()
         assertNull(model.report)
-        assertEquals("That report is no longer available. Export a new one.", model.actionError)
+        assertEquals("That report is no longer available. Export a new one.", model.actionError.textOrNull())
     }
 
     private class FakeSignIn(var error: Exception? = null) : PartnerSignInService {
@@ -389,17 +389,17 @@ class PartnerTest {
         model.acceptPasted("def456"); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("abc123", "def456"), svc.accepted)
         model.acceptPasted("two words")
-        assertEquals(PartnerSignInPhase.Failed("Paste the whole sign-in link from your email."), model.phase)
+        assertEquals("Paste the whole sign-in link from your email.", (model.phase as PartnerSignInPhase.Failed).message.text())
     }
 
     @Test fun aUsedLinkAndABlockedAccountAreExplained() = runTest {
         val svc = FakeSignIn(AccountFailure.InvalidInput)
         val model = PartnerSignInModel(svc)
         model.accept("t"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(PartnerSignInPhase.Failed("That sign-in link has expired or was already used. Request a new one."), model.phase)
+        assertEquals("That sign-in link has expired or was already used. Request a new one.", (model.phase as PartnerSignInPhase.Failed).message.text())
         svc.error = AccountFailure.Forbidden
         model.accept("t"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(PartnerSignInPhase.Failed("This partner account can’t sign in. Ask your organization’s admin or DAD support."), model.phase)
+        assertEquals("This partner account can’t sign in. Ask your organization’s admin or DAD support.", (model.phase as PartnerSignInPhase.Failed).message.text())
     }
 
     @Test fun partnerSessionLastsTwelveHoursThenIsForgotten() {

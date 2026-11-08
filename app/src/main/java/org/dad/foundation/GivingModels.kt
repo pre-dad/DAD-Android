@@ -82,7 +82,7 @@ data class HostedHandoff(val url: String, val purpose: Purpose, val id: Long) {
 sealed interface GivingPhase {
     data object Idle : GivingPhase
     data object Working : GivingPhase
-    data class Failed(val message: String) : GivingPhase
+    data class Failed(val message: UiText) : GivingPhase
 }
 
 /**
@@ -115,7 +115,7 @@ class GivingModel(
         private set
 
     /** A non-error line the screen shows (saved, still confirming...). */
-    var notice: String? by mutableStateOf(null)
+    var notice: UiText? by mutableStateOf(null)
         private set
 
     /** The first read completed, so the screen can tell "loading" from "loaded, then a command failed". */
@@ -198,16 +198,16 @@ class GivingModel(
     fun applySelection() {
         if (isBusy) return
         val id = recurring.subscriptionIdOrNull ?: run {
-            phase = GivingPhase.Failed("Set up a gift before changing the amount.")
+            phase = GivingPhase.Failed(UiText.res(R.string.give_set_up_a_gift_before_changing_the))
             return
         }
         if (recurring.isEnding) {
-            phase = GivingPhase.Failed("Your gift is ending, so its amount can’t be changed.")
+            phase = GivingPhase.Failed(UiText.res(R.string.give_your_gift_is_ending_so_its_amount))
             return
         }
         if (selection.monthlyMinor == currentAmountMinor) {
             phase = GivingPhase.Idle
-            notice = "That’s already your gift amount."
+            notice = UiText.res(R.string.give_thats_already_your_gift_amount)
             return
         }
         phase = GivingPhase.Working
@@ -223,7 +223,7 @@ class GivingModel(
                     return@launch
                 }
                 readSupporting()
-                notice = "Saved. Your next renewal will be ${formatUsdMinor(currentAmountMinor ?: selection.monthlyMinor)}."
+                notice = UiText.res(R.string.give_saved_next_renewal, formatUsdMinor(currentAmountMinor ?: selection.monthlyMinor))
                 confirmations++
                 phase = GivingPhase.Idle
             } catch (cancelled: CancellationException) {
@@ -237,7 +237,7 @@ class GivingModel(
     fun cancel() {
         if (isBusy) return
         val active = recurring as? RecurringState.Active ?: run {
-            phase = GivingPhase.Failed("There’s no active gift to cancel.")
+            phase = GivingPhase.Failed(UiText.res(R.string.give_theres_no_active_gift_to_cancel))
             return
         }
         phase = GivingPhase.Working
@@ -265,7 +265,7 @@ class GivingModel(
     fun startGift() {
         if (isBusy) return
         if (recurring != RecurringState.None) {
-            phase = GivingPhase.Failed("You already have a gift.")
+            phase = GivingPhase.Failed(UiText.res(R.string.give_you_already_have_a_gift))
             return
         }
         val amount = selection.monthlyMinor
@@ -276,7 +276,7 @@ class GivingModel(
     fun updatePayment() {
         if (isBusy) return
         if (recurring.subscriptionIdOrNull == null) {
-            phase = GivingPhase.Failed("Set up a gift before updating a payment method.")
+            phase = GivingPhase.Failed(UiText.res(R.string.give_set_up_a_gift_before_updating_a))
             return
         }
         begin(HostedHandoff.Purpose.UPDATE_PAYMENT, startedFromConflict = false) { service.beginPayment() }
@@ -323,7 +323,7 @@ class GivingModel(
     /** The hosted page could not be opened (no browser to show it): nothing was started, so say so. */
     fun handoffUnavailable() {
         handoff = null
-        phase = GivingPhase.Failed("We couldn’t open the secure payment page. Check that a web browser is installed, then try again.")
+        phase = GivingPhase.Failed(UiText.res(R.string.give_we_couldnt_open_the_secure_payment))
     }
 
     // MARK: private
@@ -341,7 +341,7 @@ class GivingModel(
                             notice = outcome(HostedHandoff.Purpose.UPDATE_PAYMENT, true, path.state)
                         }
                         PaymentPath.GooglePay -> {
-                            phase = GivingPhase.Failed("Google Pay isn’t available in this build yet.")
+                            phase = GivingPhase.Failed(UiText.res(R.string.give_google_pay_isnt_available_in_this))
                             return@launch
                         }
                     }
@@ -353,8 +353,8 @@ class GivingModel(
                         // A gift or an open checkout already exists: re-read so the screen shows the truth, and say which.
                         reread()
                         phase = GivingPhase.Failed(
-                            if (recurring != RecurringState.None) "You already have a monthly gift. We’ve refreshed it."
-                            else "A checkout is already open for your account. Finish it, or try again after it expires in a few minutes.",
+                            if (recurring != RecurringState.None) UiText.res(R.string.give_you_already_have_a_monthly_gift)
+                            else UiText.res(R.string.give_a_checkout_is_already_open_for),
                         )
                     } else fail(error)
                 }
@@ -415,26 +415,26 @@ class GivingModel(
     /** The work was abandoned (the screen left), not failed: the prior state stands. */
     private fun abandon() { if (phase == GivingPhase.Working) phase = GivingPhase.Idle }
 
-    private fun message(error: Exception): String = when (error) {
-        is AccountFailure.SignedOut -> "Please sign in again."
-        is AccountFailure.Forbidden -> "Giving isn’t available for this account."
-        is AccountFailure.Conflict -> "Your gift changed while you were looking at it. We’ve refreshed it; please review and try again."
-        is AccountFailure.PaymentsUnavailable -> "Payments aren’t available right now. Please try again later."
-        is AccountFailure.RateLimited -> "Too many requests. Please wait a moment and try again."
-        else -> "Something went wrong. Please try again."
+    private fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
+        is AccountFailure.Forbidden -> UiText.res(R.string.give_giving_isnt_available_for_this)
+        is AccountFailure.Conflict -> UiText.res(R.string.give_your_gift_changed_while_you_were)
+        is AccountFailure.PaymentsUnavailable -> UiText.res(R.string.give_payments_arent_available_right_now)
+        is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_requests_please_wait_a)
+        else -> UiText.res(R.string.common_something_went_wrong_please_try)
     }
 
-    private fun outcome(purpose: HostedHandoff.Purpose, settled: Boolean, payment: PaymentMethodState?): String = when (purpose) {
+    private fun outcome(purpose: HostedHandoff.Purpose, settled: Boolean, payment: PaymentMethodState?): UiText = when (purpose) {
         HostedHandoff.Purpose.START_GIFT ->
-            if (settled) "Your gift is set up." else "We haven’t seen a new gift yet. If you finished checkout, it can take a moment to appear."
+            if (settled) UiText.res(R.string.give_your_gift_is_set_up) else UiText.res(R.string.give_we_havent_seen_a_new_gift_yet_if)
         HostedHandoff.Purpose.UPDATE_PAYMENT -> {
             val kind = payment?.kind
-            if (!settled || kind == null) "We’re still waiting for the payment provider to confirm. Check back in a moment."
+            if (!settled || kind == null) UiText.res(R.string.give_were_still_waiting_for_the_payment)
             else when (kind) {
-                PaymentMethodState.Kind.APPLIED -> "Your payment method was updated."
-                PaymentMethodState.Kind.CANCELLED -> "The payment update was cancelled. Your payment method is unchanged."
-                PaymentMethodState.Kind.EXPIRED -> "The payment update expired. Start again to update your payment method."
-                else -> "Your payment method is unchanged."
+                PaymentMethodState.Kind.APPLIED -> UiText.res(R.string.give_your_payment_method_was_updated)
+                PaymentMethodState.Kind.CANCELLED -> UiText.res(R.string.give_the_payment_update_was_cancelled)
+                PaymentMethodState.Kind.EXPIRED -> UiText.res(R.string.give_the_payment_update_expired_start)
+                else -> UiText.res(R.string.give_your_payment_method_is_unchanged)
             }
         }
     }

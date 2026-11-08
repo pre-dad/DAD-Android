@@ -67,9 +67,9 @@ class PartnerRulesTest {
         val service = Service(failure = AccountFailure.Forbidden)
         val model = loaded(service)
         model.inviteUser("new@x.com", "New", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Only an admin can do that.", model.actionError)
+        assertEquals("Only an admin can do that.", model.actionError.textOrNull())
         model.exportReport(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Only an admin can do that.", model.actionError)
+        assertEquals("Only an admin can do that.", model.actionError.textOrNull())
         assertNull(model.report)
         assertFalse(model.isBusy)
     }
@@ -95,7 +95,7 @@ class PartnerRulesTest {
         val service = Service()
         val model = loaded(service)
         model.requestRemoval("u1")
-        assertEquals("You can’t remove yourself.", model.actionError)
+        assertEquals("You can’t remove yourself.", model.actionError.textOrNull())
         assertNull(model.pendingRemoval)
         model.requestRemoval("u2")
         assertNull(model.actionError)
@@ -109,7 +109,7 @@ class PartnerRulesTest {
         val service = Service(failure = AccountFailure.Conflict)
         val model = loaded(service)
         model.requestRemoval("u2"); model.confirmRemoval(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("You can’t remove the last admin.", model.actionError)
+        assertEquals("You can’t remove the last admin.", model.actionError.textOrNull())
         assertEquals(listOf("u1", "u2"), model.snapshot!!.users.map { it.id })
     }
 
@@ -117,20 +117,20 @@ class PartnerRulesTest {
         val service = Service(failure = AccountFailure.Conflict)
         val model = loaded(service)
         model.inviteUser("new@x.com", "New", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("That email already signs in to DAD with another role or organization.", model.actionError)
+        assertEquals("That email already signs in to DAD with another role or organization.", model.actionError.textOrNull())
         service.failure = AccountFailure.InvalidInput
         model.inviteUser("new@x.com", "New", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Check the name and email address, then try again.", model.actionError)
+        assertEquals("Check the name and email address, then try again.", model.actionError.textOrNull())
     }
 
     @Test fun throttlingAndOutagesKeepThePortalAndSayWhatHappened() = runTest {
         val service = Service(failure = AccountFailure.RateLimited)
         val model = loaded(service)
         model.saveProfile("Acme", "About"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError)
+        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError.textOrNull())
         service.failure = AccountFailure.Unavailable
         model.saveProfile("Acme", "About"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("Something went wrong. Please try again.", model.actionError)
+        assertEquals("Something went wrong. Please try again.", model.actionError.textOrNull())
         assertEquals(PartnerPhase.Ready, model.phase)
         assertFalse(model.signedOut)
     }
@@ -159,7 +159,7 @@ class PartnerRulesTest {
         service.retainedFailure = AccountFailure.NotFound
         service.exportsList = emptyList()
         model.download(model.snapshot!!.exports.single()); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("That report is no longer available. Export a new one.", model.actionError)
+        assertEquals("That report is no longer available. Export a new one.", model.actionError.textOrNull())
         assertTrue(model.snapshot!!.exports.isEmpty())
         assertNull(model.report)
     }
@@ -181,7 +181,7 @@ class PartnerRulesTest {
         val model = ApplicationStatusModel(Status { ApplicationStatusInfo("Acme", ApplicationState.Pending) })
         dispatcher.scheduler.advanceUntilIdle()
         val phase = model.phase as ApplicationStatusPhase.Loaded
-        assertEquals("Application under review", phase.info.title)
+        assertEquals("Application under review", phase.info.title.textOrNull())
     }
 
     @Test fun aFailedReadOffersARetryAndNeverReplacesAStatusAlreadyRead() = runTest {

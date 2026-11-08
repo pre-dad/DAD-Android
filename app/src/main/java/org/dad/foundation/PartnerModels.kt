@@ -19,8 +19,8 @@ import java.time.OffsetDateTime
 // and push register/unregister, so they are unit-tested without a network or UI — the Kotlin counterpart of
 // the iOS partner models.
 
-private const val RATE_LIMITED = "Too many attempts. Please wait a moment and try again."
-private const val SOMETHING_WENT_WRONG = "Something went wrong. Please try again."
+private val RATE_LIMITED = UiText.res(R.string.common_too_many_attempts_please_wait_a)
+private val SOMETHING_WENT_WRONG = UiText.res(R.string.common_something_went_wrong_please_try)
 
 data class PartnerSnapshot(
     val overview: PartnerOverview,
@@ -80,7 +80,7 @@ interface PartnerService {
 sealed interface PartnerPhase {
     data object Loading : PartnerPhase
     data object Ready : PartnerPhase
-    data class Failed(val message: String) : PartnerPhase
+    data class Failed(val message: UiText) : PartnerPhase
 }
 
 /** A PDF ready for the share sheet; [id] tells two reports apart even when their bytes match. */
@@ -91,10 +91,10 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
         private set
     var snapshot: PartnerSnapshot? by mutableStateOf(null)
         private set
-    var actionError: String? by mutableStateOf(null)
+    var actionError: UiText? by mutableStateOf(null)
         private set
     /** Confirms the last completed action ("Organization profile saved."). */
-    var notice: String? by mutableStateOf(null)
+    var notice: UiText? by mutableStateOf(null)
         private set
     var isBusy: Boolean by mutableStateOf(false)
         private set
@@ -158,7 +158,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     /** Runs one portal action: one at a time, errors inline, and a lost session leaves the portal. */
-    private fun act(success: String?, invalid: String? = null, conflict: String? = null, work: suspend () -> Unit) {
+    private fun act(success: UiText?, invalid: UiText? = null, conflict: UiText? = null, work: suspend () -> Unit) {
         if (isBusy) return
         isBusy = true
         actionError = null
@@ -175,7 +175,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
                 actionError = when {
                     error is AccountFailure.InvalidInput && invalid != null -> invalid
                     error is AccountFailure.Conflict && conflict != null -> conflict
-                    error is AccountFailure.Forbidden -> "Only an admin can do that."
+                    error is AccountFailure.Forbidden -> UiText.res(R.string.partner_only_an_admin_can_do_that)
                     else -> message(error)
                 }
             } finally {
@@ -188,13 +188,13 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
 
     /** Invite a user (P-13), admin-only. Gated client-side; the server re-checks. */
     fun inviteUser(email: String, name: String, role: PartnerRole, onInvited: () -> Unit = {}) {
-        if (!this.role.canManageUsers) { actionError = "Only an admin can invite users."; return }
-        if (!isPlausibleEmail(email)) { actionError = "Enter a valid email address."; return }
+        if (!this.role.canManageUsers) { actionError = UiText.res(R.string.partner_only_an_admin_can_invite_users); return }
+        if (!isPlausibleEmail(email)) { actionError = UiText.res(R.string.partner_enter_a_valid_email_address); return }
         val trimmedName = name.trim()
-        if (trimmedName.isEmpty()) { actionError = "Enter their name."; return }
+        if (trimmedName.isEmpty()) { actionError = UiText.res(R.string.partner_enter_their_name); return }
         val address = email.trim()
-        act("Invitation sent to $address.", invalid = "Check the name and email address, then try again.",
-            conflict = "That email already signs in to DAD with another role or organization.") {
+        act(UiText.res(R.string.partner_invitation_sent_to, address), invalid = UiText.res(R.string.partner_check_the_name_and_email_address),
+            conflict = UiText.res(R.string.partner_that_email_already_signs_in_to_dad)) {
             service.inviteUser(address, trimmedName, role)
             onInvited()
             val users = runCatching { service.users() }.getOrNull()
@@ -205,17 +205,17 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     /** Whether [user] may be removed by the signed-in admin: never yourself, and never the last admin. */
     fun canRemove(user: PartnerUser): Boolean = role.canManageUsers && removalBlock(user.id) == null
 
-    private fun removalBlock(id: String): String? {
-        val current = snapshot ?: return "You can’t remove this user."
-        if (id == current.selfId) return "You can’t remove yourself."
-        val user = current.users.firstOrNull { it.id == id } ?: return "You can’t remove this user."
-        if (user.role == PartnerRole.ADMIN && current.users.count { it.role == PartnerRole.ADMIN } <= 1) return "You can’t remove the last admin."
+    private fun removalBlock(id: String): UiText? {
+        val current = snapshot ?: return UiText.res(R.string.partner_you_cant_remove_this_user)
+        if (id == current.selfId) return UiText.res(R.string.partner_you_cant_remove_yourself)
+        val user = current.users.firstOrNull { it.id == id } ?: return UiText.res(R.string.partner_you_cant_remove_this_user)
+        if (user.role == PartnerRole.ADMIN && current.users.count { it.role == PartnerRole.ADMIN } <= 1) return UiText.res(R.string.partner_you_cant_remove_the_last_admin)
         return null
     }
 
     /** Step one of removal: stage the user for the inline confirmation. Nothing is sent yet. */
     fun requestRemoval(id: String) {
-        if (!role.canManageUsers) { actionError = "Only an admin can remove users."; return }
+        if (!role.canManageUsers) { actionError = UiText.res(R.string.partner_only_an_admin_can_remove_users); return }
         removalBlock(id)?.let { actionError = it; return }
         actionError = null
         pendingRemoval = snapshot?.users?.firstOrNull { it.id == id }
@@ -230,20 +230,20 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     fun removeUser(id: String) {
-        if (!role.canManageUsers) { actionError = "Only an admin can remove users."; return }
+        if (!role.canManageUsers) { actionError = UiText.res(R.string.partner_only_an_admin_can_remove_users); return }
         removalBlock(id)?.let { actionError = it; return }
-        act(null, conflict = "You can’t remove the last admin.") {
+        act(null, conflict = UiText.res(R.string.partner_you_cant_remove_the_last_admin)) {
             service.removeUser(id)
             update { it.copy(users = it.users.filterNot { u -> u.id == id }) }
         }
     }
 
     fun saveProfile(organization: String, description: String) {
-        if (!role.canEditProfile) { actionError = "Only an admin can edit the organization profile."; return }
+        if (!role.canEditProfile) { actionError = UiText.res(R.string.partner_only_an_admin_can_edit_the); return }
         val name = organization.trim()
         val about = description.trim()
         if (name.length !in 1..200 || about.length > 4000) { actionError = PROFILE_RULE; return }
-        act("Organization profile saved.", invalid = PROFILE_RULE) {
+        act(UiText.res(R.string.partner_organization_profile_saved), invalid = PROFILE_RULE) {
             service.saveProfile(name, about)
             val overview = service.overview()
             update { it.copy(overview = overview) }
@@ -251,9 +251,9 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     fun saveWorkforce(raw: String) {
-        if (!role.canEditProfile) { actionError = "Only an admin can set the workforce size."; return }
+        if (!role.canEditProfile) { actionError = UiText.res(R.string.partner_only_an_admin_can_set_the); return }
         val size = raw.trim().toIntOrNull()?.takeIf { it >= 0 } ?: run { actionError = WORKFORCE_RULE; return }
-        act("Workforce size saved.", invalid = WORKFORCE_RULE) {
+        act(UiText.res(R.string.partner_workforce_size_saved), invalid = WORKFORCE_RULE) {
             service.saveWorkforce(size)
             val overview = service.overview()
             val people = runCatching { service.people() }.getOrNull()
@@ -263,8 +263,8 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
 
     /** [png] is already scaled to fit the server's limits; null removes the logo. */
     fun saveLogo(png: ByteArray?) {
-        if (!role.canEditProfile) { actionError = "Only an admin can change the logo."; return }
-        act(if (png == null) "Logo removed." else "Logo saved.", invalid = LOGO_RULE) {
+        if (!role.canEditProfile) { actionError = UiText.res(R.string.partner_only_an_admin_can_change_the_logo); return }
+        act(if (png == null) UiText.res(R.string.partner_logo_removed) else UiText.res(R.string.partner_logo_saved), invalid = LOGO_RULE) {
             service.saveLogo(png)
             update { it.copy(logo = png) }
         }
@@ -277,7 +277,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     fun exportReport() {
-        if (!role.canExport) { actionError = "Only an admin can export a report."; return }
+        if (!role.canExport) { actionError = UiText.res(R.string.partner_only_an_admin_can_export_a_report); return }
         act(null) {
             report = PartnerReport(++reports, "dad-impact-report.pdf", service.report())
             val exports = runCatching { service.exports() }.getOrNull()
@@ -291,7 +291,7 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
             try {
                 report = PartnerReport(++reports, "dad-impact-report-${export.id.take(8)}.pdf", service.retainedReport(export.id))
             } catch (_: AccountFailure.NotFound) {
-                actionError = "That report is no longer available. Export a new one."
+                actionError = UiText.res(R.string.partner_that_report_is_no_longer_available)
                 val exports = runCatching { service.exports() }.getOrNull()
                 if (exports != null) update { it.copy(exports = exports) }
             }
@@ -318,17 +318,17 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
         try { action() } catch (error: CancellationException) { throw error } catch (_: Exception) { }
     }
 
-    private fun message(error: Exception): String = when (error) {
+    private fun message(error: Exception): UiText = when (error) {
         is AccountFailure.SignedOut -> SESSION_ENDED
         is AccountFailure.RateLimited -> RATE_LIMITED
         else -> SOMETHING_WENT_WRONG
     }
 
     companion object {
-        const val PROFILE_RULE = "Use a name of up to 200 characters and a description of up to 4,000."
-        const val WORKFORCE_RULE = "Enter the number of employees as a whole number."
-        const val LOGO_RULE = "Use a PNG or JPEG image of at most 512 by 512 pixels."
-        const val SESSION_ENDED = "Please sign in again."
+        val PROFILE_RULE = UiText.res(R.string.partner_use_a_name_of_up_to_200_characters)
+        val WORKFORCE_RULE = UiText.res(R.string.partner_enter_the_number_of_employees_as_a)
+        val LOGO_RULE = UiText.res(R.string.partner_use_a_png_or_jpeg_image_of_at_most)
+        val SESSION_ENDED = UiText.res(R.string.common_please_sign_in_again)
 
         fun factory(service: PartnerService): ViewModelProvider.Factory = viewModelFactory {
             initializer { PartnerModel(service) }
@@ -350,7 +350,7 @@ sealed interface PartnerSignInPhase {
     data class Sent(val email: String) : PartnerSignInPhase
     data object Accepting : PartnerSignInPhase
     data object SignedIn : PartnerSignInPhase
-    data class Failed(val message: String) : PartnerSignInPhase
+    data class Failed(val message: UiText) : PartnerSignInPhase
 }
 
 class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel() {
@@ -376,9 +376,9 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
                 throw cancelled
             } catch (error: Exception) {
                 PartnerSignInPhase.Failed(when (error) {
-                    is AccountFailure.InvalidInput -> "Check your email address, then try again."
+                    is AccountFailure.InvalidInput -> UiText.res(R.string.common_check_your_email_address_then_try)
                     is AccountFailure.RateLimited -> RATE_LIMITED
-                    else -> "We couldn’t send your sign-in link right now. Please try again in a moment."
+                    else -> UiText.res(R.string.common_we_couldnt_send_your_sign_in_link)
                 })
             }
         }
@@ -396,8 +396,8 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
                 throw cancelled
             } catch (error: Exception) {
                 PartnerSignInPhase.Failed(when (error) {
-                    is AccountFailure.InvalidInput -> "That sign-in link has expired or was already used. Request a new one."
-                    is AccountFailure.Forbidden -> "This partner account can’t sign in. Ask your organization’s admin or DAD support."
+                    is AccountFailure.InvalidInput -> UiText.res(R.string.partner_that_sign_in_link_has_expired_or)
+                    is AccountFailure.Forbidden -> UiText.res(R.string.partner_this_partner_account_cant_sign_in)
                     is AccountFailure.RateLimited -> RATE_LIMITED
                     else -> SOMETHING_WENT_WRONG
                 })
@@ -410,7 +410,7 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
         val text = raw.trim()
         val token = text.substringAfter('#', "").split('&').firstOrNull { it.startsWith("token=") }?.removePrefix("token=") ?: text
         if (token.isEmpty() || token.any(Char::isWhitespace)) {
-            phase = PartnerSignInPhase.Failed("Paste the whole sign-in link from your email.")
+            phase = PartnerSignInPhase.Failed(UiText.res(R.string.partner_paste_the_whole_sign_in_link_from))
             return
         }
         accept(token)

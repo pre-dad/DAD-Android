@@ -40,7 +40,7 @@ sealed interface PhoneSignInPhase {
     data object RequestingCode : PhoneSignInPhase
     data class EnterCode(val handle: String) : PhoneSignInPhase
     data class Verifying(val handle: String) : PhoneSignInPhase
-    data class Failed(val message: String) : PhoneSignInPhase
+    data class Failed(val message: UiText) : PhoneSignInPhase
     data object SignedIn : PhoneSignInPhase
 }
 
@@ -117,17 +117,17 @@ class PhoneSignInModel(private val service: SignInService, private val establish
         phase = if (handle == null) PhoneSignInPhase.EnterPhone else PhoneSignInPhase.EnterCode(handle)
     }
 
-    private fun message(error: Exception): String = when (error) {
-        is AccountFailure.SignedOut -> "That code didn’t match. Check it and try again."
-        is AccountFailure.Unavailable -> "We couldn’t reach DAD. Please try again in a moment."
-        is AccountFailure.InvalidInput -> "That phone number doesn’t look right. Check it and try again."
-        is AccountFailure.RateLimited -> "Too many attempts. Please wait a moment and try again."
+    private fun message(error: Exception): UiText = when (error) {
+        is AccountFailure.SignedOut -> UiText.res(R.string.auth_that_code_didnt_match_check_it_and)
+        is AccountFailure.Unavailable -> UiText.res(R.string.common_we_couldnt_reach_dad_please_try)
+        is AccountFailure.InvalidInput -> UiText.res(R.string.auth_that_phone_number_doesnt_look)
+        is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
         is AccountFailure.InvalidConfiguration -> NOT_CONFIGURED
-        else -> "Something went wrong. Please try again."
+        else -> UiText.res(R.string.common_something_went_wrong_please_try)
     }
 
     companion object {
-        const val NOT_CONFIGURED = "This build isn’t configured to reach DAD. Install a build with a valid API origin."
+        val NOT_CONFIGURED = UiText.res(R.string.auth_this_build_isnt_configured_to)
         private val PHONE = Regex("^\\+[1-9][0-9]{7,14}$")
         private val CODE = Regex("^[0-9]{6}$")
         fun factory(service: SignInService, establish: Establish): ViewModelProvider.Factory = viewModelFactory {

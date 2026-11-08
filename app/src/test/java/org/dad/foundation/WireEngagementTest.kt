@@ -43,11 +43,11 @@ class WireEngagementTest {
         val rig = Rig(backgroundScope, ::happy)
         val snapshot = rig.wire.snapshot()
         assertEquals("$1,240", snapshot.impact?.givenLabel)
-        assertEquals("Top 2% nationally", snapshot.ranking?.nationalLabel)
+        assertEquals("Top 2% nationally", snapshot.ranking?.nationalLabel.textOrNull())
         // Only the filtered, mapped badges: the blank-code row is dropped, perk keys become copy.
         assertEquals(listOf("F", "TC", "CITY50", "CITYLOCK", "CITYBLANK", "Z"), snapshot.badges!!.badges.map { it.code })
-        assertEquals("Invite-only founding events", snapshot.badges.badges[0].perk)
-        assertEquals("Unlocks a member perk", snapshot.badges.badges[5].perk)
+        assertEquals("Invite-only founding events", snapshot.badges.badges[0].perk!!.text())
+        assertEquals("Unlocks a member perk", snapshot.badges.badges[5].perk!!.text())
         assertTrue(snapshot.badges.hasInviteOnlyAccess)
         assertEquals(5L, snapshot.network?.activeCount)
         assertEquals(2L, snapshot.network?.anonymousActive)
@@ -184,7 +184,7 @@ class WireEngagementTest {
         val rig = Rig(backgroundScope, prefsHandler({ 200 }))
         val standing = rig.wire.setRankingOptIn(true)
         assertTrue(rig.http.requests.first { it.path == "/donor/me/preferences" }.body.contains("\"rankings_opted_out\":false"))
-        assertEquals("Top 2% nationally", standing.nationalLabel)
+        assertEquals("Top 2% nationally", standing.nationalLabel.textOrNull())
     }
 
     @Test fun optingBackInKeepsTheChoiceWhenThePositionReadFails() = runTest {

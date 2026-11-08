@@ -32,8 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -50,9 +51,9 @@ private enum class AuthStep { RoleSelect, Methods, Phone, EmailLink, Password, S
  */
 @Composable
 fun UnauthenticatedStack(
-    notice: String?,
+    notice: UiText?,
     /** "<name> invited you", after an invite link was opened before sign-in. */
-    invitation: String? = null,
+    invitation: UiText? = null,
     auth: AuthServices,
     establish: Establish,
     generation: Int,
@@ -125,9 +126,9 @@ private fun BrandTile() {
         modifier = Modifier
             .background(DadTheme.color("brand"), RoundedCornerShape(DadTheme.radius("field")))
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .semantics { contentDescription = "DAD" },
+            .contentDescribed(R.string.auth_brand_tile_description),
         contentAlignment = Alignment.Center,
-    ) { Text("D", style = MaterialTheme.typography.headlineMedium, color = DadTheme.color("ink")) }
+    ) { Text(stringResource(R.string.auth_brand_tile_letter), style = MaterialTheme.typography.headlineMedium, color = DadTheme.color("ink")) }
 }
 
 /**
@@ -146,7 +147,7 @@ internal fun foundingDaysRemaining(now: java.time.Instant = java.time.Instant.no
 /** Unauthenticated splash: pick a journey before signing in. Shows [notice] (a failed link, a revoked
  *  session, or an unconfigured build) so the reason for being here is never silent. */
 @Composable
-fun RoleSelect(notice: String?, invitation: String? = null, onSelect: (AppRole) -> Unit) {
+fun RoleSelect(notice: UiText?, invitation: UiText? = null, onSelect: (AppRole) -> Unit) {
     // Welcome sits on the ink surface. Foreground tokens are AA on ink (asserted in ContrastTest):
     // paper for the title, dkmut for the eyebrow/sub/founding line, brand for the primary fill.
     Box(Modifier.fillMaxSize().background(DadTheme.color("ink"))) {
@@ -156,39 +157,39 @@ fun RoleSelect(notice: String?, invitation: String? = null, onSelect: (AppRole) 
         ) {
             BrandTile()
             Spacer(Modifier.height(20.dp))
-            Text("Aid, delivered.", style = MaterialTheme.typography.labelLarge, color = DadTheme.color("dkmut"))
+            Text(stringResource(R.string.auth_aid_delivered), style = MaterialTheme.typography.labelLarge, color = DadTheme.color("dkmut"))
             Spacer(Modifier.height(8.dp))
-            Text("A dollar a day. Every dollar on the record.", style = MaterialTheme.typography.headlineMedium,
+            Text(stringResource(R.string.auth_a_dollar_a_day_every_dollar_on_the), style = MaterialTheme.typography.headlineMedium,
                 color = DadTheme.color("paper"), modifier = Modifier.dadHeading())
             Spacer(Modifier.height(12.dp))
-            Text("Give monthly, invite the people you know, and watch your circle grow.",
+            Text(stringResource(R.string.auth_give_monthly_invite_the_people_you),
                 style = MaterialTheme.typography.bodyLarge, color = DadTheme.color("dkmut"))
             // Founding-Donor line, computed days remaining; hidden after end-of-2026 New York time.
             remember { foundingDaysRemaining() }?.let { days ->
                 Spacer(Modifier.height(12.dp))
-                Text("Founding Donor status closes in $days ${if (days == 1L) "day" else "days"}.",
+                Text(pluralStringResource(R.plurals.auth_founding_deadline, days.toQuantity(), days),
                     style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("dkmut"),
                     modifier = Modifier.testTag("founding-deadline"))
             }
             // KEEP the notice + invitation above the actions.
             if (notice != null) {
                 Spacer(Modifier.height(16.dp))
-                Text(notice, style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("paper"),
+                Text(notice.asString(), style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("paper"),
                     modifier = Modifier.testTag("auth-notice").semantics { liveRegion = LiveRegionMode.Polite })
             }
             if (invitation != null) {
                 Spacer(Modifier.height(16.dp))
-                Text(invitation, style = MaterialTheme.typography.bodyLarge, color = DadTheme.color("paper"),
+                Text(invitation.asString(), style = MaterialTheme.typography.bodyLarge, color = DadTheme.color("paper"),
                     modifier = Modifier.testTag("auth-invitation"))
             }
             Spacer(Modifier.height(28.dp))
             // The screen's single filled primary. The DONOR branch leads to the sign-in methods (and
             // from there to the signup flow retitled "Step 1 of 2 · About you").
-            DadPrimaryButton("Give $1 a day", Modifier.testTag("role-donor")) { onSelect(AppRole.DONOR) }
+            DadPrimaryButton(stringResource(R.string.auth_give_1_a_day), Modifier.testTag("role-donor")) { onSelect(AppRole.DONOR) }
             Spacer(Modifier.height(12.dp))
-            DadSecondaryButton("I already give — sign in", Modifier.fillMaxWidth()) { onSelect(AppRole.DONOR) }
+            DadSecondaryButton(stringResource(R.string.auth_i_already_give_sign_in), Modifier.fillMaxWidth()) { onSelect(AppRole.DONOR) }
             Spacer(Modifier.height(8.dp))
-            DadTextButton("Partner organization? Sign in here", Modifier.testTag("role-partner")) { onSelect(AppRole.PARTNER) }
+            DadTextButton(stringResource(R.string.auth_partner_organization_sign_in_here), Modifier.testTag("role-partner")) { onSelect(AppRole.PARTNER) }
         }
     }
 }
@@ -199,15 +200,11 @@ fun RoleSelect(notice: String?, invitation: String? = null, onSelect: (AppRole) 
 @Composable
 internal fun AnalyticsChoiceBody(analytics: AnalyticsUploader) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("analytics-choice")) {
-        Text(ANALYTICS_EXPLAINER, style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = { analytics.choose(true) }, modifier = Modifier.fillMaxWidth().testTag("analytics-allow")) { Text("Allow usage analytics") }
-        OutlinedButton(onClick = { analytics.choose(false) }, modifier = Modifier.fillMaxWidth().testTag("analytics-decline")) { Text("Decline usage analytics") }
+        Text(stringResource(R.string.auth_analytics_explainer), style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = { analytics.choose(true) }, modifier = Modifier.fillMaxWidth().testTag("analytics-allow")) { Text(stringResource(R.string.auth_allow_usage_analytics)) }
+        OutlinedButton(onClick = { analytics.choose(false) }, modifier = Modifier.fillMaxWidth().testTag("analytics-decline")) { Text(stringResource(R.string.auth_decline_usage_analytics)) }
     }
 }
-
-internal const val ANALYTICS_EXPLAINER = "Allow first-party usage analytics? DAD uses a temporary journey ID to measure signup, sharing and " +
-    "giving. No names, email addresses or payment details are sent. Observations are kept for 13 months. You can change this " +
-    "choice in Settings."
 
 @Composable
 private fun SignInMethods(
@@ -217,17 +214,17 @@ private fun SignInMethods(
     // "More options" holds the lower-emphasis methods; a configuration change keeps it open.
     var moreOptions by rememberSaveable { mutableStateOf(false) }
     AuthColumn("sign-in-methods") {
-        Text("Welcome back", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.common_welcome_back), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         Spacer(Modifier.height(20.dp))
         // The screen's single filled primary.
-        DadPrimaryButton("Continue with phone", Modifier.testTag("method-phone"), onPhone)
+        DadPrimaryButton(stringResource(R.string.auth_continue_with_phone), Modifier.testTag("method-phone"), onPhone)
         Spacer(Modifier.height(12.dp))
-        DadSecondaryButton("Email me a sign-in link", Modifier.fillMaxWidth().testTag("method-email-link"), onClick = onEmailLink)
+        DadSecondaryButton(stringResource(R.string.common_email_me_a_sign_in_link), Modifier.fillMaxWidth().testTag("method-email-link"), onClick = onEmailLink)
         Spacer(Modifier.height(12.dp))
-        DadTextButton(if (moreOptions) "Fewer options" else "More options", Modifier.testTag("more-options")) { moreOptions = !moreOptions }
+        DadTextButton(if (moreOptions) stringResource(R.string.auth_fewer_options) else stringResource(R.string.auth_more_options), Modifier.testTag("more-options")) { moreOptions = !moreOptions }
         if (moreOptions) {
             Spacer(Modifier.height(8.dp))
-            DadSecondaryButton("Sign in with email and password", Modifier.fillMaxWidth().testTag("method-password"), onClick = onPassword)
+            DadSecondaryButton(stringResource(R.string.auth_sign_in_with_email_and_password), Modifier.fillMaxWidth().testTag("method-password"), onClick = onPassword)
             Spacer(Modifier.height(12.dp))
             // Google/passkey render only when a provider is wired.
             ExternalMethods(external, establish, generation, onSignedIn)
@@ -241,12 +238,12 @@ private fun SignInMethods(
             border = androidx.compose.foundation.BorderStroke(1.dp, DadTheme.color("line")),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("New to DAD?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-                DadSecondaryButton("Get started", Modifier.fillMaxWidth().testTag("method-signup"), onClick = onSignup)
+                Text(stringResource(R.string.auth_new_to_dad), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+                DadSecondaryButton(stringResource(R.string.auth_get_started), Modifier.fillMaxWidth().testTag("method-signup"), onClick = onSignup)
             }
         }
         Spacer(Modifier.height(12.dp))
-        DadTextButton("Back", onClick = onBack)
+        DadTextButton(stringResource(R.string.common_back), onClick = onBack)
     }
 }
 
@@ -260,33 +257,33 @@ private fun PhoneSignIn(model: PhoneSignInModel, onSignedIn: () -> Unit) {
     // explicit Verify button stays for accessibility and manual entry.
     LaunchedEffect(model.code) { if (model.canVerify && !busy && model.isAwaitingCode) model.verify() }
     AuthColumn("phone-sign-in") {
-        Text("Sign in with your phone", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
+        Text(stringResource(R.string.auth_sign_in_with_your_phone), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         Spacer(Modifier.height(16.dp))
         if (model.isAwaitingCode) {
-            Text("Enter the 6-digit code we texted you.")
+            Text(stringResource(R.string.auth_enter_the_6_digit_code_we_texted))
             OutlinedTextField(
                 value = model.code, onValueChange = { model.code = it.filter(Char::isDigit).take(6) },
-                label = { Text("Verification code") }, singleLine = true, enabled = !busy,
+                label = { Text(stringResource(R.string.auth_verification_code)) }, singleLine = true, enabled = !busy,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier.fillMaxWidth().testTag("code-input").semantics { contentType = ContentType.SmsOtpCode },
             )
             Spacer(Modifier.height(12.dp))
-            DadPrimaryButton("Verify", Modifier.testTag("verify-code")) { if (model.canVerify && !busy) model.verify() }
+            DadPrimaryButton(stringResource(R.string.auth_verify), Modifier.testTag("verify-code")) { if (model.canVerify && !busy) model.verify() }
         } else {
             OutlinedTextField(
                 value = model.phone, onValueChange = { model.phone = it.filter { c -> c.isDigit() || c == '+' || c == ' ' }.take(18) },
-                label = { Text("Phone number") }, singleLine = true, enabled = !busy,
-                supportingText = { Text("Include your country code.") },
+                label = { Text(stringResource(R.string.auth_phone_number)) }, singleLine = true, enabled = !busy,
+                supportingText = { Text(stringResource(R.string.auth_include_your_country_code)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth().testTag("phone-input").semantics { contentType = ContentType.PhoneNumber },
             )
             Spacer(Modifier.height(12.dp))
-            DadPrimaryButton("Send code", Modifier.testTag("send-code")) { if (model.canRequestCode && !busy) model.requestCode() }
+            DadPrimaryButton(stringResource(R.string.auth_send_code), Modifier.testTag("send-code")) { if (model.canRequestCode && !busy) model.requestCode() }
         }
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("sign-in-working")) }
         (model.phase as? PhoneSignInPhase.Failed)?.let {
             Spacer(Modifier.height(12.dp))
-            Text(it.message, modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
+            Text(it.message.asString(), modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
 }

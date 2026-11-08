@@ -33,10 +33,10 @@ data class HomeLadder(
     val bar: List<Boolean>,
 ) {
     /** "12 days to your 30-day milestone", or null past the last known milestone. */
-    val nextLabel: String? get() {
+    val nextLabel: UiText? get() {
         val next = nextMilestone ?: return null
         val to = daysToNext ?: return null
-        return "$to ${if (to == 1L) "day" else "days"} to your $next-day milestone"
+        return UiText.plural(R.plurals.home_days_to_milestone, to.toQuantity(), to, next)
     }
 }
 
@@ -47,7 +47,7 @@ data class HomeStreak(
     val graceEndsAt: OffsetDateTime?,
     val ladder: HomeLadder?,
 ) {
-    val headline: String get() = if (current == 1) "1-day streak" else "$current-day streak"
+    val headline: UiText get() = UiText.plural(R.plurals.home_streak_headline, current, current)
 }
 
 /**
@@ -92,14 +92,15 @@ sealed interface DashboardState {
 data class HomeMetric(val label: String, val value: Long, val unit: Unit?, val verifiedOn: String) {
     enum class Unit { USD_CENTS, PEOPLE, INITIATIVES, PARTNERS }
 
-    val valueLabel: String get() {
+    val valueLabel: UiText get() {
         val count = String.format(java.util.Locale.US, "%,d", value)
+        val quantity = value.toQuantity()
         return when (unit) {
-            Unit.USD_CENTS -> formatMinorUsd(value)
-            Unit.PEOPLE -> "$count ${if (value == 1L) "person" else "people"}"
-            Unit.INITIATIVES -> "$count ${if (value == 1L) "initiative" else "initiatives"}"
-            Unit.PARTNERS -> "$count ${if (value == 1L) "partner" else "partners"}"
-            null -> count
+            Unit.USD_CENTS -> UiText.plain(formatMinorUsd(value))
+            Unit.PEOPLE -> UiText.plural(R.plurals.home_metric_people, quantity, count)
+            Unit.INITIATIVES -> UiText.plural(R.plurals.home_metric_initiatives, quantity, count)
+            Unit.PARTNERS -> UiText.plural(R.plurals.home_metric_partners, quantity, count)
+            null -> UiText.plain(count)
         }
     }
 }
@@ -119,7 +120,7 @@ data class HomeInitiative(
 
     companion object {
         /** A-5: display attribution, not designated giving. Counsel owns the final wording. */
-        const val ATTRIBUTION_NOTE = "This is display attribution, not designated giving. All gifts are unrestricted."
+        val ATTRIBUTION_NOTE = UiText.res(R.string.home_this_is_display_attribution_not)
     }
 }
 
@@ -135,8 +136,8 @@ data class HomeGift(
 ) {
     val amountLabel: String get() = formatMinorUsd(amountMinor)
     val netLabel: String get() = formatMinorUsd(netMinor)
-    val refundLabel: String? get() = if (refundedMinor > 0) "${formatMinorUsd(refundedMinor)} refunded" else null
-    val frequencyLabel: String get() = if (monthly) "Monthly" else "One-time"
+    val refundLabel: UiText? get() = if (refundedMinor > 0) UiText.res(R.string.home_refunded_amount, formatMinorUsd(refundedMinor)) else null
+    val frequencyLabel: UiText get() = if (monthly) UiText.res(R.string.home_monthly) else UiText.res(R.string.home_one_time)
 }
 
 data class GiftHistoryPage(val gifts: List<HomeGift>, val nextOffset: Int?)
@@ -168,10 +169,10 @@ interface DashboardService {
     suspend fun annualSummary(year: Int): AnnualGivingSummary
 }
 
-internal fun homeMessage(error: Throwable): String = when (error) {
-    is AccountFailure.SignedOut -> "Please sign in again."
-    is AccountFailure.RateLimited -> "Too many requests. Please wait a moment and try again."
-    else -> "We couldn’t load this right now. Please try again."
+internal fun homeMessage(error: Throwable): UiText = when (error) {
+    is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
+    is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_requests_please_wait_a)
+    else -> UiText.res(R.string.home_we_couldnt_load_this_right_now)
 }
 
 // MARK: - Dashboard model
@@ -184,7 +185,7 @@ class DashboardModel(private val service: DashboardService) : ViewModel() {
     sealed interface Phase {
         data object Loading : Phase
         data class Ready(val state: DashboardState) : Phase
-        data class Failed(val message: String) : Phase
+        data class Failed(val message: UiText) : Phase
     }
 
     sealed interface InitiativePhase {
@@ -199,7 +200,7 @@ class DashboardModel(private val service: DashboardService) : ViewModel() {
     var initiative: InitiativePhase by mutableStateOf(InitiativePhase.Loading)
         private set
     /** Shown above stale cards when a refresh failed. */
-    var refreshNotice: String? by mutableStateOf(null)
+    var refreshNotice: UiText? by mutableStateOf(null)
         private set
     /** The session ended (a refresh was refused twice): the shell must route to sign-in. */
     var signedOut: Boolean by mutableStateOf(false)
@@ -278,14 +279,14 @@ class GiftHistoryModel(
     sealed interface Phase {
         data object Loading : Phase
         data object Ready : Phase
-        data class Failed(val message: String) : Phase
+        data class Failed(val message: UiText) : Phase
     }
 
     sealed interface ReceiptPhase {
         val giftId: String
         data class Loading(override val giftId: String) : ReceiptPhase
         data class Ready(val receipt: HomeReceipt) : ReceiptPhase { override val giftId: String get() = receipt.gift.id }
-        data class Failed(override val giftId: String, val message: String) : ReceiptPhase
+        data class Failed(override val giftId: String, val message: UiText) : ReceiptPhase
     }
 
     var phase: Phase by mutableStateOf(Phase.Loading)
@@ -296,7 +297,7 @@ class GiftHistoryModel(
         private set
     var isLoadingMore: Boolean by mutableStateOf(false)
         private set
-    var moreError: String? by mutableStateOf(null)
+    var moreError: UiText? by mutableStateOf(null)
         private set
     var summary: AnnualGivingSummary? by mutableStateOf(null)
         private set
@@ -462,10 +463,10 @@ fun pendingMilestone(streak: HomeStreak?, store: MilestoneStore): Long? {
     return last.takeIf { it > baseline && streak.current >= it }
 }
 
-fun milestoneLine(days: Long): String = when (days) {
-    7L -> "7 days. A full week of aid, on the record."
-    30L -> "30 days. That's a month of aid, on the record."
-    100L -> "100 days. Triple digits, on the record."
-    365L -> "365 days. A full year of aid, on the record."
-    else -> "$days days. Every one on the record."
+fun milestoneLine(days: Long): UiText = when (days) {
+    7L -> UiText.res(R.string.home_7_days_a_full_week_of_aid_on_the)
+    30L -> UiText.res(R.string.home_30_days_thats_a_month_of_aid_on)
+    100L -> UiText.res(R.string.home_100_days_triple_digits_on_the)
+    365L -> UiText.res(R.string.home_365_days_a_full_year_of_aid_on_the)
+    else -> UiText.plural(R.plurals.home_milestone_other_days, days.toQuantity(), days)
 }

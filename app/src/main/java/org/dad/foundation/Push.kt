@@ -35,16 +35,16 @@ object PushTokenRelay {
 }
 
 /** The push categories a donor can opt out of in Settings, keyed by the server `category` and the Settings toggle. */
-enum class PushCategory(val wire: String, val settingsKey: String, val label: String) {
-    REFERRAL_CONVERTED("REFERRAL_CONVERTED", "push_referral_converted", "Someone joined through you"),
-    STREAK_AT_RISK("STREAK_AT_RISK", "push_streak_at_risk", "Streak at risk"),
-    STREAK_MILESTONE("STREAK_MILESTONE", "push_streak_milestone", "Streak milestone"),
-    STREAK_LAPSED("STREAK_LAPSED", "push_streak_lapsed", "Streak lapsed"),
-    BADGE_EARNED("BADGE_EARNED", "push_badge_earned", "Badge earned"),
-    EVENT_NEARBY("EVENT_NEARBY", "push_event_nearby", "Events nearby"),
-    EVENT_REMINDER("EVENT_REMINDER", "push_event_reminder", "Event reminders"),
-    EVENT_PROMOTED("EVENT_PROMOTED", "push_event_promoted", "Event promoted"),
-    GIFT_PROCESSED("GIFT_PROCESSED", "push_gift_processed", "Gift processed");
+enum class PushCategory(val wire: String, val settingsKey: String, val label: UiText) {
+    REFERRAL_CONVERTED("REFERRAL_CONVERTED", "push_referral_converted", UiText.res(R.string.common_someone_joined_through_you)),
+    STREAK_AT_RISK("STREAK_AT_RISK", "push_streak_at_risk", UiText.res(R.string.common_streak_at_risk)),
+    STREAK_MILESTONE("STREAK_MILESTONE", "push_streak_milestone", UiText.res(R.string.common_streak_milestone)),
+    STREAK_LAPSED("STREAK_LAPSED", "push_streak_lapsed", UiText.res(R.string.common_streak_lapsed)),
+    BADGE_EARNED("BADGE_EARNED", "push_badge_earned", UiText.res(R.string.common_badge_earned)),
+    EVENT_NEARBY("EVENT_NEARBY", "push_event_nearby", UiText.res(R.string.common_events_nearby)),
+    EVENT_REMINDER("EVENT_REMINDER", "push_event_reminder", UiText.res(R.string.common_event_reminders)),
+    EVENT_PROMOTED("EVENT_PROMOTED", "push_event_promoted", UiText.res(R.string.common_event_promoted)),
+    GIFT_PROCESSED("GIFT_PROCESSED", "push_gift_processed", UiText.res(R.string.common_gift_processed));
 
     val channelId: String get() = "push_" + wire.lowercase()
 
@@ -82,13 +82,13 @@ class PushMirroringSettings(
 }
 
 /** A notification ready to show: text, where a tap goes, and the server's id for it when it sent one. */
-data class PushNotice(val category: PushCategory?, val title: String, val body: String, val tap: PushTap?, val id: String? = null)
+data class PushNotice(val category: PushCategory?, val title: UiText, val body: UiText, val tap: PushTap?, val id: String? = null)
 
 /** The text and id of a message's `notification` block, which FCM reads before the app does. */
 data class PushDisplay(val title: String?, val body: String?, val tag: String?)
 
 object PushNotices {
-    private const val DEFAULT_TITLE = "DAD"
+    private val DEFAULT_TITLE = UiText.res(R.string.push_default_title)
     private const val MAX_TEXT = 200
 
     /**
@@ -100,8 +100,8 @@ object PushNotices {
         val tap = PushTap.from(data["category"], data["path"]) ?: return null
         val category = PushCategory.of(tap.category)
         if (category != null && !optOuts.allows(category)) return null
-        val title = (display?.title.clean() ?: data["title"].clean() ?: category?.label ?: DEFAULT_TITLE).take(MAX_TEXT)
-        val body = (display?.body.clean() ?: data["body"].clean() ?: title).take(MAX_TEXT)
+        val title = (display?.title.clean() ?: data["title"].clean())?.take(MAX_TEXT)?.let(UiText::plain) ?: category?.label ?: DEFAULT_TITLE
+        val body = (display?.body.clean() ?: data["body"].clean())?.take(MAX_TEXT)?.let(UiText::plain) ?: title
         return PushNotice(category, title, body, tap, display?.tag.clean())
     }
 

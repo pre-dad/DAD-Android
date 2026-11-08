@@ -118,7 +118,7 @@ class DonorHomeModelsTest {
         model.load(); idle()
         assertEquals(DashboardModel.Phase.Ready(readyDash()), model.phase)
         assertEquals(DashboardModel.InitiativePhase.Ready(initiative()), model.initiative)
-        assertTrue(model.refreshNotice!!.isNotBlank())
+        assertTrue(model.refreshNotice!!.text().isNotBlank())
         fail = false
         model.load(); idle()
         assertNull(model.refreshNotice)
@@ -161,14 +161,14 @@ class DonorHomeModelsTest {
         val model = DashboardModel(service)
         model.load(); idle()
         assertTrue(model.signedOut)
-        assertEquals("Please sign in again.", (model.phase as DashboardModel.Phase.Failed).message)
+        assertEquals("Please sign in again.", (model.phase as DashboardModel.Phase.Failed).message.textOrNull())
     }
 
     @Test fun aRateLimitedReadSaysSo() = runTest {
         val service = FakeService().apply { dashboardResult = { throw AccountFailure.RateLimited } }
         val model = DashboardModel(service)
         model.load(); idle()
-        assertTrue((model.phase as DashboardModel.Phase.Failed).message.contains("Too many"))
+        assertTrue((model.phase as DashboardModel.Phase.Failed).message.text().contains("Too many"))
         assertFalse(model.signedOut)
     }
 
@@ -301,7 +301,7 @@ class DonorHomeModelsTest {
         assertEquals(GiftHistoryModel.Phase.Ready, model.phase)
         model.requestMore(); idle()
         assertEquals(50, model.gifts.size)
-        assertTrue(model.moreError!!.contains("Too many"))
+        assertTrue(model.moreError!!.text().contains("Too many"))
         assertTrue(model.hasMore)
     }
 
@@ -339,18 +339,18 @@ class DonorHomeModelsTest {
 
     @Test fun unknownMoneyFormatsViaTheSharedFormatter() {
         assertEquals("$30", gift(1).amountLabel)
-        assertEquals("$5 refunded", gift(1).copy(refundedMinor = 500).refundLabel)
+        assertEquals("$5 refunded", gift(1).copy(refundedMinor = 500).refundLabel.textOrNull())
         assertNull(gift(1).refundLabel)
         assertEquals("$1,234.56", formatMinorUsd(123456))
-        assertEquals("1 person", HomeMetric("a", 1, HomeMetric.Unit.PEOPLE, "d").valueLabel)
-        assertEquals("1-day streak", HomeStreak(1, false, null, null).headline)
-        assertEquals("1 day to your 7-day milestone", HomeLadder(6, 0, 7, 1, emptyList()).nextLabel)
+        assertEquals("1 person", HomeMetric("a", 1, HomeMetric.Unit.PEOPLE, "d").valueLabel.textOrNull())
+        assertEquals("1-day streak", HomeStreak(1, false, null, null).headline.textOrNull())
+        assertEquals("1 day to your 7-day milestone", HomeLadder(6, 0, 7, 1, emptyList()).nextLabel.textOrNull())
         assertNull(HomeLadder(2000, 1460, null, null, emptyList()).nextLabel)
     }
 
     @Test fun headlineMetricsAreCappedAtFourAndTheNoteStatesAttribution() {
         val many = (1..6).map { HomeMetric("m$it", it.toLong(), null, "d") }
         assertEquals(4, initiative().copy(metrics = many).headlineMetrics.size)
-        assertTrue(HomeInitiative.ATTRIBUTION_NOTE.contains("not designated giving"))
+        assertTrue(HomeInitiative.ATTRIBUTION_NOTE.text().contains("not designated giving"))
     }
 }

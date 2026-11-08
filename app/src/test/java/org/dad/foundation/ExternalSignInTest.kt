@@ -171,7 +171,7 @@ class ExternalSignInTest {
         assertEquals(ExternalSignInPhase.Idle, cancelled.phase)
         val unsupported = GoogleSignInModel({ _ -> throw ExternalSignInError.Unsupported }, FakeOidc(), passThrough)
         unsupported.start()
-        assertEquals(ExternalSignInPhase.Failed("Google sign-in isn’t available on this device."), unsupported.phase)
+        assertEquals("Google sign-in isn’t available on this device.", (unsupported.phase as ExternalSignInPhase.Failed).message.text())
         mapOf(
             AccountFailure.SignedOut to "We couldn’t find a DAD account for that Google sign-in. Create your account with your email first.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
@@ -180,7 +180,7 @@ class ExternalSignInTest {
         ).forEach { (failure, copy) ->
             val m = GoogleSignInModel({ _ -> "t" }, FakeOidc(failure), passThrough)
             m.start()
-            assertEquals(ExternalSignInPhase.Failed(copy), m.phase)
+            assertEquals(copy, (m.phase as ExternalSignInPhase.Failed).message.text())
         }
     }
 
@@ -212,11 +212,11 @@ class ExternalSignInTest {
         ).forEach { (failure, copy) ->
             val m = PasskeySignInModel({ sampleAssertion }, FakePasskey(failure), passThrough)
             m.start()
-            assertEquals(ExternalSignInPhase.Failed(copy), m.phase)
+            assertEquals(copy, (m.phase as ExternalSignInPhase.Failed).message.text())
         }
         val unsupported = PasskeySignInModel({ throw ExternalSignInError.Unsupported }, FakePasskey(), passThrough)
         unsupported.start()
-        assertEquals(ExternalSignInPhase.Failed("Passkeys aren’t available on this device."), unsupported.phase)
+        assertEquals("Passkeys aren’t available on this device.", (unsupported.phase as ExternalSignInPhase.Failed).message.text())
     }
 
     @Test fun cancellationIsRethrownNotShown() {

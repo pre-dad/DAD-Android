@@ -76,13 +76,13 @@ data class PartnerOverview(
     val userId: String? = null,
 ) {
     /** "42 of 120" or null when suppressed (<5). Never shows a suppressed count. */
-    val enrolledLabel: String? get() = employeesEnrolled?.let { "$it of $workforceSize" }
+    val enrolledLabel: UiText? get() = employeesEnrolled?.let { UiText.res(R.string.partner_enrolled_of_workforce, it, workforceSize) }
 
     /** The "Verified by DAD" assurance line with the as-of date (§11); null when nothing verified yet. */
-    val verifiedLine: String?
+    val verifiedLine: UiText?
         get() = updatedAt?.let {
             val df = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
-            "Verified by DAD · as of ${df.format(it)}"
+            UiText.res(R.string.partner_verified_by_dad_as_of, df.format(it))
         }
 }
 
@@ -102,8 +102,8 @@ data class PartnerPeople(
 ) {
     val givenLabel: String? get() = if (suppressed) null else formatMinorUsd(givenMinor)
     val matchedLabel: String? get() = if (suppressed) null else formatMinorUsd(matchedMinor)
-    val suppressionNotice: String?
-        get() = if (suppressed) "Fewer than 5 people have enrolled, so individual figures are hidden." else null
+    val suppressionNotice: UiText?
+        get() = if (suppressed) UiText.res(R.string.partner_fewer_than_5_people_have_enrolled) else null
 }
 
 // MARK: - Initiatives (P-11)
@@ -111,7 +111,7 @@ data class PartnerPeople(
 enum class InitiativeStatus {
     ACTIVE, COMPLETE;
     companion object { fun from(raw: String): InitiativeStatus = if (raw.uppercase() == "COMPLETE") COMPLETE else ACTIVE }
-    val label: String get() = if (this == ACTIVE) "Active" else "Complete"
+    val label: UiText get() = if (this == ACTIVE) UiText.res(R.string.partner_active) else UiText.res(R.string.partner_complete)
 }
 
 /** One partner initiative tile (P-11), at most three headline metrics (§7.2). */
