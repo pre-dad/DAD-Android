@@ -15,7 +15,7 @@ class UiTextTest {
 
     @Test fun formatArgumentsFillThePlaceholders() {
         assertEquals("Invitation sent to a@b.co.", UiText.res(R.string.partner_invitation_sent_to, "a@b.co").text())
-        assertEquals("Shown as Alex C.", UiText.res(R.string.network_shown_as, "Alex C.").text())
+        assertEquals("Alex C. · Donor", UiText.res(R.string.common_pair_dot, "Alex C.", "Donor").text())
     }
 
     @Test fun pluralsPickTheFormForTheQuantity() {

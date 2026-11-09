@@ -30,7 +30,7 @@ interface LinkTokenStore {
 }
 
 /**
- * SharedPreferences, like [PrefsAttributionStore]: a token only steers attribution credit at the next gift and is
+ * SharedPreferences: a token only steers attribution credit at the next gift and is
  * worth nothing to anyone else, so it is not a Keystore credential.
  */
 class PrefsLinkTokenStore(context: Context, private val key: String = "org.dad.link-tokens") : LinkTokenStore {

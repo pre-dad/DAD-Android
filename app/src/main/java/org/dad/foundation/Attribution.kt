@@ -2,13 +2,10 @@ package org.dad.foundation
 
 import android.content.Context
 import androidx.core.content.edit
-import com.google.gson.Gson
 
 /**
- * Where a new donor came from, captured BEFORE sign-up and carried across a Play install
- * and cold launch so it can be attached at account creation (PRD D-3 deferred attribution,
- * D-4 company code, R-3/R-4 referral attribution). The payload is independent of how it
- * arrived — deep link, Play Install Referrer, or a scanned IRL code.
+ * Sanitized codes read from Play Install Referrer and passed to LinkAttribution.
+ * Server-issued visitor tokens, rather than these raw codes, are persisted for giving.
  */
 data class Attribution(
     /** An invite code from a sharing link (person-to-person referral, R-1). */
@@ -43,68 +40,12 @@ data class Attribution(
     }
 }
 
-/**
- * Persists captured attribution across launches. An interface so tests drive an in-memory
- * store and the app uses SharedPreferences (survives a cold launch; not the Keystore, because
- * this is non-secret marketing attribution, not a credential).
- */
-interface AttributionStore {
-    fun load(): Attribution?
-    fun save(attribution: Attribution)
-    fun clear()
-}
-
-/** SharedPreferences-backed store. */
-class PrefsAttributionStore(context: Context, private val key: String = "org.dad.attribution") : AttributionStore {
-    private val prefs = context.getSharedPreferences("org.dad.attribution", Context.MODE_PRIVATE)
-    private val gson = Gson()
-    override fun load(): Attribution? =
-        prefs.getString(key, null)?.let { runCatching { gson.fromJson(it, Attribution::class.java) }.getOrNull() }
-    override fun save(attribution: Attribution) {
-        if (attribution.isEmpty) return
-        prefs.edit { putString(key, gson.toJson(attribution)) }
+/** Account deletion must erase only the attribution key saved by older app versions. */
+object LegacyAttribution {
+    fun clear(context: Context) {
+        context.getSharedPreferences("org.dad.attribution", Context.MODE_PRIVATE)
+            .edit { remove("org.dad.attribution") }
     }
-    override fun clear() { prefs.edit { remove(key) } }
-}
-
-/** In-memory store for tests. */
-class MemoryAttributionStore(private var value: Attribution? = null) : AttributionStore {
-    override fun load() = value
-    override fun save(attribution: Attribution) { if (!attribution.isEmpty) value = attribution }
-    override fun clear() { value = null }
-}
-
-/**
- * Captures attribution from an incoming source and MERGES it with whatever was already stored.
- *
- * Precedence is LAST-TOUCH-WINS per PRD R-4 ("last-touch wins"): a newly arriving non-null
- * field OVERWRITES the stored one, because the most recent referral is the one that converted
- * the donor (the server also counts conversion on last-touch). A field absent from the
- * incoming payload leaves the stored value intact, so a later company-code touch does not wipe
- * an earlier invite that still applies.
- */
-class AttributionCapture(private val store: AttributionStore, private val analytics: AnalyticsEmitter? = null) {
-    fun capture(incoming: Attribution): Attribution {
-        val existing = store.load() ?: Attribution()
-        val merged = Attribution(
-            inviteCode = incoming.inviteCode ?: existing.inviteCode,
-            irlCode = incoming.irlCode ?: existing.irlCode,
-            companyCode = incoming.companyCode ?: existing.companyCode,
-            source = incoming.source ?: existing.source,
-        )
-        if (!merged.isEmpty && merged != existing) {
-            store.save(merged)
-            // `source` on the wire is the touch kind (link / IRL / company), not the raw campaign tag.
-            (AttributionSource.of(incoming) ?: AttributionSource.of(merged))
-                ?.let { analytics?.emit(AnalyticsEvent.AttributionCaptured(it)) }
-        }
-        return merged
-    }
-
-    fun current(): Attribution? = store.load()
-
-    /** Called once attribution has been attached to a created account. */
-    fun consume() { store.clear() }
 }
 
 /**

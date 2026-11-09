@@ -478,7 +478,6 @@ class MainActivity : ComponentActivity() {
                         val analytics = AnalyticsUploader(PrefsAnalyticsConsent(appContext), WireAnalytics(origin, access = { session.accessToken() }), scope)
                         val http = defaultNativeClient().newBuilder().addInterceptor(AnalyticsObserver(analytics)).build()
                         session = AccountSession(WireAPI(origin, http), KeystoreCredentialStore(appContext), scope)
-                        val attribution = PrefsAttributionStore(appContext)
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
                         val product = ProductClient(origin, session, http)
@@ -490,7 +489,7 @@ class MainActivity : ComponentActivity() {
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
                             PushMirroringSettings(
-                                WireSettings(product, onLocalWipe = { attribution.clear(); linkTokens.clear(); milestones.clear() }),
+                                WireSettings(product, onLocalWipe = { LegacyAttribution.clear(appContext); linkTokens.clear(); milestones.clear() }),
                                 record = pushOptOuts::record, clear = pushOptOuts::clear,
                             ),
                             signup = credentialAuth,

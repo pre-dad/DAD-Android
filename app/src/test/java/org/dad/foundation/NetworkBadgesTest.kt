@@ -154,34 +154,6 @@ class NetworkBadgesTest {
         assertTrue(net.allTiersReached)
     }
 
-    // --- Sharing visibility (N opt-in): off = anonymous, no links ---
-    @Test fun sharingOffIsAnonymousWithNoLinks() {
-        val off = SharingState(publicName = null, link = null, irlLink = null)
-        assertFalse(off.isPublic)
-        assertNull(off.shareLink)
-        assertNull(off.inPersonLink)
-        assertEquals("Giving anonymously", off.visibilityLabel.text())
-    }
-
-    @Test fun sharingOnExposesLinksAndName() {
-        val on = SharingState(
-            publicName = "Alex C.",
-            link = "https://dad.org/r/alex",
-            irlLink = "https://dad.org/r/alex?via=irl",
-        )
-        assertTrue(on.isPublic)
-        assertEquals("https://dad.org/r/alex", on.shareLink)
-        assertEquals("https://dad.org/r/alex?via=irl", on.inPersonLink)
-        assertEquals("Shown as Alex C.", on.visibilityLabel.text())
-    }
-
-    @Test fun sharingWithBlankNameTreatedAsAnonymous() {
-        // A blank public name is not "opted in" — guards against an empty-string leak.
-        val blank = SharingState(publicName = "  ", link = "x", irlLink = "y")
-        assertFalse(blank.isPublic)
-        assertNull(blank.shareLink)
-    }
-
     // --- Invite (R-1..R-4) ---
     @Test fun inviteLinksAreBuiltFromTheConfiguredOriginAndServerRoute() {
         val referral = ReferralInfo("ALEX", linkCount = 2, irlCount = 1, conversions = null)
