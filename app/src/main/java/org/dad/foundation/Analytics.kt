@@ -67,16 +67,6 @@ enum class PlainEvent(val wire: String) {
 /** The closed `source` set the ingest endpoint accepts for `attribution_captured` (case-sensitive). */
 enum class AttributionSource(val wire: String) {
     LINK("link"), IRL("IRL"), COMPANY("company");
-
-    companion object {
-        /** The touch kind of one attribution payload: an IRL code, else an invite link, else a company code. */
-        fun of(attribution: Attribution): AttributionSource? = when {
-            attribution.irlCode != null -> IRL
-            attribution.inviteCode != null -> LINK
-            attribution.companyCode != null -> COMPANY
-            else -> null
-        }
-    }
 }
 
 /**

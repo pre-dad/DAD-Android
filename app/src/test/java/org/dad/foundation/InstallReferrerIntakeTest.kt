@@ -62,6 +62,7 @@ class InstallReferrerIntakeTest {
             val rig = Rig(FakeReferrer { answer })
             assertNull(rig.intake.run())
             assertTrue(rig.service.referrals.isEmpty() && rig.service.companies.isEmpty())
+            assertTrue(rig.analytics.events.isEmpty())
             assertTrue(rig.ledger.wasRead())
         }
     }

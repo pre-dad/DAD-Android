@@ -326,7 +326,6 @@
     <string name="network_invite_only_milestone_events">Invite-only milestone events</string>
     <string name="network_invite_only_events_a_dad_merch">Invite-only events, a DAD merch item, 48-hour early event booking and opt-in name listing on initiative pages</string>
     <string name="network_unlocks_a_member_perk">Unlocks a member perk</string>
-    <string name="network_giving_anonymously">Giving anonymously</string>
     <string name="network_in_person">In person</string>
     <string name="network_join_me_on_dollar_a_day_give_1_a">Join me on Dollar A Day — give $1 a day to local causes.</string>
     <string name="network_status_giving">giving</string>
@@ -335,7 +334,6 @@
     <string name="network_badge_earned_label">%1$s, earned</string>
     <string name="network_badge_locked_label">%1$s, locked. %2$s</string>
     <string name="network_badges_summary" tools:ignore="PluralsCandidate">%1$d of %2$d earned</string>
-    <string name="network_shown_as">Shown as %1$s</string>
     <string name="network_share_message_with_link">Join me on Dollar A Day — give $1 a day to local causes. %1$s</string>
     <string name="eng_top_percent_nationally">Top %1$d%% nationally</string>
     <string name="eng_rank_in_city">#%1$d in %2$s</string>

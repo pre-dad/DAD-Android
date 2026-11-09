@@ -128,6 +128,10 @@ class FoundationTest {
         assertNull(gate.receive(AccountDestination.DASHBOARD, false))
         assertEquals(AccountDestination.DASHBOARD, gate.signedIn())
         assertNull(gate.signedIn())
+        assertEquals(AccountDestination.GIFTS, gate.receive(AccountDestination.GIFTS, true))
+        assertNull(gate.receive(AccountDestination.PROFILE, false))
+        gate.signedOut()
+        assertNull("sign-out discards a deferred account destination", gate.signedIn())
     }
 }
 

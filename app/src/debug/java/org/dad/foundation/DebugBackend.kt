@@ -81,14 +81,13 @@ object DebugBackend {
             if (options.stubSignedIn) Credentials("stub-access-0", "stub-refresh-0-xxxxxxxxxxxxxxxxxxxxxxxxxxxx", Long.MAX_VALUE) else null,
         )
         val session = AccountSession(WireAPI(ORIGIN, http), store, scope)
-        val attribution = PrefsAttributionStore(context.applicationContext)
         // Each stub launch starts as a fresh install: no link visit kept from an earlier run.
         val linkTokens = MemoryLinkTokenStore()
         val credentialAuth = WireCredentialAuth(ORIGIN, "Stub device", http)
         return AppServices(
             session = session,
             signIn = WireAuth(ORIGIN, "Stub device", http),
-            settings = WireSettings(ProductClient(ORIGIN, session, http), onLocalWipe = { attribution.clear(); linkTokens.clear() }),
+            settings = WireSettings(ProductClient(ORIGIN, session, http), onLocalWipe = { LegacyAttribution.clear(context.applicationContext); linkTokens.clear() }),
             signup = credentialAuth,
             signInLink = credentialAuth,
             passwordSignIn = credentialAuth,
