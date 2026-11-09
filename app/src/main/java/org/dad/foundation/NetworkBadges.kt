@@ -158,30 +158,6 @@ data class BadgeGrid(
 /** Longest public name the server accepts (`saveSharing`: 1..80). */
 const val MAX_PUBLIC_NAME = 80
 
-/**
- * The donor's public sharing state. A null [publicName] means the donor has NOT opted into being
- * named — they appear anonymously in others' networks, and have no referral link yet. Choosing a
- * public name is what mints the [link]/[irlLink] (the server returns them together).
- */
-data class SharingState(
-    val publicName: String?,
-    val link: String?,
-    val irlLink: String?,
-) {
-    /** True once the donor opted in to a public name (and therefore has share links). */
-    val isPublic: Boolean get() = !publicName.isNullOrBlank()
-
-    /** The share link, only when the donor opted in. */
-    val shareLink: String? get() = if (isPublic) link else null
-
-    /** The in-person (QR) referral link, only when the donor opted in. */
-    val inPersonLink: String? get() = if (isPublic) irlLink else null
-
-    /** The visibility line, e.g. "Shown as Alex C." or "Giving anonymously". */
-    val visibilityLabel: UiText
-        get() = publicName?.takeIf { it.isNotBlank() }?.let { UiText.res(R.string.network_shown_as, it) } ?: UiText.res(R.string.network_giving_anonymously)
-}
-
 // MARK: - Invite (R-1..R-4)
 
 /** One referral's first gift. It carries nothing about the referred donor; [kind] is an open string. */

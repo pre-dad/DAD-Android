@@ -31,6 +31,33 @@ class LinkAttributionTest {
         assertEquals("""{"kind":"IRL","token":"$kept"}""", call.body)
     }
 
+    @Test fun aLaterReferralReplacesTheTokenWithoutLosingTheCompanyTouch() = runTest {
+        val first = "a".repeat(43)
+        val second = "b".repeat(43)
+        val company = "c".repeat(43)
+        val rig = Rig(backgroundScope) {
+            val token = when (it.path) {
+                "/donor/company/ACME" -> company
+                "/donor/referrals/FIRST" -> first
+                else -> second
+            }
+            200 to """{"captured":true,"public_name":null,"token":"$token"}"""
+        }
+        rig.links.captureReferral("FIRST", inPerson = false)
+        rig.links.captureCompany("ACME")
+        rig.links.captureReferral("SECOND", inPerson = true)
+
+        assertEquals(LinkTokens(referral = second, company = company), rig.store.load())
+        assertEquals(listOf(
+            AnalyticsEvent.AttributionCaptured(AttributionSource.LINK),
+            AnalyticsEvent.AttributionCaptured(AttributionSource.COMPANY),
+            AnalyticsEvent.AttributionCaptured(AttributionSource.IRL),
+        ), rig.analytics.events)
+        assertEquals(3, rig.http.requests.size)
+        assertEquals("""{"kind":"LINK"}""", rig.http.requests[0].body)
+        assertEquals("""{"kind":"IRL","token":"$first"}""", rig.http.requests[2].body)
+    }
+
     @Test fun aCaptureThatKeepsNothingDiscardsTheTokenAndAFailureKeepsIt() = runTest {
         val cleared = Rig(backgroundScope, LinkTokens(referral = kept, company = kept)) { 200 to """{"captured":false,"public_name":null,"token":null}""" }
         cleared.links.captureReferral("gone", inPerson = false)
