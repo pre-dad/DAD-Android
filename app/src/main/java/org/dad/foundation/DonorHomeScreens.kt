@@ -451,7 +451,7 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
                     HomeCard("history-summary$suffix") {
                         Text(stringResource(R.string.home_year_total, summary.year), style = MaterialTheme.typography.labelLarge)
                         Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total$suffix"))
-                        Text(stringResource(R.string.home_sandbox_records_not_tax_receipts), style = MaterialTheme.typography.bodySmall)
+                        if (!summary.taxReceipt) Text(stringResource(R.string.home_sandbox_records_not_tax_receipts), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
