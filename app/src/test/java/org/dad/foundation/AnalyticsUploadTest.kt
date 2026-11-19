@@ -17,6 +17,15 @@ import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnalyticsUploadTest {
+    @Test fun cancellingTokenAcquisitionNeverSendsAnAnonymousBatch() = runTest {
+        val http = ScriptedHttp { 200 to """{"accepted":1}""" }
+        val wire = WireAnalytics(TEST_ORIGIN, access = { throw kotlinx.coroutines.CancellationException("cancelled") }, http.client())
+        val record = AnalyticsRecord("i", "j", "app_opened", Instant.EPOCH, emptyMap())
+        val failure = runCatching { wire.send(listOf(record)) }.exceptionOrNull()
+        assertTrue(failure is kotlinx.coroutines.CancellationException)
+        assertTrue("cancellation must stop the upload", http.requests.isEmpty())
+    }
+
     private fun observed(method: String, path: String, request: String? = null, response: String? = null) =
         observedEvents(method, path, { request }, { response })
 
@@ -28,6 +37,7 @@ class AnalyticsUploadTest {
         assertEquals(listOf(PlainEvent.GIFT_CANCELLED), observed("POST", "/donor/me/recurring/cancel"))
         assertEquals(listOf(PlainEvent.AMOUNT_CHANGED), observed("POST", "/donor/me/recurring/amount"))
         assertEquals(listOf(PlainEvent.TEAM_JOINED), observed("POST", "/donor/me/team"))
+        assertEquals(listOf(PlainEvent.PARTNER_SIGNUP_SUBMITTED), observed("POST", "/donor/partner/applications"))
         assertEquals(listOf(PlainEvent.EVENT_CHECKED_IN), observed("POST", "/donor/me/events/check-in"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/donor/me/events/e1"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/events/e1"))
