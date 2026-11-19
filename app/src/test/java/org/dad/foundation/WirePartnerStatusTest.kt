@@ -106,7 +106,7 @@ class WirePartnerStatusTest {
                     """"committed_minor":1,"deployed_minor":1,"deployed_percent":1,"people_reached":1,"employees_enrolled":null,"workforce_size":1,""" +
                     """"enrolled_percent":null,"updated_at":null,"has_logo":false,"committed_verified":true,"deployed_verified":true,"people_reached_verified":true}""")
                 "/donor/partner/initiatives" -> 200 to ("""{"initiatives":[{"id":"i1","title":"T","summary":"S","status":"PAUSED","region":"R","committed_minor":1,""" +
-                    """"deployed_minor":1,"metrics":[{"label":"L","value":3,"unit":"HOURS"}]}]}""")
+                    """"deployed_minor":1,"county_count":1,"spend":[],"updated_at":"2026-10-28T10:00:00Z","metrics":[{"label":"L","value":3,"unit":"HOURS","verified_on":"2026-10-20"}]}]}""")
                 "/donor/partner/users" -> 200 to """{"users":[{"id":"u9","email":"a@b.co","name":"N","role":"OWNER"}]}"""
                 else -> 404 to "{}"
             }

@@ -277,8 +277,13 @@ A retry after an unconfirmed response repeats the same receipt, content and Idem
 refusal unlocks the form. The receipt reads the application's pending, approved or rejected status above
 partner sign-in; it never opens the portal without an approved partner session.
 
-The portal has four sections. **Overview** shows only verified figures (§7.3; an unverified figure is left out,
-never estimated) and spend by category. **Initiatives** lists the partner's initiatives and their metrics.
+The portal has five sections. **Overview** shows only verified figures (§7.3; an unverified figure is left out,
+never estimated), spend by category and initiative cards. **Initiatives** shows county coverage, deployed vs.
+committed progress (or Final), up to three metrics and the update date; tapping a card opens every verified
+metric with its verification date and the initiative's category spend. **Spend** shows overall and
+per-initiative category totals. No additional request is needed for a detail or spend view.
+The aggregate spend endpoint has no update timestamp, so that view explicitly shows the date as unavailable;
+it does not reuse the overview's timestamp. Per-figure timestamps for all rollups require additional API data.
 **People** shows the employee-programme summary (suppressed below the privacy threshold) and team standings.
 **Organization** edits the profile, workforce size and logo (PNG, picked with the system photo picker), shows the
 company code with its sign-up QR and share link, manages users (admins invite by name, email and role and remove

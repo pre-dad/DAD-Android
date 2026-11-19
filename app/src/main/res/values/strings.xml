@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="partner_spend_title">Spend by category</string>
+    <string name="partner_all_initiatives">All initiatives</string>
+    <string name="partner_view_details">View initiative details</string>
+    <string name="partner_all_metrics">Verified metrics</string>
+    <string name="partner_no_metrics">No verified metrics yet.</string>
+    <string name="partner_no_spend">No verified spend yet.</string>
+    <string name="partner_final">Final</string>
+    <string name="partner_verified_on">Verified %1$s</string>
+    <string name="partner_updated_at">Updated %1$s</string>
+    <string name="partner_update_unknown">Update date unavailable</string>
+    <plurals name="partner_counties">
+        <item quantity="one">%1$d county</item>
+        <item quantity="other">%1$d counties</item>
+    </plurals>
     <string name="about_heading">About DAD</string>
     <string name="about_organization">Dynamic Aid Delivery, INC.</string>
     <string name="about_version">Version %1$s</string>

@@ -125,13 +125,19 @@ data class PartnerInitiative(
     val committedMinor: Long,
     val deployedMinor: Long,
     val metrics: List<PartnerMetric>,
+    val countyCount: Int? = null,
+    val spend: List<PartnerSpendCategory> = emptyList(),
+    val updatedAt: java.time.OffsetDateTime? = null,
 ) {
     val headlineMetrics: List<PartnerMetric> get() = metrics.take(3)
     val committedLabel: String get() = formatMinorUsd(committedMinor)
     val deployedLabel: String get() = formatMinorUsd(deployedMinor)
+    val deployedFraction: Float? get() = if (committedMinor > 0) {
+        (deployedMinor.toDouble() / committedMinor).coerceIn(0.0, 1.0).toFloat()
+    } else null
 }
 
-data class PartnerMetric(val label: String, val value: Long, val unit: Unit) {
+data class PartnerMetric(val label: String, val value: Long, val unit: Unit, val verifiedOn: java.time.LocalDate? = null) {
     enum class Unit {
         USD_CENTS, PEOPLE, INITIATIVES, PARTNERS;
         companion object {

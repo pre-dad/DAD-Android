@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -26,6 +27,24 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class PartnerWiredFlowTest {
     @get:Rule val compose = createEmptyComposeRule()
+
+    @Test fun initiativesOpenAllMetricsAndSpendWithoutAnotherRequest() {
+        launch("stub_partner_signed_in").use {
+            compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("partner-tab-initiatives")).fetchSemanticsNodes().isNotEmpty() }
+            compose.tapSafely("partner-tab-initiatives")
+            compose.onNodeWithText("Households: 2,100").assertDoesNotExist()
+            compose.tapSafely("partner-initiative-i1")
+            compose.onNodeWithTag("partner-initiative-detail").assertIsDisplayed()
+            compose.onNodeWithText("6 counties").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Households: 2,100").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Verified Oct 23, 2026").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Water: $12,000").performScrollTo().assertIsDisplayed()
+            compose.tapSafely("partner-detail-back")
+            compose.tapSafely("partner-tab-spend")
+            compose.onNodeWithText("Water: $18,000").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Water: $12,000").performScrollTo().assertIsDisplayed()
+        }
+    }
 
     private fun launch(vararg extras: String): ActivityScenario<MainActivity> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext

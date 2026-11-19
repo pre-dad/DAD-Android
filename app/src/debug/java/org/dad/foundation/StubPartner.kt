@@ -87,7 +87,7 @@ internal class StubPartner(
                 """"updated_at":"2026-10-28T10:00:00Z","has_logo":${logo != null},"committed_verified":true,"deployed_verified":false,"people_reached_verified":true}""")
             "GET" to "/donor/partner/initiatives" -> Reply(200, """{"initiatives":[{"id":"i1","title":"Clean Water West","summary":"Wells across 6 counties.",""" +
                 """"status":"ACTIVE","region":"West","county_count":6,"committed_minor":2000000,"deployed_minor":1200000,""" +
-                """"metrics":[{"label":"People reached","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"}],""" +
+                """"metrics":[{"label":"People reached","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"},{"label":"Wells","value":32,"unit":"INITIATIVES","verified_on":"2026-10-21"},{"label":"Partners","value":2,"unit":"PARTNERS","verified_on":"2026-10-22"},{"label":"Households","value":2100,"unit":"PEOPLE","verified_on":"2026-10-23"}],""" +
                 """"spend":[{"category":"Water","amount_minor":1200000}],"updated_at":"2026-10-28T10:00:00Z"}]}""")
             "GET" to "/donor/partner/spend" -> Reply(200, """{"categories":[{"category":"Water","amount_minor":1800000},{"category":"Housing","amount_minor":1200000}]}""")
             "GET" to "/donor/partner/our-people" -> Reply(200, """{"enrolled":86,"workforce_size":$workforce,"streak_verified":true,"given_minor":940000,"matched_minor":470000,""" +

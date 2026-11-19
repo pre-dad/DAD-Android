@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -30,6 +31,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -269,7 +272,7 @@ private fun PartnerCheckEmail(model: PartnerSignInModel, email: String) {
 }
 
 private enum class PartnerSection(@StringRes val label: Int) {
-    OVERVIEW(R.string.partner_overview), INITIATIVES(R.string.partner_initiatives), PEOPLE(R.string.partner_people), ORGANIZATION(R.string.partner_organization),
+    OVERVIEW(R.string.partner_overview), INITIATIVES(R.string.partner_initiatives), SPEND(R.string.partner_spend_title), PEOPLE(R.string.partner_people), ORGANIZATION(R.string.partner_organization),
 }
 
 /** The signed-in partner portal. [publicOrigin] builds the company sign-up link; blank hides it. */
@@ -289,6 +292,8 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
     PartnerReportShare(model)
     var section by rememberSaveable { mutableStateOf(PartnerSection.OVERVIEW) }
+    var initiativeId by rememberSaveable { mutableStateOf<String?>(null) }
+    BackHandler(enabled = initiativeId != null) { initiativeId = null }
     val snapshot = model.snapshot
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("partner-portal"),
@@ -316,7 +321,7 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                 // Scrolls sideways so a long label ("Organization") or a large font keeps each tab on one line.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     PartnerSection.entries.forEach {
-                        FilterChip(selected = section == it, onClick = { section = it }, label = { Text(stringResource(it.label), maxLines = 1, softWrap = false) },
+                        FilterChip(selected = section == it, onClick = { section = it; initiativeId = null }, label = { Text(stringResource(it.label), maxLines = 1, softWrap = false) },
                             modifier = Modifier.testTag("partner-tab-${it.name.lowercase()}"))
                     }
                 }
@@ -330,9 +335,17 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                     Text(it.asString(), modifier = Modifier.testTag("partner-notice").semantics { liveRegion = LiveRegionMode.Polite })
                 }
                 model.actionError?.let { ErrorLine(it, "partner-action-error") }
-                when (section) {
-                    PartnerSection.OVERVIEW -> PartnerOverviewSection(snapshot)
-                    PartnerSection.INITIATIVES -> PartnerInitiativesSection(snapshot.initiatives)
+                val selected = snapshot.initiatives.firstOrNull { it.id == initiativeId }
+                if (selected != null) {
+                    TextButton(onClick = { initiativeId = null }, modifier = Modifier.testTag("partner-detail-back")) { Text(stringResource(R.string.common_back)) }
+                    PartnerInitiativeDetail(selected)
+                } else when (section) {
+                    PartnerSection.OVERVIEW -> {
+                        PartnerOverviewSection(snapshot)
+                        PartnerInitiativesSection(snapshot.initiatives) { initiativeId = it }
+                    }
+                    PartnerSection.INITIATIVES -> PartnerInitiativesSection(snapshot.initiatives) { initiativeId = it }
+                    PartnerSection.SPEND -> PartnerSpendSection(snapshot)
                     PartnerSection.PEOPLE -> PartnerPeopleSection(snapshot)
                     PartnerSection.ORGANIZATION -> PartnerOrganizationSection(model, snapshot, publicOrigin)
                 }
@@ -361,15 +374,87 @@ private fun PartnerOverviewSection(snapshot: PartnerSnapshot) {
 }
 
 @Composable
-private fun PartnerInitiativesSection(initiatives: List<PartnerInitiative>) {
+private fun PartnerInitiativesSection(initiatives: List<PartnerInitiative>, onOpen: (String) -> Unit) {
     if (initiatives.isEmpty()) Text(stringResource(R.string.partner_no_initiatives_yet), modifier = Modifier.testTag("partner-initiatives-empty"))
     initiatives.forEach { initiative ->
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag("partner-initiative-${initiative.id}")) {
-            Text(initiative.title, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.common_pair_dot, initiative.status.label.asString(), initiative.region), style = MaterialTheme.typography.bodySmall)
-            Text(initiative.summary)
-            Text(stringResource(R.string.partner_initiative_amounts, initiative.committedLabel, initiative.deployedLabel), style = MaterialTheme.typography.bodySmall)
-            initiative.headlineMetrics.forEach { Text(stringResource(R.string.partner_label_value, it.label, it.valueLabel), style = MaterialTheme.typography.bodySmall) }
+        OutlinedCard(onClick = { onOpen(initiative.id) }, modifier = Modifier.fillMaxWidth().testTag("partner-initiative-${initiative.id}")) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
+                PartnerInitiativeHeading(initiative)
+                initiative.headlineMetrics.forEach { PartnerMetricLine(it) }
+                PartnerUpdatedAt(initiative.updatedAt)
+                Text(stringResource(R.string.partner_view_details), color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartnerInitiativeHeading(initiative: PartnerInitiative) {
+    Text(initiative.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+    Text(stringResource(R.string.common_pair_dot, initiative.status.label.asString(), initiative.region), style = MaterialTheme.typography.bodySmall)
+    initiative.countyCount?.let { Text(pluralStringResource(R.plurals.partner_counties, it, it)) }
+    Text(initiative.summary)
+    Text(stringResource(R.string.partner_initiative_amounts, initiative.committedLabel, initiative.deployedLabel))
+    if (initiative.status == InitiativeStatus.COMPLETE) {
+        Text(stringResource(R.string.partner_final), modifier = Modifier.testTag("partner-progress-${initiative.id}"))
+    } else initiative.deployedFraction?.let { fraction ->
+        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().testTag("partner-progress-${initiative.id}"))
+    }
+}
+
+@Composable
+private fun PartnerMetricLine(metric: PartnerMetric) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(stringResource(R.string.partner_label_value, metric.label, metric.valueLabel))
+        metric.verifiedOn?.let {
+            Text(stringResource(R.string.partner_verified_on, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(java.util.Locale.US).format(it)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PartnerUpdatedAt(time: java.time.OffsetDateTime?) {
+    Text(if (time == null) stringResource(R.string.partner_update_unknown) else
+        stringResource(R.string.partner_updated_at, DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.LONG)
+            .withLocale(java.util.Locale.US).format(time.atZoneSameInstant(java.time.ZoneId.systemDefault()))),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun PartnerInitiativeDetail(initiative: PartnerInitiative) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("partner-initiative-detail")) {
+        PartnerInitiativeHeading(initiative)
+        PartnerUpdatedAt(initiative.updatedAt)
+        Text(stringResource(R.string.partner_all_metrics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        if (initiative.metrics.isEmpty()) Text(stringResource(R.string.partner_no_metrics))
+        initiative.metrics.forEach { PartnerMetricLine(it) }
+        PartnerSpendCategories(initiative.spend)
+    }
+}
+
+@Composable
+private fun PartnerSpendCategories(categories: List<PartnerSpendCategory>) {
+    Text(stringResource(R.string.partner_spend_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+    if (categories.isEmpty()) Text(stringResource(R.string.partner_no_spend))
+    categories.forEach { Text(stringResource(R.string.partner_label_value, it.category, it.amountLabel)) }
+}
+
+@Composable
+private fun PartnerSpendSection(snapshot: PartnerSnapshot) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("partner-spend-section")) {
+        Text(stringResource(R.string.partner_all_initiatives), style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+        PartnerSpendCategories(snapshot.spend)
+        // The aggregate spend endpoint has no timestamp; never borrow another figure's update date.
+        PartnerUpdatedAt(null)
+        snapshot.initiatives.forEach { initiative ->
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
+                    Text(initiative.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+                    PartnerSpendCategories(initiative.spend)
+                    PartnerUpdatedAt(initiative.updatedAt)
+                }
+            }
         }
     }
 }

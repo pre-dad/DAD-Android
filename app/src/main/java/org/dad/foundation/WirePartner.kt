@@ -196,8 +196,16 @@ class WirePartner(
             region = i.str("region"), committedMinor = i.long("committed_minor"), deployedMinor = i.long("deployed_minor"),
             metrics = i.array("metrics").map {
                 val m = it.asObjectOrInvalid()
-                PartnerMetric(m.str("label"), m.long("value"), PartnerMetric.Unit.from(m.str("unit")))
+                val verifiedOn = try { java.time.LocalDate.parse(m.str("verified_on")) }
+                catch (_: java.time.format.DateTimeParseException) { throw AccountFailure.InvalidResponse }
+                PartnerMetric(m.str("label"), m.long("value"), PartnerMetric.Unit.from(m.str("unit")), verifiedOn)
             },
+            countyCount = i.long("county_count").toIntOrInvalid().also { if (it < 0) throw AccountFailure.InvalidResponse },
+            spend = i.array("spend").map {
+                val category = it.asObjectOrInvalid()
+                PartnerSpendCategory(category.str("category"), category.long("amount_minor"))
+            },
+            updatedAt = i.time("updated_at"),
         )
     }
 

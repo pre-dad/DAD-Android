@@ -15,6 +15,17 @@ import org.junit.Test
 
 /** Real partner conformers over a scripted transport (Retrofit + OkHttp run for real). */
 class WirePartnerTest {
+    @Test fun initiativeDetailKeepsCountySpendAndVerificationDates() = runTest {
+        val http = ScriptedHttp { 200 to """{"initiatives":[{"id":"i1","title":"Water","summary":"Wells","status":"ACTIVE","region":"West","county_count":6,"committed_minor":2000000,"deployed_minor":1200000,"metrics":[{"label":"People","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"}],"spend":[{"category":"Water","amount_minor":1200000}],"updated_at":"2026-10-28T10:00:00Z"}]}""" }
+        val session = PartnerSession(MemoryStore()).also { it.install("PB") }
+        val initiative = WirePartner(TEST_ORIGIN, session, http.client()).initiatives().single()
+        assertEquals(6, initiative.countyCount)
+        assertEquals(0.6f, initiative.deployedFraction!!, 0.001f)
+        assertEquals(1200000L, initiative.spend.single().amountMinor)
+        assertEquals(java.time.LocalDate.of(2026, 10, 20), initiative.metrics.single().verifiedOn)
+        assertEquals(java.time.OffsetDateTime.parse("2026-10-28T10:00:00Z"), initiative.updatedAt)
+    }
+
     private class MemoryStore(var value: Credentials? = null) : CredentialStore {
         override fun load() = value
         override fun save(value: Credentials) { this.value = value }
