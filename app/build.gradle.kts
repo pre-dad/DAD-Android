@@ -138,6 +138,11 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
 }
 
 dependencies {
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-android") {
+            because("GHSA-xxph-c9ww-hj94 affects the version brought in by CameraX/Media3")
+        }
+    }
     add("codegenDependencies", "org.openapitools:openapi-generator-cli:7.20.0") { isTransitive = false }
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
