@@ -66,7 +66,7 @@ class DonorHomeModelsTest {
         val service = FakeService().apply {
             dashboardResult = {
                 if (fail) throw AccountFailure.Unavailable
-                DashboardState.Ready((readyDash() as DashboardState.Ready).dashboard.copy(foundingDonor = founding))
+                DashboardState.Ready(readyDash().dashboard.copy(foundingDonor = founding))
             }
         }
         val model = DashboardModel(service)
