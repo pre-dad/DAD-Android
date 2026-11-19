@@ -67,6 +67,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
+                if (error is AccountFailure.SignedOut) signedOut = true
                 phase = SettingsPhase.Failed(message(error))
             }
         }
@@ -109,6 +110,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
+                    if (error is AccountFailure.SignedOut) signedOut = true
                     actionError = message(error)
                 }
             }
@@ -129,6 +131,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
                 throw error
             } catch (error: Exception) {
                 leaving = false
+                if (error is AccountFailure.SignedOut) signedOut = true
                 deletionBlocked = error is AccountFailure.DeletionBlocked
                 actionError = message(error)
                 return@launch
@@ -150,6 +153,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
                 throw error
             } catch (error: Exception) {
                 leaving = false
+                if (error is AccountFailure.SignedOut) signedOut = true
                 actionError = message(error)
             }
         }

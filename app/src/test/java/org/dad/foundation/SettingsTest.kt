@@ -111,6 +111,17 @@ class SettingsTest {
         val model = SettingsModel(FakeService(failLoad = true))
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.phase is SettingsPhase.Failed)
+        assertTrue("a refused session must leave Settings", model.signedOut)
+    }
+
+    @Test fun aRefusedSessionDuringASaveLeavesSettings() = runTest {
+        val service = FakeService()
+        val model = loaded(service)
+        service.saveFailure = AccountFailure.SignedOut
+        model.toggle("marketing_emails", true)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(model.signedOut)
+        assertFalse(model.snapshot!!.preferences.marketingEmails)
     }
 
     @Test fun toggleSavesAndBumpsVersion() = runTest {
