@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,7 +28,7 @@ fun DadGiftFraming(
     modifier: Modifier = Modifier,
     monthlyModifier: Modifier = Modifier,
     dailyModifier: Modifier = Modifier,
-    color: Color = DadTheme.color("ink"),
+    color: Color = LocalContentColor.current,
 ) {
     Column(
         modifier = modifier.contentDescribed(R.string.ui_gift_framing_description, monthly, daily),
