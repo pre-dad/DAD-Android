@@ -53,8 +53,8 @@ arguments or `<plurals>` for counts, never concatenated sentences) and use `stri
   string-to-string properties, extra keys are rejected. Pinned per event in `AttributionTest`.
 - **Generator constraints:** `anyOf` + `type: null` and `additionalProperties: false`
   need handling (the `LogoutAcknowledgement` pattern); new nullable shapes may too.
-- **Do not promote time-varying lint advisories to errors.** `NewerVersionAvailable` /
-  `AndroidGradlePluginVersion` flag that an upstream release merely exists, not a code
+- **Do not promote time-varying lint advisories to errors.** `NewerVersionAvailable`,
+  `AndroidGradlePluginVersion` and `GradleDependency` flag that an upstream release merely exists, not a code
   defect — so `warningsAsErrors` on them breaks CI on untouched code whenever any
   dependency ships. Disable those specific checks rather than chasing version bumps.
 - **The synthetic preview session is DEBUG-gated** (`check(BuildConfig.DEBUG)` in the
