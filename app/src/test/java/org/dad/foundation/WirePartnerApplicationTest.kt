@@ -51,6 +51,18 @@ class WirePartnerApplicationTest {
         // The write needs nothing from the 200 body, so an empty or malformed one is not a failure.
         WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { 200 to "" }.client()).submit(attempt())
         assertNotNull(store.value)
+        WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { 200 to "[" }.client()).submit(attempt())
+    }
+
+    @Test fun aTransportBodyLimitNeverConfirmsAnApplication() = runTest {
+        for (status in listOf(200, 422, 503)) {
+            val store = MemoryStore()
+            val actual = runCatching {
+                WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { status to "x".repeat(1_048_577) }.client()).submit(attempt())
+            }.exceptionOrNull()
+            assertEquals("$status did not yield a usable response", ApplicationSubmitFailure.Unconfirmed, actual)
+            assertNotNull("an unconfirmed request keeps its receipt", store.value)
+        }
     }
 
     @Test fun aDefinitiveRefusalForgetsTheReceipt() = runTest {

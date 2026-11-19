@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.gson.JsonElement
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -17,6 +16,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import org.dad.foundation.generated.model.ApplyWithReceiptRequest
 import org.dad.foundation.generated.model.ApplyWithReceiptRequestApplication
 import retrofit2.Response
@@ -96,7 +96,7 @@ interface PartnerApplicationService {
 
 private interface ApplicationWrites {
     @POST("donor/partner/applications")
-    suspend fun apply(@Header("Idempotency-Key") key: UUID, @Body body: ApplyWithReceiptRequest): Response<JsonElement>
+    suspend fun apply(@Header("Idempotency-Key") key: UUID, @Body body: ApplyWithReceiptRequest): Response<ResponseBody>
 }
 
 /**
@@ -130,18 +130,15 @@ class WirePartnerApplication(
     private suspend fun send(attempt: PartnerApplicationAttempt) {
         val response = try {
             val api = nativeRetrofit(url, baseClient).create(ApplicationWrites::class.java)
-            decoding { api.apply(UUID.fromString(attempt.idempotencyKey), attempt.application.toRequest(attempt.receipt)) }
+            api.apply(UUID.fromString(attempt.idempotencyKey), attempt.application.toRequest(attempt.receipt))
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: AccountFailure.InvalidResponse) {
-            // A 2xx with an unreadable body is still a success for this fire-and-forget write (`{"received":true}`
-            // carries nothing the app needs), so an invalid-body decode on a success is not a failure.
-            return
         } catch (_: java.io.IOException) {
             // A lost or timed-out connection: the server may have received it.
             throw ApplicationSubmitFailure.Unconfirmed
         }
-        if (response.isSuccessful) return
+        // The acknowledgement carries no data we need, but success still requires a received 2xx status.
+        if (response.isSuccessful) { response.body()?.close(); return }
         val retryAfter = response.headers()["Retry-After"]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
         response.errorBody()?.close()
         throw when (response.code()) {
