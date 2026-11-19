@@ -125,21 +125,21 @@ the app claims when it opens or from a pasted link on "Check your email"), email
 (`postDonorMePassword`: a 422 with code `CURRENT_PASSWORD_INCORRECT` is a wrong current password and keeps the
 session; a real 401 refreshes once, then signs out). Passwords are masked, never logged, and cleared after send.
 
-**Built but switched off until configured:** Google sign-in (`oidcSignIn`) and passkeys
-(`beginDonorPasskeySignIn`/`finishDonorPasskeySignIn`). The server exchanges, models, UI states and stub-transport
-tests exist; the sign-in screen hides both buttons while no platform provider is linked and shows each as soon as its provider is supplied. Sign in with Apple is
-not offered on Android. To turn them on you must supply:
+**Google sign-in:** `oidcSignIn` now uses AndroidX Credential Manager and the Google ID library. The native
+button appears when a valid `dadGoogleWebClientId` is supplied. Its provider uses the current Activity,
+binds each request's nonce, handles cancellation without signing in, and clears platform credential state
+on sign-out. Provider adapters are covered with synthetic SDK responses; a real Google account still needs
+the deployment configuration below. Sign in with Apple is not offered on Android.
 
-- **Both:** the AndroidX Credential Manager dependency (`androidx.credentials`, plus
-  `androidx.credentials:credentials-play-services-auth` for older devices), and an implementation of
-  `GoogleIdTokenProvider` / `PasskeyAuthenticator` passed in `ExternalSignInDeps` (not yet written, a dependency decision).
 - **Google nonce:** every attempt gets a fresh `SignInNonce` (32 random bytes, base64url, single-use, never logged
-  or stored). `GoogleIdTokenProvider.idToken(nonce)` receives it, and the Credential Manager implementation must pass
-  that exact value to `GetGoogleIdOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
+  or stored). `GoogleIdTokenProvider.idToken(nonce)` passes that exact value to
+  `GetSignInWithGoogleOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
   `oidcSignIn` body; the server accepts it raw or as lowercase hex SHA-256 of it in the id_token `nonce` claim.
 - **Google:** a Google Cloud *web* OAuth client ID (`-PdadGoogleWebClientId=...apps.googleusercontent.com`), an Android
-  OAuth client for the release signing certificate's SHA-1, and the Google ID library
-  (`com.google.android.libraries.identity.googleid`). The same client ID must be accepted by DAD-Main's OIDC verifier.
+  OAuth client for the release signing certificate's SHA-1. The same client ID must be accepted by DAD-Main's OIDC verifier.
+
+**Optional passkeys remain off:** the server exchanges, models and UI states exist, but a platform
+`PasskeyAuthenticator` must still be supplied in `ExternalSignInDeps` before the button appears.
 - **Passkeys:** the relying-party domain (`-PdadPasskeyRpId=dad.example`) and that domain's
   `/.well-known/assetlinks.json` with the `delegate_permission/common.get_login_creds` relation for the app
   package and release certificate fingerprint.

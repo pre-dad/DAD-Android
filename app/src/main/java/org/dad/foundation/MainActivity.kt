@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,6 +95,7 @@ sealed interface AccountState {
 class AccountModel(
     private val factory: (CoroutineScope, LaunchOptions) -> AppServices,
     private val io: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    internal val credentialHost: CredentialActivityHost = CredentialActivityHost(),
 ) : ViewModel() {
     var state: AccountState by mutableStateOf(AccountState.Loading)
         private set
@@ -225,6 +227,13 @@ class AccountModel(
 
     /** Sign-out, account deletion or a revoked session: back to sign-in. */
     fun onSignedOut(message: UiText? = null) {
+        auth.external.clearPlatformSession?.let { clear ->
+            viewModelScope.launch {
+                try { kotlinx.coroutines.withTimeout(5_000) { clear() } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Local sign-out must still complete when a credential provider is unavailable. */ }
+            }
+        }
         notice = message
         pushRegistered = false
         destination = null
@@ -466,6 +475,7 @@ class MainActivity : ComponentActivity() {
         }
         val factory = viewModelFactory {
             initializer {
+                val credentialHost = CredentialActivityHost()
                 AccountModel(factory = factory@{ scope, options ->
                     if (BuildConfig.DEBUG) DebugBackend.stub(appContext, scope, options)?.let { return@factory it }
                     if (BuildConfig.DAD_API_ORIGIN.isBlank()) {
@@ -485,6 +495,8 @@ class MainActivity : ComponentActivity() {
                         val pushOptOuts = PrefsPushOptOuts(appContext)
                         val credentialAuth = WireCredentialAuth(origin, android.os.Build.MODEL, http)
                         val external = WireExternalSignIn(origin, android.os.Build.MODEL, http)
+                        val signInConfig = SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)
+                        val googleTokens = signInConfig.validGoogleClientId?.let { PlatformGoogleTokens(appContext, credentialHost, it) }
                         AppServices(
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
@@ -516,17 +528,22 @@ class MainActivity : ComponentActivity() {
                             installReferrer = InstallReferrerIntake(
                                 PlayInstallReferrer({ PlayReferrerConnection(appContext) }), PrefsInstallReferrerLedger(appContext), links),
                             external = ExternalSignInDeps(
-                                // No Credential Manager provider is linked, so a configured ID alone never switches a method on.
-                                capabilities = SignInCapabilities.of(SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)),
+                                capabilities = SignInCapabilities.of(signInConfig, googleProviderAvailable = googleTokens != null),
                                 oidc = external, passkey = external,
+                                googleTokens = googleTokens,
+                                clearPlatformSession = googleTokens?.let { tokens -> tokens::clear },
                             ),
                         )
                     }
-                })
+                }, credentialHost = credentialHost)
             }
         }
         setContent {
             val model: AccountModel = viewModel(factory = factory)
+            DisposableEffect(model) {
+                model.credentialHost.bind(this@MainActivity)
+                onDispose { model.credentialHost.unbind(this@MainActivity) }
+            }
             LaunchedEffect(Unit) { model.start(launch) }
             LaunchedEffect(linkEvent) {
                 val router = linkRouter ?: run {
