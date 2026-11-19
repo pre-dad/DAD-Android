@@ -47,6 +47,20 @@ class WirePartnerStatusTest {
         "retained" to { it.retainedReport("r1") },
     )
 
+    @Test fun reportLimitsPreserveTheSessionAndExplainTheRefusal() = runTest {
+        for ((status, code, reason) in listOf(
+            Triple(429, "PARTNER_REPORT_DAILY_LIMIT", PartnerReportLimit.Reason.DAILY),
+            Triple(409, "PARTNER_REPORT_STORAGE_LIMIT", PartnerReportLimit.Reason.STORAGE),
+            Triple(413, "PARTNER_REPORT_TOO_LARGE", PartnerReportLimit.Reason.TOO_LARGE),
+        )) {
+            val http = ScriptedHttp { status to "{\"code\":\"$code\"}" }
+            val store = MemoryStore()
+            val failure = runCatching { wire(http, store).report() }.exceptionOrNull()
+            assertEquals(reason, (failure as? PartnerReportLimit)?.reason)
+            assertNotNull(store.value)
+        }
+    }
+
     @Test fun everyOperationMapsEveryStatusTheSameWay() = runTest {
         val expected = mapOf(
             401 to AccountFailure.SignedOut, 403 to AccountFailure.Forbidden, 404 to AccountFailure.NotFound,

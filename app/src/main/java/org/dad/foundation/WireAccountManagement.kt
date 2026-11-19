@@ -26,8 +26,9 @@ private interface SessionReads {
  * `employeeEnroll` / `employeeJoinTeam`, all authorized through the session.
  */
 class WireAccountManagement(private val product: ProductClient) : AccountManagementService {
-    override suspend fun saveProfile(zip: String, city: String, phone: String): ProfileSummary {
-        return product.perform { it.create(DonorApi::class.java).saveProfile(SaveProfileRequest(zip = zip, city = city, phone = phone)).requireBody() }.summary()
+    override suspend fun saveProfile(zip: String, city: String, phone: String, timezoneOverride: String?): ProfileSummary {
+        if (timezoneOverride != null && StreakTimeZone.choices.none { it.first == timezoneOverride }) throw AccountFailure.InvalidInput
+        return product.perform { it.create(DonorApi::class.java).saveProfile(SaveProfileRequest(zip = zip, city = city, phone = phone, timezoneOverride = timezoneOverride)).requireBody() }.summary()
     }
 
     override suspend fun requestEmailChange(email: String) {
@@ -60,7 +61,7 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
             organization = body.organization.ifEmpty { null },
             teamName = body.teamName?.ifEmpty { null },
             leaderboard = body.leaderboard.map {
-                TeamStanding(it.teamId, it.name, it.activeGivers, it.annualizedMinor, it.avgStreakDays, it.volunteerMinutes)
+                TeamStanding(it.teamId, it.name, it.activeGivers, it.annualizedMinor, it.avgStreakDays, it.volunteerMinutes, metricsVerified = it.metricsVerified)
             },
         )
     }

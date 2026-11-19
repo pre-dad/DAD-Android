@@ -76,7 +76,7 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
 }
 
 internal fun Profile.summary() = ProfileSummary(
-    email = email.orInvalid(), accountRole = accountRole.orInvalid().value, zip = zip.orNullIfBlank(), city = city.orNullIfBlank(), phone = phone.orNullIfBlank())
+    email = email.orInvalid(), accountRole = accountRole.orInvalid().value, zip = zip.orNullIfBlank(), city = city.orNullIfBlank(), phone = phone.orNullIfBlank(), timezone = timezone.orNullIfBlank(), timezoneOverride = timezoneOverride.orNullIfBlank())
 
 // Gson leaves absent fields null despite the generated non-null types; treat that as a bad response.
 private fun <T> T?.orInvalid(): T = this ?: throw AccountFailure.InvalidResponse

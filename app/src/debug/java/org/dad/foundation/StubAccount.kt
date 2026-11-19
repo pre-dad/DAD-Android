@@ -63,7 +63,7 @@ internal class StubAccount {
         val org = employer ?: return """{"partner_id":"","organization":"","leaderboard":[]}"""
         val mine = team?.let { ""","team_id":"$TEAM_ID","team_name":"$it"""" }.orEmpty()
         return """{"partner_id":"44444444-4444-4444-8444-444444444444","organization":"$org"$mine,"leaderboard":[""" +
-            """{"team_id":"55555555-5555-4555-8555-555555555555","name":"Design","active_givers":7,"annualized_minor":420000,"avg_streak_days":21,"volunteer_minutes":180}]}"""
+            """{"team_id":"55555555-5555-4555-8555-555555555555","name":"Design","metrics_verified":true,"active_givers":7,"annualized_minor":420000,"avg_streak_days":21,"volunteer_minutes":180}]}"""
     }
 
     companion object {

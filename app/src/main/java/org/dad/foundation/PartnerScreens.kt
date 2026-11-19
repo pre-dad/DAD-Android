@@ -386,7 +386,8 @@ private fun PartnerPeopleSection(snapshot: PartnerSnapshot) {
                 Text(stringResource(R.string.partner_enrolled_of_total, people.enrolled, people.workforceSize))
                 people.givenLabel?.let { Text(stringResource(R.string.partner_given, it), modifier = Modifier.testTag("partner-given")) }
                 people.matchedLabel?.let { Text(stringResource(R.string.partner_matched, it)) }
-                Text(pluralStringResource(R.plurals.partner_average_streak_days, people.avgStreakDays.toQuantity(), people.avgStreakDays))
+                if (people.streakVerified) Text(pluralStringResource(R.plurals.partner_average_streak_days, people.avgStreakDays.toQuantity(), people.avgStreakDays))
+                else Text(stringResource(R.string.streak_awaiting))
                 Text(pluralStringResource(R.plurals.partner_volunteered_hours, (people.volunteerMinutes / 60).toQuantity(), people.volunteerMinutes / 60))
             }
         }
@@ -396,8 +397,12 @@ private fun PartnerPeopleSection(snapshot: PartnerSnapshot) {
             Text(stringResource(R.string.partner_teams), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(stringResource(R.string.partner_teams_with_fewer_than_5_people_are), style = MaterialTheme.typography.bodySmall)
             snapshot.teams.forEachIndexed { index, team ->
-                Text(pluralStringResource(R.plurals.partner_team_line, team.activeGivers.toQuantity(), index + 1, team.name, team.activeGivers, formatMinorUsd(team.annualizedMinor)),
-                    modifier = Modifier.testTag("partner-team-${team.id}"))
+                Column(Modifier.testTag("partner-team-${team.id}")) {
+                    Text(if (snapshot.teams.all { it.metricsVerified }) stringResource(R.string.acct_leaderboard_rank_name, index + 1, team.name) else team.name)
+                    if (team.metricsVerified) Text(pluralStringResource(R.plurals.team_verified_stats, team.activeGivers.toQuantity(), team.activeGivers, formatMinorUsd(team.annualizedMinor)))
+                    else Text(stringResource(R.string.metrics_awaiting))
+                    Text(pluralStringResource(R.plurals.partner_volunteered_hours, (team.volunteerMinutes / 60).toQuantity(), team.volunteerMinutes / 60))
+                }
             }
         }
     }

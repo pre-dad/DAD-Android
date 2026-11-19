@@ -122,7 +122,7 @@
 
     <!-- Account details, employer and sessions -->
     <string name="acct_your_details">Your details</string>
-    <string name="acct_your_zip_code_sets_your_city_for">Your ZIP code sets your city for events and rankings, and your time zone.</string>
+    <string name="acct_your_zip_code_sets_your_city_for">Your ZIP code suggests your time zone. Correct it below if your local midnight differs.</string>
     <string name="acct_enter_a_5_digit_zip_code_or_leave">Enter a 5-digit ZIP code, or leave it empty.</string>
     <string name="acct_mobile_phone">Mobile phone</string>
     <string name="acct_enter_a_us_number_or_include_the">Enter a US number, or include the country code starting with +.</string>
@@ -659,10 +659,6 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
-    <plurals name="partner_team_line">
-        <item quantity="one">%1$d. %2$s · %3$d givers · %4$s/yr</item>
-        <item quantity="other">%1$d. %2$s · %3$d givers · %4$s/yr</item>
-    </plurals>
     <plurals name="partner_average_streak_days">
         <item quantity="one">Average streak: %1$d days</item>
         <item quantity="other">Average streak: %1$d days</item>
@@ -748,4 +744,28 @@
     <!-- Shared components -->
     <string name="ui_streak_bar_description" tools:ignore="PluralsCandidate">Streak: %1$d of %2$d days</string>
     <string name="ui_gift_framing_description">%1$s, %2$s</string>
+    <string name="timezone_auto">Use ZIP suggestion</string>
+    <string name="timezone_eastern">Eastern</string>
+    <string name="timezone_central">Central</string>
+    <string name="timezone_mountain">Mountain</string>
+    <string name="timezone_arizona">Arizona</string>
+    <string name="timezone_pacific">Pacific</string>
+    <string name="timezone_alaska">Alaska</string>
+    <string name="timezone_aleutian">Aleutian Islands</string>
+    <string name="timezone_hawaii">Hawaii</string>
+    <string name="timezone_puerto_rico">Puerto Rico / US Virgin Islands</string>
+    <string name="timezone_guam">Guam / Northern Mariana Islands</string>
+    <string name="timezone_samoa">American Samoa</string>
+    <string name="timezone_title">Streak time zone</string>
+    <string name="timezone_saved">Saved streak time zone: %1$s</string>
+    <string name="metrics_awaiting">Giving and streak figures are awaiting verification.</string>
+    <string name="streak_awaiting">Streak figures are awaiting verification.</string>
+    <string name="timezone_selected">Streak time zone: %1$s</string>
+    <plurals name="team_verified_stats">
+        <item quantity="one">%1$d giver · %2$s/yr</item>
+        <item quantity="other">%1$d givers · %2$s/yr</item>
+    </plurals>
+    <string name="report_daily_limit">This organization has reached today’s report limit. Try after midnight UTC. Existing reports remain available.</string>
+    <string name="report_storage_limit">Report storage is full. Download an existing report or contact DAD support.</string>
+    <string name="report_size_limit">This report is too large to export. Existing reports remain available; contact DAD support.</string>
 </resources>

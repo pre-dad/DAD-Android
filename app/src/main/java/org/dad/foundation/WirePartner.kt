@@ -210,14 +210,14 @@ class WirePartner(
         val p = read { people() }
         return PartnerPeople(
             p.long("enrolled"), p.long("workforce_size").toIntOrInvalid(), p.long("given_minor"), p.long("matched_minor"),
-            p.long("avg_streak_days"), p.long("volunteer_minutes"), p.long("teams"), suppressed = p.bool("suppressed"),
+            p.long("avg_streak_days"), p.long("volunteer_minutes"), p.long("teams"), suppressed = p.bool("suppressed"), streakVerified = p.bool("streak_verified"),
         )
     }
 
     override suspend fun teams(): List<TeamStanding> = read { teams() }.array("teams").map {
         val t = it.asObjectOrInvalid()
         TeamStanding(t.str("team_id"), t.str("name"), t.long("active_givers"), t.long("annualized_minor"),
-            t.long("avg_streak_days"), t.long("volunteer_minutes"))
+            t.long("avg_streak_days"), t.long("volunteer_minutes"), metricsVerified = t.bool("metrics_verified"))
     }
 
     override suspend fun users(): List<PartnerUser> = read { users() }.array("users").map {
@@ -256,7 +256,20 @@ class WirePartner(
     }
 
     override suspend fun report(): ByteArray =
-        perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).report().partnerBody().use(ResponseBody::bytes) }
+        perform(PDF_LIMIT) {
+            val response = it.create(PartnerFiles::class.java).report()
+            if (!response.isSuccessful) {
+                val code = response.problem().first
+                val reason = when {
+                    response.code() == 429 && code == "PARTNER_REPORT_DAILY_LIMIT" -> PartnerReportLimit.Reason.DAILY
+                    response.code() == 409 && code == "PARTNER_REPORT_STORAGE_LIMIT" -> PartnerReportLimit.Reason.STORAGE
+                    response.code() == 413 && code == "PARTNER_REPORT_TOO_LARGE" -> PartnerReportLimit.Reason.TOO_LARGE
+                    else -> null
+                }
+                if (reason != null) throw PartnerReportLimit(reason)
+            }
+            response.partnerBody().use(ResponseBody::bytes)
+        }
 
     override suspend fun retainedReport(id: String): ByteArray =
         perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).retained(id).partnerBody().use(ResponseBody::bytes) }

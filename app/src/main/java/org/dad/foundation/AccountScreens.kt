@@ -1,5 +1,12 @@
 package org.dad.foundation
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,7 +64,7 @@ private fun StatusLine(message: String, tag: String) {
     Text(message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(tag).semantics { liveRegion = LiveRegionMode.Polite })
 }
 
-/** ZIP, city and phone. The ZIP sets the donor's city for events and rankings, and their time zone. */
+/** A manual zone corrects ZIP suggestions at regional boundaries. */
 @Composable
 internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
     val busy = model.phase == DetailsPhase.Saving
@@ -70,6 +77,7 @@ internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth().testTag("details-zip"),
         )
+        StreakTimeZonePicker(model, busy)
         OutlinedTextField(
             value = model.city, onValueChange = { model.city = it.take(ProfileRules.CITY_LIMIT) }, label = { Text(stringResource(R.string.common_city)) }, singleLine = true, enabled = !busy,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
@@ -89,6 +97,36 @@ internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
         }
         OutlinedButton(onClick = model::save, enabled = model.canSave, modifier = Modifier.heightIn(min = 48.dp).testTag("details-save")) { Text(stringResource(R.string.acct_save_details)) }
     }
+}
+
+@Composable
+private fun StreakTimeZonePicker(model: ProfileDetailsModel, busy: Boolean) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val selected = StreakTimeZone.choices.firstOrNull { it.first == model.timezoneOverride } ?: StreakTimeZone.choices.first()
+    OutlinedButton(onClick = { expanded = true }, enabled = !busy, modifier = Modifier.testTag("details-timezone")) {
+        Text(stringResource(R.string.timezone_selected, stringResource(selected.second)))
+    }
+    model.profile.timezone?.let { Text(stringResource(R.string.timezone_saved, it), style = MaterialTheme.typography.bodySmall) }
+    if (expanded) AlertDialog(
+        onDismissRequest = { expanded = false },
+        title = { Text(stringResource(R.string.timezone_title)) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).selectableGroup()) {
+                StreakTimeZone.choices.forEach { (value, label) ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
+                            selected = model.timezoneOverride == value, role = Role.RadioButton,
+                            onClick = { model.timezoneOverride = value; expanded = false },
+                        ), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = model.timezoneOverride == value, onClick = null)
+                        Text(stringResource(label))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { expanded = false }) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /**
@@ -175,9 +213,11 @@ private fun Linked(model: EmployerModel, organization: String, team: EmployerTea
     } else {
         team.leaderboard.forEachIndexed { index, row ->
             Column(Modifier.testTag("leaderboard-${row.id}")) {
-                Text(stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name), style = MaterialTheme.typography.titleSmall)
-                Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatUsdMinor(row.annualizedMinor.clampToInt()), row.avgStreakDays),
-                    style = MaterialTheme.typography.bodySmall)
+                Text(if (team.leaderboard.all { it.metricsVerified }) stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name) else row.name, style = MaterialTheme.typography.titleSmall)
+                if (row.metricsVerified) {
+                    Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatUsdMinor(row.annualizedMinor.clampToInt()), row.avgStreakDays),
+                        style = MaterialTheme.typography.bodySmall)
+                } else Text(stringResource(R.string.metrics_awaiting), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

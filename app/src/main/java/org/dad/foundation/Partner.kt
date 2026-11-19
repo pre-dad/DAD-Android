@@ -99,6 +99,7 @@ data class PartnerPeople(
     val volunteerMinutes: Long,
     val teams: Long,
     val suppressed: Boolean,
+    val streakVerified: Boolean = false,
 ) {
     val givenLabel: String? get() = if (suppressed) null else formatMinorUsd(givenMinor)
     val matchedLabel: String? get() = if (suppressed) null else formatMinorUsd(matchedMinor)

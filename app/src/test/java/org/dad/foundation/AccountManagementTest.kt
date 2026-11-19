@@ -64,7 +64,7 @@ class AccountManagementModelTest {
         var everywhere = 0
         private fun check() { failure?.let { throw it } }
 
-        override suspend fun saveProfile(zip: String, city: String, phone: String): ProfileSummary {
+        override suspend fun saveProfile(zip: String, city: String, phone: String, timezoneOverride: String?): ProfileSummary {
             check(); saved += Triple(zip, city, phone)
             return ProfileSummary("alex@example.org", "DONOR", zip.ifEmpty { null }, city.ifEmpty { null }, phone.ifEmpty { null })
         }
@@ -253,6 +253,18 @@ class WireAccountManagementTest {
         assertEquals(AccountFailure.InvalidInput, failure { Rig(backgroundScope) { 422 to "{}" }.wire.saveProfile("1", "", "") })
     }
 
+    @Test fun timezoneCorrectionResetAndOmissionUseDistinctWireValues() = runTest {
+        val rig = Rig(backgroundScope) { 200 to profileJson().replace("\"timezone\":\"America/Chicago\"", "\"timezone\":\"America/Phoenix\",\"timezone_override\":\"America/Phoenix\"") }
+        val saved = rig.wire.saveProfile("78701", "Austin", "", "America/Phoenix")
+        assertEquals("America/Phoenix", saved.timezone)
+        assertEquals("America/Phoenix", saved.timezoneOverride)
+        assertTrue(rig.http.requests.last().body.contains("\"timezone_override\":\"America/Phoenix\""))
+        rig.wire.saveProfile("78701", "Austin", "", "")
+        assertTrue(rig.http.requests.last().body.contains("\"timezone_override\":\"\""))
+        assertEquals(AccountFailure.InvalidInput, failure { rig.wire.saveProfile("", "", "", "Invalid/Zone") })
+        assertEquals(2, rig.http.requests.size)
+    }
+
     @Test fun emailChangeStatusMapping() = runTest {
         val rig = Rig(backgroundScope) { 200 to """{"stage":"CURRENT"}""" }
         rig.wire.requestEmailChange("new@example.org")
@@ -288,7 +300,7 @@ class WireAccountManagementTest {
         assertEquals(EmployerTeam(null, null, emptyList()),
             Rig(backgroundScope) { 200 to """{"partner_id":"","organization":"","leaderboard":[]}""" }.wire.employer())
         val linked = Rig(backgroundScope) {
-            200 to """{"partner_id":"p","organization":"Acme","team_id":"t","team_name":"Platform","leaderboard":[{"team_id":"t","name":"Platform","active_givers":6,"annualized_minor":360000,"avg_streak_days":12,"volunteer_minutes":90}]}"""
+            200 to """{"partner_id":"p","organization":"Acme","team_id":"t","team_name":"Platform","leaderboard":[{"team_id":"t","name":"Platform","metrics_verified":true,"active_givers":6,"annualized_minor":360000,"avg_streak_days":12,"volunteer_minutes":90}]}"""
         }.wire.employer()
         assertEquals("Acme", linked.organization)
         assertEquals("Platform", linked.teamName)

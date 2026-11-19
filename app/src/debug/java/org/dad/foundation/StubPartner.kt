@@ -90,10 +90,10 @@ internal class StubPartner(
                 """"metrics":[{"label":"People reached","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"}],""" +
                 """"spend":[{"category":"Water","amount_minor":1200000}],"updated_at":"2026-10-28T10:00:00Z"}]}""")
             "GET" to "/donor/partner/spend" -> Reply(200, """{"categories":[{"category":"Water","amount_minor":1800000},{"category":"Housing","amount_minor":1200000}]}""")
-            "GET" to "/donor/partner/our-people" -> Reply(200, """{"enrolled":86,"workforce_size":$workforce,"given_minor":940000,"matched_minor":470000,""" +
+            "GET" to "/donor/partner/our-people" -> Reply(200, """{"enrolled":86,"workforce_size":$workforce,"streak_verified":true,"given_minor":940000,"matched_minor":470000,""" +
                 """"avg_streak_days":42,"volunteer_minutes":6300,"teams":2,"suppressed":false}""")
-            "GET" to "/donor/partner/teams" -> Reply(200, """{"teams":[{"team_id":"t1","name":"Engineering","active_givers":31,"annualized_minor":1200000,""" +
-                """"avg_streak_days":40,"volunteer_minutes":1200},{"team_id":"t2","name":"Sales","active_givers":12,"annualized_minor":600000,""" +
+            "GET" to "/donor/partner/teams" -> Reply(200, """{"teams":[{"team_id":"t1","name":"Engineering","metrics_verified":true,"active_givers":31,"annualized_minor":1200000,""" +
+                """"avg_streak_days":40,"volunteer_minutes":1200},{"team_id":"t2","name":"Sales","metrics_verified":true,"active_givers":12,"annualized_minor":600000,""" +
                 """"avg_streak_days":18,"volunteer_minutes":300}]}""")
             "GET" to "/donor/partner/users" -> Reply(200, """{"users":[${users.joinToString(",")}]}""")
             "POST" to "/donor/partner/users" -> {

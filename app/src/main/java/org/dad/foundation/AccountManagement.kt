@@ -20,6 +20,7 @@ data class DeviceSessionSummary(val id: String, val label: String, val isApp: Bo
 
 data class TeamStanding(
     val id: String, val name: String, val activeGivers: Long, val annualizedMinor: Long, val avgStreakDays: Long, val volunteerMinutes: Long,
+    val metricsVerified: Boolean = false,
 )
 
 /** The donor's employer link: [organization] is null until a company code links one. The leaderboard only
@@ -28,7 +29,7 @@ data class EmployerTeam(val organization: String?, val teamName: String?, val le
 
 interface AccountManagementService {
     /** Empty strings clear a field. Returns the saved profile. */
-    suspend fun saveProfile(zip: String, city: String, phone: String): ProfileSummary
+    suspend fun saveProfile(zip: String, city: String, phone: String, timezoneOverride: String? = null): ProfileSummary
     /** Starts the two-step change: a confirmation goes to the current address first. */
     suspend fun requestEmailChange(email: String)
     suspend fun sessions(): List<DeviceSessionSummary>
@@ -47,6 +48,18 @@ interface WalletPassService {
     suspend fun googleWalletAvailable(): Boolean
     /** The Google Wallet save link for the donor's referral code. */
     suspend fun googlePassUrl(): String
+}
+
+object StreakTimeZone {
+    val choices = listOf(
+        "" to R.string.timezone_auto,
+        "America/New_York" to R.string.timezone_eastern, "America/Chicago" to R.string.timezone_central,
+        "America/Denver" to R.string.timezone_mountain, "America/Phoenix" to R.string.timezone_arizona,
+        "America/Los_Angeles" to R.string.timezone_pacific, "America/Anchorage" to R.string.timezone_alaska,
+        "America/Adak" to R.string.timezone_aleutian, "Pacific/Honolulu" to R.string.timezone_hawaii,
+        "America/Puerto_Rico" to R.string.timezone_puerto_rico,
+        "Pacific/Guam" to R.string.timezone_guam, "Pacific/Pago_Pago" to R.string.timezone_samoa,
+    )
 }
 
 object ProfileRules {
@@ -103,6 +116,7 @@ class ProfileDetailsModel(initial: ProfileSummary, private val service: AccountM
     var zip by mutableStateOf(initial.zip.orEmpty())
     var city by mutableStateOf(initial.city.orEmpty())
     var phone by mutableStateOf(initial.phone.orEmpty())
+    var timezoneOverride by mutableStateOf(initial.timezoneOverride.orEmpty())
     var phase: DetailsPhase by mutableStateOf(DetailsPhase.Idle)
         private set
 
@@ -110,8 +124,8 @@ class ProfileDetailsModel(initial: ProfileSummary, private val service: AccountM
     val phoneValid: Boolean get() = ProfileRules.e164(phone) != null
     val cityValid: Boolean get() = city.trim().length <= ProfileRules.CITY_LIMIT
     val changed: Boolean
-        get() = zip.trim() != profile.zip.orEmpty() || city.trim() != profile.city.orEmpty() || ProfileRules.e164(phone) != profile.phone.orEmpty()
-    val canSave: Boolean get() = zipValid && phoneValid && cityValid && changed && phase != DetailsPhase.Saving
+        get() = timezoneOverride != profile.timezoneOverride.orEmpty() || zip.trim() != profile.zip.orEmpty() || city.trim() != profile.city.orEmpty() || ProfileRules.e164(phone) != profile.phone.orEmpty()
+    val canSave: Boolean get() = zipValid && phoneValid && cityValid && StreakTimeZone.choices.any { it.first == timezoneOverride } && changed && phase != DetailsPhase.Saving
 
     fun save() {
         val normalized = ProfileRules.e164(phone)
@@ -119,10 +133,12 @@ class ProfileDetailsModel(initial: ProfileSummary, private val service: AccountM
         phase = DetailsPhase.Saving
         val sentZip = zip.trim()
         val sentCity = city.trim()
+        val sentZone = timezoneOverride
         viewModelScope.launch {
             try {
-                profile = service.saveProfile(sentZip, sentCity, normalized)
+                profile = service.saveProfile(sentZip, sentCity, normalized, sentZone)
                 zip = profile.zip.orEmpty(); city = profile.city.orEmpty(); phone = profile.phone.orEmpty()
+                timezoneOverride = profile.timezoneOverride.orEmpty()
                 phase = DetailsPhase.Saved
             } catch (cancelled: CancellationException) {
                 throw cancelled

@@ -47,6 +47,10 @@ data class PartnerExport(
     val downloadable: Boolean,
 )
 
+class PartnerReportLimit(val reason: Reason) : java.io.IOException() {
+    enum class Reason { DAILY, STORAGE, TOO_LARGE }
+}
+
 interface PartnerService {
     suspend fun overview(): PartnerOverview
     suspend fun initiatives(): List<PartnerInitiative>
@@ -319,6 +323,11 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     private fun message(error: Exception): UiText = when (error) {
+        is PartnerReportLimit -> UiText.res(when (error.reason) {
+            PartnerReportLimit.Reason.DAILY -> R.string.report_daily_limit
+            PartnerReportLimit.Reason.STORAGE -> R.string.report_storage_limit
+            PartnerReportLimit.Reason.TOO_LARGE -> R.string.report_size_limit
+        })
         is AccountFailure.SignedOut -> SESSION_ENDED
         is AccountFailure.RateLimited -> RATE_LIMITED
         else -> SOMETHING_WENT_WRONG

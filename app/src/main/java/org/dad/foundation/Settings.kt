@@ -9,8 +9,7 @@ package org.dad.foundation
 
 /**
  * The account header the settings screen shows. [accountRole] is fixed at creation and immutable
- * (D-1), so it is display-only. [zip] drives the streak's local-day rollover (§10), so it is the
- * one profile field settings lets the donor edit here.
+ * (D-1), so it is display-only. the saved time zone controls the streak’s local-day rollover (§10).
  */
 data class ProfileSummary(
     val email: String,
@@ -18,6 +17,8 @@ data class ProfileSummary(
     val zip: String?,
     val city: String?,
     val phone: String?,
+    val timezone: String? = null,
+    val timezoneOverride: String? = null,
 ) {
     val zipLabel: UiText get() = zip?.takeIf { it.isNotBlank() }?.let(UiText::plain) ?: UiText.res(R.string.settings_not_set)
 }

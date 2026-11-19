@@ -115,6 +115,10 @@ function normalizeNullable(value) {
   }
 }
 normalizeNullable(document);
+// The generator cannot name the empty-string reset enum; validate choices in the wire layer.
+const zone = document.paths["/donor/me/profile"].post.requestBody.content["application/json"].schema.properties.timezone_override;
+if (!zone?.enum?.includes("")) throw new Error("Time zone reset contract changed");
+delete zone.enum;
 const directory = resolve("app/build/generated/contract");
 await mkdir(directory, { recursive: true });
 await writeFile(resolve(directory, "openapi.json"), JSON.stringify(document, null, 2) + "\n");
