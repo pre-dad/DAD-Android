@@ -217,6 +217,17 @@ class AccountManagementModelTest {
         failing.prepare()
         assertEquals(WalletPassModel.FAILURE, failing.error)
     }
+
+    @Test fun aThrottledPassSaysToWaitRatherThanRetry() {
+        val throttled = object : WalletPassService {
+            override suspend fun googleWalletAvailable() = true
+            override suspend fun googlePassUrl(): String = throw AccountFailure.RateLimited
+        }
+        val model = WalletPassModel(throttled).apply { check() }
+        model.prepare()
+        assertNull(model.saveUrl)
+        assertEquals("Too many attempts. Please wait a moment and try again. Your on-screen code still works.", model.error.textOrNull())
+    }
 }
 
 class WireAccountManagementTest {

@@ -364,6 +364,8 @@ class WalletPassModel(private val service: WalletPassService) : ViewModel() {
                 if (ProfileRules.isGoogleWalletSaveUrl(url)) saveUrl = url else error = FAILURE
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: AccountFailure.RateLimited) {
+                error = THROTTLED
             } catch (_: Exception) {
                 error = FAILURE
             } finally {
@@ -377,6 +379,7 @@ class WalletPassModel(private val service: WalletPassService) : ViewModel() {
 
     companion object {
         val FAILURE = UiText.res(R.string.acct_the_wallet_pass_couldnt_be)
+        val THROTTLED = UiText.res(R.string.acct_wallet_pass_throttled)
         fun factory(service: WalletPassService): ViewModelProvider.Factory = viewModelFactory { initializer { WalletPassModel(service) } }
     }
 }
