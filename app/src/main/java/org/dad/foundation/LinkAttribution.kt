@@ -112,17 +112,20 @@ class LinkAttribution(
     private val analytics: AnalyticsEmitter? = null,
 ) {
     private val lock = Mutex()
+    private val referralVisits = Mutex()
+    private val companyVisits = Mutex()
 
     /** Records a referral visit and returns the referrer's public name, if the server named one. */
-    suspend fun captureReferral(code: String, inPerson: Boolean): String? {
-        val result = attempt { service.captureReferral(code, inPerson, store.load().referral) } ?: return null
+    suspend fun captureReferral(code: String, inPerson: Boolean): String? = referralVisits.withLock {
+        // Serialize the exchange too: each visit must send the token the preceding visit kept.
+        val result = attempt { service.captureReferral(code, inPerson, store.load().referral) } ?: return@withLock null
         update { it.copy(referral = result.token) }
         if (result.token != null) analytics?.emit(AnalyticsEvent.AttributionCaptured(if (inPerson) AttributionSource.IRL else AttributionSource.LINK))
-        return result.referrerName
+        result.referrerName
     }
 
-    suspend fun captureCompany(code: String) {
-        val kept = attempt { Kept(service.captureCompany(code, store.load().company)) } ?: return
+    suspend fun captureCompany(code: String) = companyVisits.withLock {
+        val kept = attempt { Kept(service.captureCompany(code, store.load().company)) } ?: return@withLock
         val token = kept.token
         update { it.copy(company = token) }
         if (token != null) analytics?.emit(AnalyticsEvent.AttributionCaptured(AttributionSource.COMPANY))
@@ -132,12 +135,12 @@ class LinkAttribution(
      * Binds a kept company token to the signed-in donor. The token is spent once the server has answered either
      * way (bound, or naming nothing); a transient failure keeps it for the next sign-in.
      */
-    suspend fun bindCompany() {
-        val token = store.load().company ?: return
+    suspend fun bindCompany() = companyVisits.withLock {
+        val token = store.load().company ?: return@withLock
         try { service.bindCompanyTouch(token) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: AccountFailure.InvalidInput) {}
-        catch (_: Exception) { return }
+        catch (_: Exception) { return@withLock }
         update { if (it.company == token) it.copy(company = null) else it }
     }
 
