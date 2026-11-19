@@ -45,12 +45,14 @@ object DadTheme {
     /**
      * Resolve a DAD color token by name. Falls back to a visible magenta for an unknown token
      * so a typo is obvious rather than silently wrong. Some tokens (outline cues like `ghost-line`)
-     * are authored as `rgba(r,g,b,a)` with fractional alpha; `toColorInt` only parses `#rgb`/`#rrggbb`,
-     * so those are decoded here to keep their real token value (and alpha) rather than a magenta fallback.
+     * use CSS rgba or shorthand hex, which Android's color parser does not support.
      */
     fun color(name: String): Color = resolved.getOrPut(name) {
         val raw = DADTokens.color[name] ?: return@getOrPut Color.Magenta
-        parseRgba(raw) ?: runCatching { Color(raw.toColorInt()) }.getOrElse { Color.Magenta }
+        val hex = if (raw.startsWith("#") && raw.length == 4) {
+            "#" + raw.drop(1).map { "$it$it" }.joinToString("")
+        } else raw
+        parseRgba(raw) ?: runCatching { Color(hex.toColorInt()) }.getOrElse { Color.Magenta }
     }
 
     private val resolved = java.util.concurrent.ConcurrentHashMap<String, Color>()
