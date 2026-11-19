@@ -5,6 +5,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoleRouterTest {
+    @Test fun restoredIdentityIsResolvedBeforeTheProductGraphIsChosen() {
+        val router = RoleRouter()
+        assertEquals(RoleRouter.Root.Restoring, router.resolve(false, true, false))
+        assertEquals(RoleRouter.Root.Authenticated(AppRole.DONOR), router.resolve(true, true, false))
+        assertEquals(RoleRouter.Root.Unauthenticated, router.resolve(true, false, false))
+        assertEquals(RoleRouter.Root.Authenticated(AppRole.PARTNER), router.resolve(true, false, true))
+        assertEquals(RoleRouter.Root.Authenticated(AppRole.DONOR), router.resolve(true, true, true))
+    }
+
     @Test fun startsRestoringUntilTheSessionResolves() {
         val router = RoleRouter()
         assertTrue(router.root is RoleRouter.Root.Restoring)

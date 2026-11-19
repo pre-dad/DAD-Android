@@ -583,52 +583,47 @@ class MainActivity : ComponentActivity() {
                 }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val router = remember { RoleRouter() }
-                    var root by remember { mutableStateOf<RoleRouter.Root>(router.root) }
                     // A session-backed shell is the donor journey — the donor landing owns every
                     // account sub-state (loading / ready / unavailable / signed-out) and its own
                     // recovery, so stay on it. Only a genuinely session-less app goes to role-select.
-                    LaunchedEffect(model.booted, model.hasSession, model.partnerSignedIn) {
-                        if (model.booted) {
-                            when {
-                                model.hasSession -> router.signedIn(AppRole.DONOR)
-                                model.partnerSignedIn -> router.signedIn(AppRole.PARTNER)
-                                else -> router.signedOut()
-                            }
-                        }
-                        root = router.root
-                    }
+                    val root = router.resolve(model.booted, model.hasSession, model.partnerSignedIn)
                     val partnerKit = model.partner
-                    when (val current = root) {
-                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
-                            PartnerPortal(
-                                viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
-                                publicOrigin = linkPublicOrigin,
-                                onSignedOut = { model.onPartnerSignedOut() },
-                                pushTokens = model.pushTokens,
-                            )
-                        is RoleRouter.Root.Restoring, is RoleRouter.Root.Authenticated ->
-                            if (preview != null) {
-                                preview()
-                            } else {
-                                DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
+                    SessionModelScope("${model.generation}:$root") {
+                        when (val current = root) {
+                            is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
+                                PartnerPortal(
+                                    viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
+                                    publicOrigin = linkPublicOrigin,
+                                    onSignedOut = { model.onPartnerSignedOut() },
+                                    pushTokens = model.pushTokens,
+                                )
+                            is RoleRouter.Root.Restoring -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.testTag("session-restoring"))
                             }
-                        is RoleRouter.Root.Unauthenticated -> UnauthenticatedStack(
-                            notice = model.notice,
-                            invitation = model.invitation,
-                            auth = model.auth,
-                            establish = model.establish(),
-                            onPastedLink = { text -> linkRouter?.let { router -> PastedLink.claimToken(text, router)?.let { model.receive(text.trim(), router); true } } ?: false },
-                            generation = model.generation,
-                            onSignedIn = { model.onSignedIn() },
-                            partnerSignIn = model.partner?.signIn,
-                            applicationStatus = model.partner?.applicationStatus,
-                            applicationSubmit = model.partner?.applicationSubmit,
-                            partnerToken = model.pendingPartnerToken,
-                            onPartnerTokenConsumed = { model.partnerTokenConsumed() },
-                            onPartnerSignedIn = { model.onPartnerSignedIn() },
-                            analytics = model.analytics,
-                            publicOrigin = linkPublicOrigin,
-                        )
+                            is RoleRouter.Root.Authenticated ->
+                                if (preview != null) {
+                                    preview()
+                                } else {
+                                    DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
+                                }
+                            is RoleRouter.Root.Unauthenticated -> UnauthenticatedStack(
+                                notice = model.notice,
+                                invitation = model.invitation,
+                                auth = model.auth,
+                                establish = model.establish(),
+                                onPastedLink = { text -> linkRouter?.let { router -> PastedLink.claimToken(text, router)?.let { model.receive(text.trim(), router); true } } ?: false },
+                                generation = model.generation,
+                                onSignedIn = { model.onSignedIn() },
+                                partnerSignIn = model.partner?.signIn,
+                                applicationStatus = model.partner?.applicationStatus,
+                                applicationSubmit = model.partner?.applicationSubmit,
+                                partnerToken = model.pendingPartnerToken,
+                                onPartnerTokenConsumed = { model.partnerTokenConsumed() },
+                                onPartnerSignedIn = { model.onPartnerSignedIn() },
+                                analytics = model.analytics,
+                                publicOrigin = linkPublicOrigin,
+                            )
+                        }
                     }
                 }
             }

@@ -21,6 +21,16 @@ class RoleRouter(root: Root = Root.Restoring) {
     var root: Root = root
         private set
 
+    fun resolve(booted: Boolean, donorSignedIn: Boolean, partnerSignedIn: Boolean): Root {
+        when {
+            !booted -> root = Root.Restoring
+            donorSignedIn -> signedIn(AppRole.DONOR)
+            partnerSignedIn -> signedIn(AppRole.PARTNER)
+            else -> signedOut()
+        }
+        return root
+    }
+
     /** A session was established for [role] (sign-in, claim link, or restored on launch). */
     fun signedIn(role: AppRole) {
         root = Root.Authenticated(role)

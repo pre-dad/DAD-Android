@@ -93,6 +93,9 @@ Logout clears local storage first and uses the newest known access token for rem
 revocation. Settings completes local sign-out even when remote revocation is unavailable; that server
 session then expires. Signing out everywhere requires a confirmed server response.
 
+Product and authentication models have a session-owned `ViewModelStore`, retained across rotation. A session
+or role change clears the old store and cancels its requests before creating the next session's models.
+
 OkHttp disables cookies, redirects, and automatic transport retries, uses connect/read/
 call timeouts, and caps bodies at 1 MiB. Requests use `X-DAD-Client: native` and a bearer
 access token only on the direct HTTPS API origin. Go owns financial/recognition rules.
