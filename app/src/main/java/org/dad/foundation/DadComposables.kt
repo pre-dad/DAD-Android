@@ -53,7 +53,7 @@ fun DadStatTile(title: String, value: String?, caption: String, modifier: Modifi
         } else {
             Text("—", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.contentDescribed(R.string.common_not_available))
         }
-        Text(caption, style = MaterialTheme.typography.bodySmall, color = DadTheme.color("muted"))
+        Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -40,6 +40,8 @@ class ContrastTest {
         // Home's at-risk banner: `warn` text + warning glyph on a `warn-wash` block. warn-on-warn-wash =
         // 4.91:1 (AA). Colour is not the only signal (glyph + text), but the text itself must still read.
         assertTrue(DadTheme.contrast("warn", "warn-wash") >= 4.5)
+        assertTrue(DadTheme.contrast("brand-ink", "warn-wash") >= 4.5)
+        assertTrue(DadTheme.contrast("brand-ink", "card") >= 4.5)
     }
 
     @Test fun streakHeroTextOnInkMeetsAA() {

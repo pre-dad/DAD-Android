@@ -145,13 +145,16 @@ private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
                 .testTag("open-gift"),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            DadGiftFraming(stringResource(R.string.common_30_month), stringResource(R.string.common_1_a_day))
+            val amount = giving.recurring.amountMinorOrNull
+            val monthly = amount?.let { stringResource(R.string.give_amount_per_month, formatUsdMinor(it)) } ?: "—"
+            val daily = amount?.let(GiftAmount::ofMonthlyMinor)?.let { stringResource(R.string.give_dollars_a_day, it.dailyDollars) } ?: "—"
+            DadGiftFraming(monthly, daily)
         }
         // The live state line keeps the gift-summary text that GiftFlowTest tracks on Home.
         Text(
             summaryLine(giving),
             style = MaterialTheme.typography.bodyMedium,
-            color = DadTheme.color("dkmut"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag("gift-summary"),
         )
     }
@@ -344,7 +347,7 @@ private fun AtRiskBanner(byDate: String?, onOpenGift: () -> Unit) {
             DadSymbol("warning", contentDescription = stringResource(R.string.common_warning), tint = DadTheme.color("warn"))
             Text(line, style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("warn"))
         }
-        DadTextButton(stringResource(R.string.home_update_payment), onClick = onOpenGift)
+        DadTextButton(stringResource(R.string.home_update_payment), contentColor = DadTheme.color("brand-ink"), onClick = onOpenGift)
     }
 }
 

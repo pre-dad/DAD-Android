@@ -6,7 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -62,6 +62,14 @@ class GiftFlowTest {
         waitFor("donor-home")
     }
 
+    @Test fun theHomeGiftAmountMatchesTheLoadedSubscription() {
+        launch("stub_gift_active").use {
+            waitSummary("$150/month")
+            compose.onNodeWithTag("open-gift").assertTextContains("$150/month", substring = true)
+            compose.onNodeWithTag("open-gift").assertTextContains("$5 a day", substring = true)
+        }
+    }
+
     @Test fun aGiftStartedAfterAnInviteLinkCreditsTheReferrer() {
         launch(link = "https://stub.invalid/r/ALEX42?via=irl").use {
             compose.waitUntil(20_000) { DebugBackend.requestLog.contains("POST /donor/referrals/ALEX42") }
@@ -99,6 +107,8 @@ class GiftFlowTest {
             compose.onNodeWithTag("gift-notice").assertTextEquals("Your gift is set up.")
             closeGift()
             waitSummary("$180/month · renews")
+            compose.onNodeWithTag("open-gift").assertTextContains("$180/month", substring = true)
+            compose.onNodeWithTag("open-gift").assertTextContains("$6 a day", substring = true)
         }
     }
 

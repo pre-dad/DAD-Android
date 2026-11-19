@@ -192,7 +192,7 @@ private fun Loaded(model: GivingModel, confirmingCancel: Boolean, onOpenHistory:
     Feedback(model)
     if (state is RecurringState.Active) CancelSection(model, state, confirmingCancel, onConfirmingCancel)
     // The app has no other signal that payments are not live.
-    if (BuildConfig.DEBUG) Text(stringResource(R.string.give_preview_build_test_payments_only), style = MaterialTheme.typography.bodySmall, color = DadTheme.color("muted"))
+    if (BuildConfig.DEBUG) Text(stringResource(R.string.give_preview_build_test_payments_only), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -241,7 +241,7 @@ private fun RenewalLines(model: GivingModel, state: RecurringState) {
             }
             if (state.status.needsPaymentAttention) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                    DadSymbol("warning", stringResource(R.string.common_warning), tint = DadTheme.color("fail"))
+                    DadSymbol("warning", stringResource(R.string.common_warning), tint = MaterialTheme.colorScheme.error)
                     Text(stringResource(R.string.give_your_last_renewal_didnt_go_through), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("gift-payment-attention"))
                 }
             }
