@@ -1082,6 +1082,10 @@ internal fun SettingsHome(
             }
         }
         model.actionError?.let { Text(it.asString(), modifier = Modifier.testTag("settings-action-error")) }
+        HorizontalDivider()
+        SettingsHeading(stringResource(R.string.about_heading))
+        Text(stringResource(R.string.about_organization))
+        Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall)
     }
 }
 

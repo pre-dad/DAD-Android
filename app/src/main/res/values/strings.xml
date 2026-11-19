@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="about_heading">About DAD</string>
+    <string name="about_organization">Dynamic Aid Delivery, INC.</string>
+    <string name="about_version">Version %1$s</string>
     <string name="app_name">DAD</string>
 
     <!-- Sign-in: role select and methods -->

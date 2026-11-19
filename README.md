@@ -41,10 +41,15 @@ with AGP 9.4 support. Set `ANDROID_HOME` to your SDK directory or use an ignored
 its own Gradle distribution.
 
 ```sh
+node --test scripts/*.test.mjs
 node scripts/check-foundation.mjs
 node scripts/check-hardcoded-strings.mjs
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
+scripts/check-release-apk.sh
 ```
+
+CI also runs `node scripts/check-foundation-drift.mjs` to check published foundation tags. This is advisory
+for an additive release or an unreachable remote; adopting a new snapshot remains a deliberate change.
 
 All user-visible text lives in `app/src/main/res/values/strings.xml`: Compose reads it with `stringResource` /
 `pluralStringResource`, and models carry a `UiText` (a string or plural resource id plus arguments, never a
@@ -85,7 +90,8 @@ AES-GCM ciphertext is atomically written under `noBackupFilesDir`, using a non-e
 Android Keystore key and an application-bound authentication tag. Both legacy and current
 backup/transfer policies exclude credentials. Tokens/proofs have redacted descriptions.
 Logout clears local storage first and uses the newest known access token for remote
-revocation; offline remote failure is surfaced rather than reported as confirmed success.
+revocation. Settings completes local sign-out even when remote revocation is unavailable; that server
+session then expires. Signing out everywhere requires a confirmed server response.
 
 OkHttp disables cookies, redirects, and automatic transport retries, uses connect/read/
 call timeouts, and caps bodies at 1 MiB. Requests use `X-DAD-Client: native` and a bearer
@@ -188,7 +194,9 @@ The test runner removes the private proof fixtures after either success or failu
 Starting a gift uses `startRecurringCheckout`; changing the amount, cancelling and the card update use
 `changeAmount`, `cancelRecurring` and `beginPaymentUpdate`. Hosted Stripe pages open in a Custom Tab
 (`androidx.browser`, already a dependency). The return page proves nothing: when the donor comes back the app
-polls `GET /donor/me/recurring` (5 reads, 2 s apart) until a subscription is present. Each command holds one
+polls `GET /donor/me/recurring` (5 reads, 2 s apart) until the server reports an active subscription.
+An incomplete or unknown subscription status never confirms payment or triggers the first-gift celebration.
+A failed payment-update read stays unknown rather than reusing an earlier update's result. Each command holds one
 Idempotency-Key, reused after a 429, 503 or lost response and retired on success, 403, 409 or 422. The giving
 reads are parsed from raw JSON so an unlisted Stripe status (`paused`, `trialing`) never fails the response.
 No App Link is registered for `/app/return`, so the donor closes the tab to return. Deleting an account with a
@@ -247,6 +255,15 @@ remove one with its Remove button. Entries are trimmed, repeats (in any letter c
 limits apply on the device too: at most 20 interests of 60 characters. Each change saves the whole preference block at
 its current `version`, one save at a time, so a stale or failed save keeps the list as it was and shows the error.
 
+Settings also shows an About DAD section with the legal organization name and the installed app's version.
+
+### Client error reporting
+
+`ErrorReporter.kt` defines a reporting interface and a deduplicating wrapper, but no product model calls it and
+no reporting backend is configured. The app currently sends no client error reports. R1's error-tracking
+requirement still needs a provider decision, privacy review and integration; usage analytics is a separate,
+opt-in feature.
+
 ## Partner portal (contract 2.9.0)
 
 A partner signs in with an emailed link: "Partner" on the start screen asks for a work email
@@ -254,7 +271,11 @@ A partner signs in with an emailed link: "Partner" on the start screen asks for 
 exchanged for a 12-hour bearer (`partnerAcceptInvite`; a used or expired link is 422, a blocked partner 403). The
 bearer is kept in its own Keystore entry (`partner-session`), cannot be refreshed, and is forgotten on expiry, on a
 401, or on sign-out (local first, then `partnerSignOut`), returning the partner to sign-in. Becoming a partner is a
-website application (`applyWithReceipt`, browser-only), linked from partner sign-in as `<public origin>/apply`.
+native application form (`applyWithReceipt`, contract 2.11+), with the website as an alternative at
+`<public origin>/apply`. Before sending, the app stores a private status receipt in its own Keystore entry.
+A retry after an unconfirmed response repeats the same receipt, content and Idempotency-Key; a definitive
+refusal unlocks the form. The receipt reads the application's pending, approved or rejected status above
+partner sign-in; it never opens the portal without an approved partner session.
 
 The portal has four sections. **Overview** shows only verified figures (§7.3; an unverified figure is left out,
 never estimated) and spend by category. **Initiatives** lists the partner's initiatives and their metrics.
@@ -295,6 +316,11 @@ no permission prompt appears. To turn it on:
    plugin on the next build; nothing else changes in the code.
 3. Give DAD-Main the FCM credentials (a service account for the HTTP v1 API) so it can deliver. Until it does,
    `registerPushDevice` answers 503 `PUSH_UNCONFIGURED` and the app carries on.
+
+The resolved Messaging SDK deprecates `getToken` / `onNewToken` in favor of Installation ID registration.
+This app still uses registration tokens to match the pinned mobile contract; these compiler diagnostics remain
+visible. Installation ID messaging needs a coordinated DAD-Main sender, contract and native-client migration,
+so enabling that Firebase mode alone is not a supported configuration.
 
 DAD-Main sends each push as a `notification` block (`title`, `body`, and `tag` = the notification id) plus `data`
 (`category`, `path`). While the app is in the foreground `DadMessagingService` builds the notification itself: text

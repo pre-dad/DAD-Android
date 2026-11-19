@@ -20,6 +20,7 @@ fun firebasePushTokens(context: Context): PushTokenProvider {
     return GuardedPushTokenProvider(
         available = { firebasePushAvailable(app) },
         fetch = {
+            // The pinned API accepts registration tokens; Installation ID messaging needs a coordinated server/contract migration.
             suspendCancellableCoroutine { continuation ->
                 FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                     if (task.isSuccessful) continuation.resume(task.result)
