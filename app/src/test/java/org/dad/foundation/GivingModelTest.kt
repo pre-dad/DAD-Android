@@ -193,6 +193,33 @@ class GivingModelTest {
         assertFalse(model.isConfirming)
     }
 
+    @Test fun anIncompleteOrUnknownSubscriptionDoesNotConfirmTheFirstGift() = runTest {
+        for (status in listOf(SubscriptionStatus.INCOMPLETE, SubscriptionStatus.OTHER)) {
+            val service = Fake()
+            val model = loaded(service)
+            model.startGift(); advanceUntilIdle()
+            service.state = active.copy(status = status)
+            val reads = service.recurringReads
+            model.handoffFinished(); advanceUntilIdle()
+            assertFalse("$status does not prove payment", model.celebrating)
+            assertEquals(0, model.confirmations)
+            assertEquals(reads + 5, service.recurringReads)
+            assertTrue(model.notice!!.text().startsWith("We haven’t seen a new gift yet"))
+        }
+    }
+
+    @Test fun aFailedPaymentReadCannotReuseAnEarlierAppliedUpdate() = runTest {
+        val service = Fake(active).apply { payment = PaymentMethodState(PaymentMethodState.Kind.APPLIED, periodEnd) }
+        val model = loaded(service)
+        model.updatePayment(); advanceUntilIdle()
+        service.paymentError = AccountFailure.Unavailable
+        val reads = service.recurringReads
+        model.handoffFinished(); advanceUntilIdle()
+        assertEquals(reads + 5, service.recurringReads)
+        assertNull("the current update is unknown", model.payment)
+        assertTrue(model.notice!!.text().startsWith("We’re still waiting for the payment provider"))
+    }
+
     @Test fun pollingWaitsBetweenReadsAndStopsOnceTheOutcomeIsKnown() = runTest {
         val service = Fake()
         val model = loaded(service, attempts = 3)

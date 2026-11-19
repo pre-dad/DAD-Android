@@ -300,7 +300,11 @@ class GivingModel(
                     if (attempt > 0) delay(pollDelayMs)
                     if (!readAfterHandoff()) break
                     settled = when (finished.purpose) {
-                        HostedHandoff.Purpose.START_GIFT -> recurring.subscriptionIdOrNull != null
+                        HostedHandoff.Purpose.START_GIFT -> when (val gift = recurring) {
+                            is RecurringState.Active -> gift.status == SubscriptionStatus.ACTIVE
+                            is RecurringState.Ending -> gift.status == SubscriptionStatus.ACTIVE
+                            else -> false
+                        }
                         HostedHandoff.Purpose.UPDATE_PAYMENT -> payment?.let { !it.isInFlight } ?: false
                     }
                     if (settled) break
@@ -382,13 +386,13 @@ class GivingModel(
         if (recurring.subscriptionIdOrNull != null) {
             try { offer = service.amountOffer() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { noteSoft(error) }
+            catch (error: Exception) { offer = null; noteSoft(error) }
         } else {
             offer = null
         }
         try { payment = service.paymentMethod() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) { noteSoft(error) }
+        catch (error: Exception) { payment = null; noteSoft(error) }
     }
 
     private fun noteSoft(error: Exception) { if (error is AccountFailure.SignedOut) signedOut = true }
