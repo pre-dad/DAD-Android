@@ -6,10 +6,31 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.buffer
 import org.junit.Assert.*
 import org.junit.Test
 
 class WireAPITest {
+    @Test fun aFailedBodyReadClosesTheResponseAndReportsUnavailable() = runTest {
+        var closed = false
+        val source = object : okio.Source {
+            override fun read(sink: okio.Buffer, byteCount: Long): Long = throw java.io.IOException("connection lost")
+            override fun timeout() = okio.Timeout.NONE
+            override fun close() { closed = true }
+        }
+        val body = object : okhttp3.ResponseBody() {
+            private val buffered = source.buffer()
+            override fun contentType() = "application/json".toMediaType()
+            override fun contentLength() = -1L
+            override fun source() = buffered
+        }
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK").body(body).build()
+        }.build()
+        assertEquals(AccountFailure.Unavailable, runCatching { WireAPI(TEST_ORIGIN, http).profile("access") }.exceptionOrNull())
+        assertTrue("a failed read must release the connection", closed)
+    }
+
     @Test fun nativeReadUsesBearerWithoutBrowserHeaders() = runTest {
         val http = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
