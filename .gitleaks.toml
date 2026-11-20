@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+# Match the reviewed non-secret as well as its file, so unrelated credentials in these files still fail.
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Vendored foundation content hashes"
+condition = "AND"
+paths = ['''^contracts/foundation/manifest\.json$''']
+regexTarget = "match"
+regexes = ['''^(?:openapi\.json|mobile\.openapi\.json|swift\.openapi\.json|tokens\.json|tokens\.ts|DADTokens\.swift|DADTokens\.kt|DADNullValue\.swift|links\.json)": "[a-f0-9]{64}"$''']
