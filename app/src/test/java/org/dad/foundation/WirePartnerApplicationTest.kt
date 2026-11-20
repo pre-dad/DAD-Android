@@ -14,11 +14,6 @@ import java.util.UUID
  * a throttle/outage/lost connection keeps it; the native headers are sent and no bearer or cookie ever is.
  */
 class WirePartnerApplicationTest {
-    private class MemoryStore(var value: Credentials? = null) : CredentialStore {
-        override fun load() = value
-        override fun save(value: Credentials) { this.value = value }
-        override fun clear() { value = null }
-    }
 
     private val application = PartnerApplication(
         organization = "Acme", website = "https://acme.example", type = PartnerOrganizationType.CORPORATE,
@@ -29,7 +24,7 @@ class WirePartnerApplicationTest {
         PartnerApplicationAttempt(application, UUID.randomUUID().toString(), receipt)
 
     @Test fun theReceiptIsKeptBeforeSendingAndTheNativeRequestCarriesNoBearerOrCookie() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val http = ScriptedHttp { 200 to """{"received":true}""" }
         WirePartnerApplication(TEST_ORIGIN, store, http.client()).submit(attempt("A".repeat(43)))
         assertEquals("A".repeat(43), store.value?.access)
@@ -47,7 +42,7 @@ class WirePartnerApplicationTest {
     }
 
     @Test fun aSuccessWithAnUnreadableBodyIsStillAccepted() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         // The write needs nothing from the 200 body, so an empty or malformed one is not a failure.
         WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { 200 to "" }.client()).submit(attempt())
         assertNotNull(store.value)
@@ -56,7 +51,7 @@ class WirePartnerApplicationTest {
 
     @Test fun aTransportBodyLimitNeverConfirmsAnApplication() = runTest {
         for (status in listOf(200, 422, 503)) {
-            val store = MemoryStore()
+            val store = RecordingStore()
             val actual = runCatching {
                 WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { status to "x".repeat(1_048_577) }.client()).submit(attempt())
             }.exceptionOrNull()
@@ -70,7 +65,7 @@ class WirePartnerApplicationTest {
             403 to ApplicationSubmitFailure.Forbidden, 409 to ApplicationSubmitFailure.Conflict, 422 to ApplicationSubmitFailure.Invalid,
         )
         for ((status, failure) in expected) {
-            val store = MemoryStore()
+            val store = RecordingStore()
             val actual = runCatching { WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { status to "{}" }.client()).submit(attempt()) }.exceptionOrNull()
             assertEquals("$status", failure, actual)
             assertNull("$status forgets the receipt", store.value)
@@ -79,7 +74,7 @@ class WirePartnerApplicationTest {
 
     @Test fun aThrottleOrOutageKeepsTheReceiptSoARetryCanRepeatIt() = runTest {
         for (status in listOf(429, 500, 503)) {
-            val store = MemoryStore()
+            val store = RecordingStore()
             val actual = runCatching { WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { status to "" }.client()).submit(attempt()) }.exceptionOrNull()
             assertTrue("$status is a submit failure", actual is ApplicationSubmitFailure)
             assertNotNull("$status keeps the receipt", store.value)
@@ -88,7 +83,7 @@ class WirePartnerApplicationTest {
 
     @Test fun aThrottleSurfacesRetryAfterSecondsWhenTheServerSaysHowLong() = runTest {
         suspend fun throttled(vararg headers: Pair<String, String>) = runCatching {
-            WirePartnerApplication(TEST_ORIGIN, MemoryStore(), ScriptedHttp { 429 to "" }.replyingWith(*headers).client()).submit(attempt())
+            WirePartnerApplication(TEST_ORIGIN, RecordingStore(), ScriptedHttp { 429 to "" }.replyingWith(*headers).client()).submit(attempt())
         }.exceptionOrNull()
         assertEquals(ApplicationSubmitFailure.RateLimited(30), throttled("Retry-After" to "30"))
         assertEquals(ApplicationSubmitFailure.RateLimited(null), throttled())
@@ -97,7 +92,7 @@ class WirePartnerApplicationTest {
     }
 
     @Test fun aRetryRepeatsTheSameKeyAndReceipt() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val a = attempt("B".repeat(43))
         val http = ScriptedHttp { 503 to "{}" }
         runCatching { WirePartnerApplication(TEST_ORIGIN, store, http.client()).submit(a) }
@@ -113,7 +108,7 @@ class WirePartnerApplicationTest {
     @Test fun aReceiptIsThirtyTwoRandomBytesAsFortyThreeBase64urlCharacters() {
         val one = makeApplicationReceipt()
         assertEquals(43, one.length)
-        assertTrue(one.all { it.isLetterOrDigit() || it == '-' || it == '_' })
+        assertTrue(Regex("[A-Za-z0-9_-]{43}").matches(one))
         assertTrue("padding is stripped", !one.contains('='))
         assertTrue("two receipts differ", one != makeApplicationReceipt())
     }

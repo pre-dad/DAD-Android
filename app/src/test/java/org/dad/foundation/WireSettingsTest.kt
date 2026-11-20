@@ -24,7 +24,6 @@ class WireSettingsTest {
         var wiped = 0
         val settings = WireSettings(ProductClient(TEST_ORIGIN, session, client), onLocalWipe = { wiped++ })
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun loadMapsProfileAndSendsTheBearer() = runTest {
         val rig = Rig(scope = backgroundScope) { 200 to profileJson(version = 7) }

@@ -239,7 +239,6 @@ class WireAccountManagementTest {
         val wire = WireAccountManagement(ProductClient(TEST_ORIGIN, session, client))
         val wallet = WireWalletPass(ProductClient(TEST_ORIGIN, session, client))
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun saveProfileSendsAllThreeFieldsAndMapsTheProfile() = runTest {
         val rig = Rig(backgroundScope) { 200 to profileJson() }

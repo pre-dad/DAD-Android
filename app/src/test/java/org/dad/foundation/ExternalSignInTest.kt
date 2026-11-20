@@ -65,7 +65,6 @@ class ExternalSignInTest {
         val http = ScriptedHttp { status to json }
         return WireExternalSignIn(TEST_ORIGIN, "Pixel", http.client()) to http
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun googleExchangeSendsProviderPathTokenAndPlatform() = runTest {
         val (w, http) = wire(200, nativeSessionJson("g-access", "g-refresh"))

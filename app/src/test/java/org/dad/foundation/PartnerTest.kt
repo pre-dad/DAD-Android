@@ -23,7 +23,6 @@ class PartnerTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    // --- Role (§7.2) ---
     @Test fun adminManagesViewerReadOnly() {
         assertTrue(PartnerRole.ADMIN.canManageUsers)
         assertTrue(PartnerRole.ADMIN.canExport)
@@ -32,7 +31,6 @@ class PartnerTest {
         assertEquals(PartnerRole.VIEWER, PartnerRole.from("SUPERUSER")) // unknown -> least privileged
     }
 
-    // --- Verified figures (§7.3) ---
     @Test fun verifiedShownUnverifiedHidden() {
         assertEquals("$1,240", VerifiedMoney(124_000, verified = true).label)
         assertNull(VerifiedMoney(124_000, verified = false).label)
@@ -55,7 +53,6 @@ class PartnerTest {
         assertTrue(o.verifiedLine!!.text().contains("Verified by DAD"))
     }
 
-    // --- Our People suppression (EM-3) ---
     @Test fun peopleSuppressionHidesFigures() {
         val sup = PartnerPeople(3, 120, 40_000, 20_000, 10, 60, 1, suppressed = true)
         assertNull(sup.givenLabel)
@@ -66,7 +63,6 @@ class PartnerTest {
         assertNull(shown.suppressionNotice)
     }
 
-    // --- Initiative metric cap (§7.2) ---
     @Test fun initiativeMetricsCappedAtThree() {
         val metrics = (1..5).map { PartnerMetric("m$it", it.toLong(), PartnerMetric.Unit.PEOPLE) }
         val i = PartnerInitiative("i", "T", "S", InitiativeStatus.ACTIVE, "West", 100_000, 50_000, metrics)
@@ -75,7 +71,6 @@ class PartnerTest {
         assertEquals("Active", i.status.label.textOrNull())
     }
 
-    // --- Model ---
     private class FakeService(
         var role: PartnerRole = PartnerRole.ADMIN,
         var fail: Boolean = false,
@@ -325,9 +320,13 @@ class PartnerTest {
         val svc = FakeService(role = PartnerRole.VIEWER)
         val model = loaded(svc)
         model.saveProfile("Acme", "")
+        assertEquals(UiText.res(R.string.partner_only_an_admin_can_edit_the), model.actionError)
         model.saveWorkforce("300")
+        assertEquals(UiText.res(R.string.partner_only_an_admin_can_set_the), model.actionError)
         model.saveLogo("P".toByteArray())
+        assertEquals(UiText.res(R.string.partner_only_an_admin_can_change_the_logo), model.actionError)
         model.exportReport()
+        assertEquals(UiText.res(R.string.partner_only_an_admin_can_export_a_report), model.actionError)
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.profiles.isEmpty() && svc.workforce.isEmpty() && svc.logos.isEmpty())
         assertEquals(0, svc.reports)
@@ -404,18 +403,15 @@ class PartnerTest {
 
     @Test fun partnerSessionLastsTwelveHoursThenIsForgotten() {
         var now = 1_800_000_000_000L
-        val store = MemoryCredentialStore()
+        val store = RecordingStore()
         val session = PartnerSession(store) { now }
         session.install("P1")
         assertEquals("P1", session.token())
-        now += PartnerSession.LIFETIME_MILLIS + 1
+        now += PartnerSession.LIFETIME_MILLIS - 1
+        assertTrue("still valid one millisecond before the lifetime ends", session.isSignedIn)
+        now += 1
         assertFalse(session.isSignedIn)
         assertNull(store.load())
     }
 
-    private class MemoryCredentialStore(private var value: Credentials? = null) : CredentialStore {
-        override fun load() = value
-        override fun save(value: Credentials) { this.value = value }
-        override fun clear() { value = null }
-    }
 }

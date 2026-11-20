@@ -16,15 +16,8 @@ import java.util.Date
 
 /** The real events conformer + real AccountSession + real Retrofit stack over a scripted transport. */
 class WireEventsTest {
-    private class Rig(scope: kotlinx.coroutines.CoroutineScope, handler: (Recorded) -> Pair<Int, String>) {
-        val http = ScriptedHttp(handler)
-        val store = RecordingStore(validCredentials())
-        val client = http.client()
-        val session = AccountSession(WireAPI(TEST_ORIGIN, client), store, scope)
-        val wire = WireEvents(ProductClient(TEST_ORIGIN, session, client))
-    }
-
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
+    private fun Rig(scope: kotlinx.coroutines.CoroutineScope, creds: Credentials? = validCredentials(), handler: (Recorded) -> Pair<Int, String>) =
+        WireRig(scope, creds, handler) { WireEvents(it) }
 
     private val id1 = "a1111111-1111-4111-8111-111111111111"
     private val id2 = "a2222222-2222-4222-8222-222222222222"
