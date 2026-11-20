@@ -68,11 +68,11 @@ class NativeLoadTest {
         var completed = 0
         Harness().use { harness ->
             withTimeout((seconds + 30) * 1000) {
-            while (System.nanoTime() < deadline) {
-                burst(16, harness)
-                completed++
-                delay(100)
-            }
+                while (System.nanoTime() < deadline) {
+                    burst(16, harness)
+                    completed++
+                    delay(100)
+                }
             }
         }
         assertTrue("the soak must exercise repeated session lifecycles", completed >= 20)
