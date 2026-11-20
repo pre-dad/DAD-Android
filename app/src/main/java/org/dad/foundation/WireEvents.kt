@@ -49,7 +49,16 @@ class WireEvents(private val product: ProductClient) : EventsService {
 
     override suspend fun events(): List<DonorEvent> {
         val own = product.perform { it.create(EventsApi::class.java).events().eventsBody() }
-        val gated = product.perform { it.create(EventsApi::class.java).inviteOnly().eventsBody() }
+        // The invite-only read is an addition to the donor's own list: if it alone fails, show what loaded.
+        val gated = try {
+            product.perform { it.create(EventsApi::class.java).inviteOnly().eventsBody() }
+        } catch (signedOut: AccountFailure.SignedOut) {
+            throw signedOut
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
         // The same event may appear in both reads; keep one, then soonest-first (E-2).
         val seen = HashSet<String>()
         return (own + gated).filter { seen.add(it.id) }.take(ROW_LIMIT).sortedBy { it.startsAt }

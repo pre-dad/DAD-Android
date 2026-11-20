@@ -63,6 +63,33 @@ class WireEventsTest {
         assertEquals("native", sent.first().headers["x-dad-client"])
     }
 
+    @Test fun aFailedInviteOnlyReadKeepsTheDonorsOwnEvents() = runTest {
+        for (status in listOf(403, 404, 429, 500)) {
+            val rig = Rig(backgroundScope) { request ->
+                if (request.path == "/donor/me/events") 200 to list(view(id1)) else status to ""
+            }
+            assertEquals("HTTP $status", listOf(id1), rig.wire.events().map { it.id })
+        }
+    }
+
+    @Test fun aFailedOwnReadStillFailsEvenWhenInviteOnlyLoads() = runTest {
+        val rig = Rig(backgroundScope) { request ->
+            if (request.path == "/donor/me/events") 503 to "" else 200 to list(view(id1))
+        }
+        assertEquals(AccountFailure.Unavailable, failure { rig.wire.events() })
+    }
+
+    @Test fun anInviteOnlyReadThatEndsTheSessionSignsOut() = runTest {
+        val rig = Rig(backgroundScope) { request ->
+            when (request.path) {
+                "/donor/me/events" -> 200 to list(view(id1))
+                "/donor/refresh" -> 401 to ""
+                else -> 401 to ""
+            }
+        }
+        assertEquals(AccountFailure.SignedOut, failure { rig.wire.events() })
+    }
+
     @Test fun anEventMapsEveryFieldIncludingTheNewTimeZoneAndCheckInTime() = runTest {
         val rig = Rig(backgroundScope) {
             200 to list(view(status = "\"RESERVED\"", checkedInAt = "\"2026-11-07T15:05:00Z\"", opens = "\"2026-10-01T00:00:00Z\"", early = true))
