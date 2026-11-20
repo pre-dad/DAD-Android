@@ -13,7 +13,7 @@ installs credentials through `AccountSession.establish` so the session owns the 
 reachable from the donor shell; sign-out, deletion and a revoked session return to sign-in. A
 release build with no `dadApiOrigin` shows a "not configured" notice and never serves synthetic data.
 
-**Wired against the API (Phase 2, donor home):** the signed-in donor landing now shows the real dashboard
+**Donor home:** the signed-in donor landing shows the real dashboard
 (`GET /donor/me/dashboard`: streak card with the 30-day ladder and at-risk grace notice, national/city rank,
 total given, network and referral totals; `preparing` shows "Getting your dashboard ready"), today's initiative
 (`todayInitiative`; a 404 means nothing is in rotation, not an error; the card carries the A-5 note that this is
@@ -123,7 +123,7 @@ build uses `org.dad.foundation.debug` so both install side by side. Phone, email
 password sign-in are wired (see below). No permission is requested on startup, and no
 staging/production service is contacted by the synthetic preview.
 
-## Sign-in methods (Phase 1b, contract 2.4.0)
+## Sign-in methods (contract 2.4.0)
 
 **Wired:** email signup (`postDonorSignup`: name, email, ZIP, city; the server emails a single-use link, which
 the app claims when it opens or from a pasted link on "Check your email"), email + password sign-in
@@ -131,7 +131,7 @@ the app claims when it opens or from a pasted link on "Check your email"), email
 (`postDonorMePassword`: a 422 with code `CURRENT_PASSWORD_INCORRECT` is a wrong current password and keeps the
 session; a real 401 refreshes once, then signs out). Passwords are masked, never logged, and cleared after send.
 
-**Google sign-in:** `oidcSignIn` now uses AndroidX Credential Manager and the Google ID library. The native
+**Google sign-in:** `oidcSignIn` uses AndroidX Credential Manager and the Google ID library. The native
 button appears when a valid `dadGoogleWebClientId` is supplied. Its provider uses the current Activity,
 binds each request's nonce, handles cancellation without signing in, and clears platform credential state
 on sign-out. Provider adapters are covered with synthetic SDK responses; a real Google account still needs
@@ -203,7 +203,7 @@ Use only a migrated, disposable synthetic `donor_go` database. The script runs t
 with Go's race detector, starts its temporary HTTPS server, runs Android's claim/refresh/revocation/logout
 integration test, and removes the private proof fixtures on exit. It does not run iOS acceptance.
 
-## Giving (wiring phase 3, contract 2.6.0)
+## Giving (contract 2.6.0)
 
 Starting a gift uses `startRecurringCheckout`; changing the amount, cancelling and the card update use
 `changeAmount`, `cancelRecurring` and `beginPaymentUpdate`. Hosted Stripe pages open in a Custom Tab
@@ -217,7 +217,7 @@ No App Link is registered for `/app/return`, so the donor closes the tab to retu
 renewing gift (409) offers "Cancel my monthly gift" first. Debug stub extras: `stub_gift_active`,
 `stub_gift_fail_first`, `stub_dashboard_slow`, `stub_open_gift`.
 
-## Events (wiring phase 4, contract 2.7.0)
+## Events (contract 2.7.0)
 
 `WireEvents` merges `donorEvents` and `inviteOnlyEvents` (de-duplicated, soonest first) and drives detail,
 reserve / waitlist, cancel, check-in and the authenticated calendar file. The reads are parsed from raw JSON so
@@ -231,7 +231,7 @@ which is always on screen. Live capture is device-only; tests use a fake scanner
 through a FileProvider URI and the share sheet (no calendar permission). The contract defines no Idempotency-Key
 for these commands. Debug stub extras: `stub_events_invited`, `stub_events_fail_first`, `stub_events_not_eligible`.
 
-## Engagement (wiring phase 5, contract 2.7.0)
+## Engagement (contract 2.7.0)
 
 Real `WireEngagement` behind `EngagementService`, opened from the donor home ("See your impact"): lifetime impact
 and rank from `dashboard`, the badge grid (`donorBadges`; earned / locked and the perk are stated in text, perk
@@ -354,7 +354,9 @@ displays the notification without running app code, so the on-device opt-out can
 opt-out is authoritative. Categories the app has no toggle for (`EVENT_CANCELLED`, `PARTNER_*`) show on the general
 channel.
 
-**Referral and company-code links (contract 2.10).** An invite (`/r/<code>`, `?via=irl` in person) or company
+## Referral and install attribution (contract 2.10)
+
+**Referral and company-code links.** An invite (`/r/<code>`, `?via=irl` in person) or company
 (`/c/<code>`) link that opens the app is recorded with DAD-Main (`captureReferral` / `captureCompany`), and the visitor
 token it returns is kept where the website keeps its cookie (`LinkAttribution`, SharedPreferences; the latest link
 wins, and a visit that keeps nothing discards it). The referral token goes with the first monthly gift
