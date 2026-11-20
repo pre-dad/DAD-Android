@@ -482,9 +482,10 @@ private fun PartnerPeopleSection(snapshot: PartnerSnapshot) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.partner_teams), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(stringResource(R.string.partner_teams_with_fewer_than_5_people_are), style = MaterialTheme.typography.bodySmall)
+            val ranksVerified = snapshot.teams.all { it.metricsVerified }
             snapshot.teams.forEachIndexed { index, team ->
                 Column(Modifier.testTag("partner-team-${team.id}")) {
-                    Text(if (snapshot.teams.all { it.metricsVerified }) stringResource(R.string.acct_leaderboard_rank_name, index + 1, team.name) else team.name)
+                    Text(if (ranksVerified) stringResource(R.string.acct_leaderboard_rank_name, index + 1, team.name) else team.name)
                     if (team.metricsVerified) Text(pluralStringResource(R.plurals.team_verified_stats, team.activeGivers.toQuantity(), team.activeGivers, formatMinorUsd(team.annualizedMinor)))
                     else Text(stringResource(R.string.metrics_awaiting))
                     Text(pluralStringResource(R.plurals.partner_volunteered_hours, (team.volunteerMinutes / 60).toQuantity(), team.volunteerMinutes / 60))

@@ -211,9 +211,10 @@ private fun Linked(model: EmployerModel, organization: String, team: EmployerTea
     if (team.leaderboard.isEmpty()) {
         Text(stringResource(R.string.acct_teams_appear_here_once_they_have), style = MaterialTheme.typography.bodySmall)
     } else {
+        val ranksVerified = team.leaderboard.all { it.metricsVerified }
         team.leaderboard.forEachIndexed { index, row ->
             Column(Modifier.testTag("leaderboard-${row.id}")) {
-                Text(if (team.leaderboard.all { it.metricsVerified }) stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name) else row.name, style = MaterialTheme.typography.titleSmall)
+                Text(if (ranksVerified) stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name) else row.name, style = MaterialTheme.typography.titleSmall)
                 if (row.metricsVerified) {
                     Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatUsdMinor(row.annualizedMinor.clampToInt()), row.avgStreakDays),
                         style = MaterialTheme.typography.bodySmall)
