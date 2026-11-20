@@ -81,6 +81,35 @@ class AccountModelTest {
         assertTrue(m.generation > before)
     }
 
+    @Test fun noIncomingLinkLeavesTheSessionUntouchedEvenWithoutARouter() = runTest {
+        for (configured in listOf(true, false)) {
+            val m = model(store = RecordingStore(validCredentials()))
+            m.start()
+            val state = m.state
+            val generation = m.generation
+            assertNull(m.onLaunchLink(null, null, configured))
+            assertTrue(m.hasSession)
+            assertEquals(state, m.state)
+            assertEquals(generation, m.generation)
+            assertNull(m.notice)
+        }
+    }
+
+    @Test fun aLinkWithoutARouterOnlyFailsAConfiguredBuild() = runTest {
+        val unconfigured = model(store = RecordingStore(validCredentials()))
+        unconfigured.start()
+        assertNull(unconfigured.onLaunchLink("https://links.example/r/abc", null, publicOriginConfigured = false))
+        assertTrue(unconfigured.hasSession)
+        assertTrue(unconfigured.state is AccountState.Ready)
+
+        val configured = model(store = RecordingStore(validCredentials()))
+        configured.start()
+        assertNull(configured.onLaunchLink("https://links.example/r/abc", null, publicOriginConfigured = true))
+        assertFalse(configured.hasSession)
+        assertEquals(AccountState.Unavailable, configured.state)
+        assertEquals(PhoneSignInModel.NOT_CONFIGURED, configured.notice)
+    }
+
     @Test fun aTransientBuildFailureIsNotRecordedAsAnUnconfiguredBuild() = runTest {
         var calls = 0
         val m = AccountModel({ scope, _ ->

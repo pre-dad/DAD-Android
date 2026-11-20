@@ -35,6 +35,19 @@ class KeystoreStoreTest {
         } finally { store.clear() }
     }
 
+    @Test fun aFailingKeystoreProviderLoadsAsSignedOutWithoutCrashing() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "provider-failure-session"
+        val file = File(context.noBackupFilesDir, "$name.enc")
+        val working = KeystoreCredentialStore(context, name)
+        try {
+            working.save(Credentials("synthetic-access-secret", "synthetic-refresh-secret", 1234))
+            val failing = KeystoreCredentialStore(context, name, keySource = { throw java.security.ProviderException("keystore daemon died") })
+            assertNull(failing.load())
+            assertFalse("an unusable session is removed so the donor can sign in again", file.exists())
+        } finally { working.clear() }
+    }
+
     @Test fun anUnreadableSessionFileLoadsAsSignedOutWithoutCrashing() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val store = KeystoreCredentialStore(context, "unreadable-session")
