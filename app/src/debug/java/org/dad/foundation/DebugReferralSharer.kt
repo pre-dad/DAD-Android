@@ -10,7 +10,7 @@ import android.content.Context
  * OS sink is replaced. This source set is compiled into debug builds only; release builds never see it.
  */
 class DebugReferralSharer : ReferralSharer {
-    override fun share(link: String, channel: String) = Unit
+    override fun share(link: String, channel: String) = true
 
     override fun copy(link: String) {
         DebugBackend.copiedLink = link

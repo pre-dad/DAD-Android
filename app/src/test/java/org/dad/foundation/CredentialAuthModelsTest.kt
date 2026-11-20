@@ -246,7 +246,7 @@ class CredentialAuthModelsTest {
         val fake = FakePasswords()
         val m = PasswordChangeModel(fake)
         m.newPassword = "short"; m.confirmPassword = "short"
-        assertFalse(m.canSave); assertEquals("Use 12 to 72 characters.", m.newPasswordHint.textOrNull())
+        assertFalse(m.canSave); assertEquals("Use 12 to 72 bytes. Accented characters count more.", m.newPasswordHint.textOrNull())
         m.newPassword = "brand-new-password"
         assertNull(m.newPasswordHint)
         assertTrue(m.confirmMismatch); assertFalse(m.canSave)
@@ -286,7 +286,7 @@ class CredentialAuthModelsTest {
 
     @Test fun changePasswordFailureCopy() {
         mapOf(
-            AccountFailure.InvalidInput to "Use a password of 12 to 72 characters.",
+            AccountFailure.InvalidInput to "Use a password of 12 to 72 bytes. Accented characters count more.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
             AccountFailure.Unavailable to "We couldn’t save your password right now. Please try again in a moment.",
         ).forEach { (failure, copy) ->

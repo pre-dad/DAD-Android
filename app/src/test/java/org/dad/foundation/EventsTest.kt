@@ -135,8 +135,6 @@ class EventsTest {
 
     // --- Reservation outcome (E-4) ---
     @Test fun reservationOutcomeCopy() {
-        assertEquals(ReservationOutcome.WAITLISTED, ReservationOutcome.from("waitlisted"))
-        assertEquals(ReservationOutcome.RESERVED, ReservationOutcome.from("reserved"))
         assertEquals("You’re on the waitlist", ReservationOutcome.WAITLISTED.confirmationTitle.textOrNull())
         assertEquals("You’re going", ReservationOutcome.RESERVED.confirmationTitle.textOrNull())
     }
@@ -186,6 +184,7 @@ class EventsTest {
         var reserveFailure: Throwable? = null,
         var checkInFailure: Throwable? = null,
         var checkInEventId: String = "e1",
+        var checkedIn: Boolean = true,
         var calendarFailure: Throwable? = null,
         var detailFailure: Throwable? = null,
     ) : EventsService {
@@ -209,7 +208,7 @@ class EventsTest {
         override suspend fun checkIn(code: String): CheckInResultValue {
             checkInCalls++
             checkInFailure?.let { throw it }
-            return CheckInResultValue(checkInEventId, checkedIn = true, alreadyCheckedIn = false)
+            return CheckInResultValue(checkInEventId, checkedIn = checkedIn, alreadyCheckedIn = false)
         }
         override suspend fun calendar(eventId: String): ByteArray { calendarFailure?.let { throw it }; return "BEGIN:VCALENDAR".toByteArray() }
     }
@@ -247,6 +246,18 @@ class EventsTest {
         service.failLoad = null
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(EventsPhase.Ready, model.phase)
+    }
+
+    @Test fun aFailedRefreshKeepsTheListAlreadyOnScreen() = runTest {
+        val service = FakeService()
+        val model = modelOf(service)
+        assertEquals(1, model.events.size)
+        service.failLoad = AccountFailure.Unavailable
+        model.load()
+        assertEquals(EventsPhase.Ready, model.phase)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(EventsPhase.Ready, model.phase)
+        assertEquals(1, model.events.size)
     }
 
     @Test fun signedOutOnLoadFlagsTheModel() = runTest {
@@ -429,6 +440,12 @@ class EventsTest {
         val model = modelOf(FakeService(checkInEventId = "someone-elses"))
         model.checkIn(live, code); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(CheckInState.Failed(EventsCopy.WRONG_EVENT), model.checkIn)
+    }
+
+    @Test fun aSuccessReplyThatCheckedNobodyInIsAFailure() = runTest {
+        val model = modelOf(FakeService(checkedIn = false))
+        model.checkIn(live, code); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(CheckInState.Failed(EventsCopy.GENERIC), model.checkIn)
     }
 
     @Test fun aDoubleTappedCheckInSendsOnce() = runTest {

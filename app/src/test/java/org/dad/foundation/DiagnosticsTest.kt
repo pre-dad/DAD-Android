@@ -12,7 +12,7 @@ class DiagnosticsTest {
         val received = mutableListOf<ClientError>()
         val sink = object : ErrorReporter { override fun report(error: ClientError) { received += error } }
         val reporter = ConsentErrorReporter({ allowed }, DedupingErrorReporter(sink))
-        val error = ClientError("api", "profile", ClientError.Kind.UNAVAILABLE, "")
+        val error = ClientError("api", "profile", ClientError.Kind.UNAVAILABLE)
         reporter.report(error)
         assertTrue(received.isEmpty())
         allowed = true
@@ -28,14 +28,14 @@ class DiagnosticsTest {
         val reporter = DedupingErrorReporter(object : ErrorReporter { override fun report(error: ClientError) { received += error } })
         val pool = Executors.newFixedThreadPool(8)
         try {
-            repeat(1000) { pool.submit { reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE, "")) } }
+            repeat(1000) { pool.submit { reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE)) } }
             pool.shutdown()
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS))
             assertEquals(1, received.size)
-            repeat(1000) { reporter.report(ClientError("api", "operation_$it", ClientError.Kind.UNAVAILABLE, "")) }
+            repeat(1000) { reporter.report(ClientError("api", "operation_$it", ClientError.Kind.UNAVAILABLE)) }
             assertEquals(256, reporter.reportedCount)
             reporter.clear()
-            reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE, ""))
+            reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE))
             assertEquals(1, reporter.reportedCount)
         } finally { pool.shutdownNow() }
     }
@@ -49,8 +49,24 @@ class DiagnosticsTest {
         val error = received.single()
         assertEquals("profile", error.operation)
         assertEquals("api", error.screen)
-        assertEquals("", error.detail)
         assertFalse(error.toString().contains("alex@example.org"))
         assertFalse(error.toString().contains("secret-token"))
+    }
+
+    @Test fun aCancelledCallIsNotReportedAsAnOutageButARealFailureIs() {
+        val received = mutableListOf<ClientError>()
+        val sink = object : ErrorReporter { override fun report(error: ClientError) { received += error } }
+        fun client(cancel: Boolean) = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(ErrorObserver(sink))
+            .addInterceptor { chain ->
+                if (cancel) chain.call().cancel()
+                throw java.io.IOException(if (cancel) "Canceled" else "unreachable")
+            }
+            .build()
+        val request = okhttp3.Request.Builder().url("http://localhost/").build()
+        assertTrue(runCatching { client(cancel = true).newCall(request).execute() }.exceptionOrNull() is java.io.IOException)
+        assertTrue(received.isEmpty())
+        assertTrue(runCatching { client(cancel = false).newCall(request).execute() }.exceptionOrNull() is java.io.IOException)
+        assertEquals(listOf(ClientError.Kind.UNAVAILABLE), received.map { it.kind })
     }
 }

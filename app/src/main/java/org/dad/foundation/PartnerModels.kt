@@ -35,6 +35,13 @@ data class PartnerSnapshot(
     val sectionsUnavailable: Boolean,
 ) {
     val selfId: String? get() = overview.userId
+
+    override fun equals(other: Any?): Boolean = this === other || other is PartnerSnapshot &&
+        overview == other.overview && initiatives == other.initiatives && spend == other.spend && people == other.people &&
+        teams == other.teams && users == other.users && exports == other.exports && logo.contentEquals(other.logo) &&
+        sectionsUnavailable == other.sectionsUnavailable
+
+    override fun hashCode(): Int = listOf(overview, initiatives, spend, people, teams, users, exports, logo?.contentHashCode(), sectionsUnavailable).hashCode()
 }
 
 /** One earlier report export (P-14). [downloadable] is false once its retained PDF has aged out. */
@@ -351,8 +358,6 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 }
 
-// MARK: - Partner sign-in (approved partner users sign in with an emailed link)
-
 interface PartnerSignInService {
     suspend fun requestSignInLink(email: String)
     /** Exchanges an emailed link's token for the partner session and keeps it. */
@@ -424,7 +429,7 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
     fun acceptPasted(raw: String) {
         val text = raw.trim()
         val token = text.substringAfter('#', "").split('&').firstOrNull { it.startsWith("token=") }?.removePrefix("token=") ?: text
-        if (token.isEmpty() || token.any(Char::isWhitespace)) {
+        if (!token.matches(SIGN_IN_PROOF_SHAPE)) {
             phase = PartnerSignInPhase.Failed(UiText.res(R.string.partner_paste_the_whole_sign_in_link_from))
             return
         }

@@ -5,7 +5,6 @@ data class ClientError(
     val screen: String,
     val operation: String,
     val kind: Kind,
-    val detail: String,
 ) {
     enum class Kind { SIGNED_OUT, UNAVAILABLE, INVALID_RESPONSE, UNKNOWN;
         companion object {
@@ -30,11 +29,6 @@ interface ErrorReporter {
 
 internal class ConsentErrorReporter(private val allowed: () -> Boolean, private val delegate: ErrorReporter) : ErrorReporter {
     override fun report(error: ClientError) { if (allowed()) delegate.report(error) }
-}
-
-/** Used by unconfigured clients and tests. */
-object NoopErrorReporter : ErrorReporter {
-    override fun report(error: ClientError) {}
 }
 
 /**

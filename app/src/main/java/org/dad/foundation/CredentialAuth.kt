@@ -249,7 +249,7 @@ class PasswordChangeModel(private val service: PasswordSettingsService) : ViewMo
     var confirmPassword by mutableStateOf("")
 
     val newPasswordHint: UiText?
-        get() = if (newPassword.isEmpty() || CredentialRules.isAcceptableNewPassword(newPassword)) null else UiText.res(R.string.cred_use_12_to_72_characters)
+        get() = if (newPassword.isEmpty() || CredentialRules.isAcceptableNewPassword(newPassword)) null else UiText.res(R.string.cred_use_12_to_72_bytes)
     val confirmMismatch: Boolean get() = confirmPassword.isNotEmpty() && confirmPassword != newPassword
     val canSave: Boolean
         get() = phase !is PasswordChangePhase.Saving && CredentialRules.isAcceptableNewPassword(newPassword) &&
@@ -278,7 +278,7 @@ class PasswordChangeModel(private val service: PasswordSettingsService) : ViewMo
 
     internal fun message(error: Exception): UiText = when (error) {
         is AccountFailure.PasswordIncorrect -> UiText.res(R.string.cred_your_current_password_didnt_match)
-        is AccountFailure.InvalidInput -> UiText.res(R.string.cred_use_a_password_of_12_to_72)
+        is AccountFailure.InvalidInput -> UiText.res(R.string.cred_use_a_password_of_12_to_72_bytes)
         is AccountFailure.RateLimited -> RATE_LIMITED
         is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
         is AccountFailure.Unavailable -> UiText.res(R.string.cred_we_couldnt_save_your_password)

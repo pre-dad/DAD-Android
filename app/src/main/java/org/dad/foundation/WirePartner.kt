@@ -238,6 +238,7 @@ class WirePartner(
     }
 
     override suspend fun removeUser(id: String) {
+        id.requireUuid()
         perform { it.create(PartnerReads::class.java).remove(id, JsonObject()).partnerBody() }
     }
 
@@ -279,8 +280,10 @@ class WirePartner(
             response.partnerBody().use(ResponseBody::bytes)
         }
 
-    override suspend fun retainedReport(id: String): ByteArray =
-        perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).retained(id).partnerBody().use(ResponseBody::bytes) }
+    override suspend fun retainedReport(id: String): ByteArray {
+        id.requireUuid()
+        return perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).retained(id).partnerBody().use(ResponseBody::bytes) }
+    }
 
     /** The local session is forgotten first, so the partner is signed out on this device even when the server
      *  cannot be reached; the server session then simply expires. */

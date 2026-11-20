@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
@@ -136,8 +138,6 @@ private fun InvitePreview(inviterName: String?) {
     }
 }
 
-// MARK: impact (I-1, I-3)
-
 @Composable
 private fun ImpactCard(impact: ImpactTotals?) {
     HomeCard("impact-section") {
@@ -160,8 +160,6 @@ private fun ImpactCard(impact: ImpactTotals?) {
         }
     }
 }
-
-// MARK: badges (B-1..B-4), earned/locked in text, never colour alone
 
 @Composable
 private fun BadgesSection(grid: BadgeGrid?) {
@@ -207,8 +205,6 @@ private fun BadgeTile(badge: Badge, modifier: Modifier = Modifier) {
     }
 }
 
-// MARK: rankings (K-1..K-3): opt-out hides the position entirely, never a name list
-
 @Composable
 private fun RankingsCard(model: EngagementModel) {
     HomeCard("rankings-section") {
@@ -218,7 +214,7 @@ private fun RankingsCard(model: EngagementModel) {
             UnavailableLine(stringResource(R.string.eng_your_ranking), "ranking-unavailable")
             return@HomeCard
         }
-        if (ranking.isOptedOut) {
+        if (ranking.optedOut) {
             Text(stringResource(R.string.eng_youre_not_shown_in_rankings), modifier = Modifier.testTag("ranking-optedout"))
         } else {
             val national = ranking.nationalLabel
@@ -228,15 +224,13 @@ private fun RankingsCard(model: EngagementModel) {
             if (national == null && city == null) Text(stringResource(R.string.common_not_ranked_yet), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("ranking-unranked"))
         }
         OutlinedButton(
-            onClick = { model.setRankingOptIn(ranking.isOptedOut) },
+            onClick = { model.setRankingOptIn(ranking.optedOut) },
             enabled = model.pendingOptIn == null,
             modifier = Modifier.heightIn(min = 48.dp).testTag("ranking-toggle"),
-        ) { Text(if (ranking.isOptedOut) stringResource(R.string.common_show_my_ranking) else stringResource(R.string.eng_hide_my_ranking)) }
+        ) { Text(if (ranking.optedOut) stringResource(R.string.common_show_my_ranking) else stringResource(R.string.eng_hide_my_ranking)) }
         Text(stringResource(R.string.eng_only_you_see_your_position), style = MaterialTheme.typography.bodySmall)
     }
 }
-
-// MARK: network (N-1..N-3)
 
 @Composable
 private fun NetworkCard(network: NetworkView?) {
@@ -255,8 +249,6 @@ private fun NetworkCard(network: NetworkView?) {
         network.anonymousStayingLabel?.let { Text(it.asString(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("network-anonymous")) }
     }
 }
-
-// MARK: invite link + IRL code (R-1..R-4)
 
 @Composable
 private fun InviteCard(
@@ -335,14 +327,14 @@ private fun NamePrompt(model: EngagementModel) {
 @Composable
 private fun InviteQrScreen(link: String, onClose: () -> Unit) {
     val bitmap = remember(link) { runCatching { qrBitmap(link) }.getOrNull() }
-    // The QR is a pushed sub-screen of Circle: its back arrow (carrying the moved `qr-close` tag) lives in
-    // a TopAppBar via DadBackBar, replacing the former inline Close button. BackHandler is wired by the caller.
+    // The QR is a pushed sub-screen of Circle: its back arrow (`qr-close`) lives in a TopAppBar via DadBackBar.
+    // BackHandler is wired by the caller.
     Scaffold(
         topBar = { DadBackBar("qr-close", stringResource(R.string.common_back), onBack = onClose) },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("qr-screen"),
+            modifier = Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding).imePadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("qr-screen"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -374,14 +366,14 @@ internal fun qrBitmap(contents: String): Bitmap {
 fun InitiativeSpendScreen(model: InitiativeSpendModel, title: String, onClose: () -> Unit, onSignedOut: () -> Unit = {}) {
     LaunchedEffect(Unit) { model.load() }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
-    // The spend drill-in is a pushed screen: its back arrow (the moved `spend-close` tag) is in the
-    // TopAppBar. BackHandler is wired by the shell that pushed it.
+    // The spend drill-in is a pushed screen: its back arrow (`spend-close`) is in the TopAppBar.
+    // BackHandler is wired by the shell that pushed it.
     Scaffold(
         topBar = { DadBackBar("spend-close", stringResource(R.string.common_back), onBack = onClose) },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("spend-screen"),
+            modifier = Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding).imePadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("spend-screen"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(stringResource(R.string.common_where_the_money_went), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())

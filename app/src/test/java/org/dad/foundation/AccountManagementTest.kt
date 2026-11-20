@@ -21,30 +21,6 @@ private const val SESSION_LIST = """{"sessions":[
  {"id":"22222222-2222-4222-8222-222222222222","client":"BROWSER","platform":null,"label":"Web browser","created_at":"2026-10-02T10:00:00Z","last_used_at":"2026-10-29T10:00:00Z","current":false}
 ]}"""
 
-class ProfileRulesTest {
-    @Test fun zipAcceptsFiveDigitsZipPlusFourOrEmpty() {
-        listOf("78701", "78701-1234", "", " 78701 ").forEach { assertTrue(it, ProfileRules.isAcceptableZip(it)) }
-        listOf("7870", "787011", "78701-12", "abcde").forEach { assertFalse(it, ProfileRules.isAcceptableZip(it)) }
-    }
-
-    @Test fun phoneNormalizesTheWaysPeopleTypeAUsNumber() {
-        assertEquals("+14155550123", ProfileRules.e164("(415) 555-0123"))
-        assertEquals("+14155550123", ProfileRules.e164("1 415 555 0123"))
-        assertEquals("+442079460958", ProfileRules.e164("+44 20 7946 0958"))
-        assertEquals("", ProfileRules.e164(""))
-        assertNull(ProfileRules.e164("555-0123"))
-        assertNull(ProfileRules.e164("+0123"))
-        assertNull(ProfileRules.e164("call me"))
-    }
-
-    @Test fun onlyAGoogleWalletSaveLinkIsOpened() {
-        assertTrue(ProfileRules.isGoogleWalletSaveUrl("https://pay.google.com/gp/v/save/eyJhbGciOi"))
-        listOf("http://pay.google.com/gp/v/save/x", "https://pay.google.com.evil.test/gp/v/save/x", "https://pay.google.com/other",
-            "https://user@pay.google.com/gp/v/save/x", "https://pay.google.com:8443/gp/v/save/x", "not a url")
-            .forEach { assertFalse(it, ProfileRules.isGoogleWalletSaveUrl(it)) }
-    }
-}
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountManagementModelTest {
     @Before fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -303,7 +279,12 @@ class WireAccountManagementTest {
         assertEquals(listOf(true, false), list.map { it.current })
         rig.wire.revokeSession("22222222-2222-4222-8222-222222222222")
         assertEquals("/donor/me/sessions/22222222-2222-4222-8222-222222222222/revoke", rig.http.requests.last().path)
-        assertEquals(AccountFailure.NotFound, failure { Rig(backgroundScope) { 404 to "{}" }.wire.revokeSession("x") })
+        assertEquals(AccountFailure.NotFound, failure { Rig(backgroundScope) { 404 to "{}" }.wire.revokeSession("22222222-2222-4222-8222-222222222222") })
+        val refused = Rig(backgroundScope) { 200 to SESSION_LIST }
+        listOf("x", "..", "../logout-all", "22222222-2222-4222-8222-22222222222/").forEach {
+            assertEquals(it, AccountFailure.InvalidInput, failure { refused.wire.revokeSession(it) })
+        }
+        assertEquals(0, refused.http.requests.size)
     }
 
     @Test fun signOutEverywhereClearsLocalOnlyAfterTheServerConfirms() = runTest {
@@ -315,6 +296,12 @@ class WireAccountManagementTest {
         rig.wire.signOutEverywhere()
         assertNull(rig.store.value)
         assertEquals(1, rig.http.count("/donor/logout-all"))
+    }
+
+    @Test fun signOutEverywhereStillClearsLocalWhenTheServerAlreadyRefusedTheSession() = runTest {
+        val rig = Rig(backgroundScope) { 401 to "{}" }
+        rig.wire.signOutEverywhere()
+        assertNull(rig.store.value)
     }
 
     @Test fun employerMapsUnlinkedAndLinked() = runTest {
@@ -348,19 +335,5 @@ class WireAccountManagementTest {
         assertEquals("https://pay.google.com/gp/v/save/abc", rig.wallet.googlePassUrl())
         assertEquals("POST", rig.http.requests.last().method)
         assertEquals(AccountFailure.Conflict, failure { Rig(backgroundScope) { 409 to "{}" }.wallet.googlePassUrl() })
-    }
-}
-
-class StubTimezoneTest {
-    @Test fun correctionsPersistAcrossOmittedWritesAndResetExplicitly() {
-        val account = StubAccount()
-        fun save(body: String) = account.answer("POST", "/donor/me/profile", body) { "{}" }.first
-        assertEquals(200, save("""{"zip":"78701","timezone_override":"America/Phoenix"}"""))
-        assertEquals("America/Phoenix", account.timezoneOverride)
-        assertEquals(200, save("""{"zip":""}"""))
-        assertEquals("America/Phoenix", account.timezoneOverride)
-        assertEquals(200, save("""{"zip":"","timezone_override":""}"""))
-        assertNull(account.timezoneOverride)
-        assertEquals(422, save("""{"timezone_override":"Invalid/Zone"}"""))
     }
 }

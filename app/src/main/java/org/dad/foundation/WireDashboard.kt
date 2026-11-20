@@ -1,5 +1,6 @@
 package org.dad.foundation
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import retrofit2.Response
@@ -7,7 +8,6 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
  * The donor-home reads. The pinned contract is hash-locked, but the generated Kotlin models for these
@@ -58,8 +58,7 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
     }
 
     override suspend fun receipt(giftId: String): HomeReceipt {
-        // A malformed id is a 404 server-side; refuse it before it becomes a path segment.
-        if (runCatching { UUID.fromString(giftId) }.isFailure || giftId.length != 36) throw AccountFailure.InvalidInput
+        giftId.requireUuid()
         return product.perform { retrofit ->
             val response = retrofit.create(HomeReads::class.java).receipt(giftId)
             if (response.code() == 404) { response.errorBody()?.close(); throw AccountFailure.InvalidInput }
@@ -90,8 +89,6 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
             )
         }
     }
-
-    // MARK: mapping
 
     private fun mapDashboard(json: JsonObject): DashboardState {
         when (json.str("state")) {
@@ -144,7 +141,7 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
             HomeMetric(
                 label = metric.str("label"), value = metric.long("value"),
                 // An unknown unit still shows its number; it is never dropped or guessed.
-                unit = HomeMetric.Unit.entries.firstOrNull { unit -> unit.name == metric.optStr("unit") },
+                unit = HomeMetric.MetricUnit.entries.firstOrNull { unit -> unit.name == metric.optStr("unit") },
                 verifiedOn = metric.str("verified_on"),
             )
         },
@@ -158,7 +155,7 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
     private companion object { const val PAGE_ROW_LIMIT = 100 }
 }
 
-// MARK: strict JSON readers. Anything absent or of the wrong type is an invalid response, never a default.
+// Strict JSON readers: anything absent or of the wrong type is an invalid response, never a default.
 
 internal fun Response<JsonElement>.body_(): JsonElement = requireBody()
 
@@ -180,7 +177,7 @@ internal fun JsonObject.optLong(key: String): Long? {
 }
 internal fun JsonObject.obj(key: String): JsonObject = value(key)?.asObjectOrInvalid() ?: throw AccountFailure.InvalidResponse
 internal fun JsonObject.optObj(key: String): JsonObject? = value(key)?.asObjectOrInvalid()
-internal fun JsonObject.array(key: String): com.google.gson.JsonArray =
+internal fun JsonObject.array(key: String): JsonArray =
     value(key)?.takeIf { it.isJsonArray }?.asJsonArray ?: throw AccountFailure.InvalidResponse
 internal fun JsonObject.time(key: String): OffsetDateTime = optTime(key) ?: throw AccountFailure.InvalidResponse
 internal fun JsonObject.optTime(key: String): OffsetDateTime? {

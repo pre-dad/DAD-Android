@@ -19,7 +19,7 @@ class EngagementScreensTest {
     private class RecordingSharer : ReferralSharer {
         val shared = mutableListOf<String>()
         val copied = mutableListOf<String>()
-        override fun share(link: String, channel: String) { shared += link }
+        override fun share(link: String, channel: String): Boolean { shared += link; return true }
         override fun copy(link: String) { copied += link }
     }
 

@@ -383,12 +383,17 @@ class PartnerTest {
         model.submit(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("ada@acme.com"), svc.requested)
         assertEquals("ada@acme.com", model.sentTo)
-        model.acceptPasted(" https://dad.example/partner/accept#token=abc123 "); dispatcher.scheduler.advanceUntilIdle()
+        val first = "a".repeat(43)
+        val second = "B-_".repeat(14)
+        model.acceptPasted(" https://dad.example/partner/accept#token=$first "); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(PartnerSignInPhase.SignedIn, model.phase)
-        model.acceptPasted("def456"); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf("abc123", "def456"), svc.accepted)
-        model.acceptPasted("two words")
-        assertEquals("Paste the whole sign-in link from your email.", (model.phase as PartnerSignInPhase.Failed).message.text())
+        model.acceptPasted(second); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(first, second), svc.accepted)
+        listOf("two words", "short", "https://dad.example/partner/accept#token=abc123", "x".repeat(129)).forEach {
+            model.acceptPasted(it)
+            assertEquals("Paste the whole sign-in link from your email.", (model.phase as PartnerSignInPhase.Failed).message.text())
+        }
+        assertEquals(listOf(first, second), svc.accepted)
     }
 
     @Test fun aUsedLinkAndABlockedAccountAreExplained() = runTest {

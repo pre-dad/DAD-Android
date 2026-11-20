@@ -70,10 +70,11 @@ internal class ErrorObserver(private val reporter: ErrorReporter = Diagnostics) 
         val operation = chain.request().tag(Invocation::class.java)?.method()?.name ?: "request"
         val response = try { chain.proceed(chain.request()) }
         catch (error: IOException) {
-            reporter.report(ClientError("api", operation, ClientError.Kind.UNAVAILABLE, ""))
+            // A call the app cancelled itself is not an outage.
+            if (!chain.call().isCanceled()) reporter.report(ClientError("api", operation, ClientError.Kind.UNAVAILABLE))
             throw error
         }
-        if (response.code >= 500) reporter.report(ClientError("api", operation, ClientError.Kind.UNAVAILABLE, ""))
+        if (response.code >= 500) reporter.report(ClientError("api", operation, ClientError.Kind.UNAVAILABLE))
         return response
     }
 }
