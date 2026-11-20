@@ -163,7 +163,7 @@ class WireAnalytics(
     }
 }
 
-private val EVENT_VIEW = Regex("^/(donor/me/)?events/[^/]+$")
+private val EVENT_VIEW = Regex("^/(donor/me/)?events/(?!invite-only$)[^/]+$")
 private val EVENT_RESERVE = Regex("^/donor/me/events/[^/]+/reserve$")
 
 /**
