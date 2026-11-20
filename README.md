@@ -44,12 +44,18 @@ its own Gradle distribution.
 node --test scripts/*.test.mjs
 node scripts/check-foundation.mjs
 node scripts/check-hardcoded-strings.mjs
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease -PdadLoadTests --warning-mode all
 scripts/check-release-apk.sh
 ```
 
 CI also runs `node scripts/check-foundation-drift.mjs` to check published foundation tags. This is advisory
 for an additive release or an unreachable remote; adopting a new snapshot remains a deliberate change.
+
+`-PdadLoadTests` includes the native load suite: a 128-read burst sharing one refresh, and a one-minute soak
+that repeatedly refreshes and revokes independent sessions. These run the real session/Retrofit/OkHttp code
+over a synthetic transport; they do not contact providers or establish production throughput or 4G timings.
+Omit the property for the shorter unit suite. CI includes the load suite.
+For a longer soak, add `-PdadSoakSeconds=3600` (allowed range: 60–3600 seconds).
 
 All user-visible text lives in `app/src/main/res/values/strings.xml`: Compose reads it with `stringResource` /
 `pluralStringResource`, and models carry a `UiText` (a string or plural resource id plus arguments, never a
@@ -191,6 +197,11 @@ HTTPS Go API: claim/profile, expired-access refresh and credential replacement,
 revocation cleanup, and logout. Test-only transports trust the temporary server's
 certificate; production TLS settings are unchanged. No provider credentials are used.
 The test runner removes the private proof fixtures after either success or failure.
+
+For Android alone, run `TEST_DATABASE_URL=... DAD_MAIN_DIR=../DAD-Main scripts/test-native-backend.sh`.
+Use only a migrated, disposable synthetic `donor_go` database. The script runs the backend lifecycle test
+with Go's race detector, starts its temporary HTTPS server, runs Android's claim/refresh/revocation/logout
+integration test, and removes the private proof fixtures on exit. It does not run iOS acceptance.
 
 ## Giving (wiring phase 3, contract 2.6.0)
 

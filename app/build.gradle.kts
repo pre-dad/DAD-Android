@@ -81,6 +81,9 @@ android {
     if (providers.gradleProperty("dadIntegrationFixture").isPresent) {
         sourceSets["test"].kotlin.directories.add("src/integrationTest/kotlin")
     }
+    if (providers.gradleProperty("dadLoadTests").isPresent) {
+        sourceSets["test"].kotlin.directories.add("src/loadTest/kotlin")
+    }
     sourceSets.named("main") {
         kotlin.directories.add(layout.buildDirectory.dir("generated/openapi/src/main/kotlin").get().asFile.path)
         kotlin.directories.add(layout.buildDirectory.dir("generated/tokens").get().asFile.path)
@@ -135,6 +138,7 @@ val generateLinks = tasks.register<Copy>("generateLinks") {
 tasks.named("preBuild") { dependsOn(generateClient, generateTokens, generateLinks) }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    providers.gradleProperty("dadSoakSeconds").orNull?.let { systemProperty("dad.load.soakSeconds", it) }
     providers.gradleProperty("dadIntegrationFixture").orNull?.let {
         systemProperty("dad.integration.fixture", it)
     }
