@@ -137,7 +137,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
                 cancelled = json.bool("cancelled"),
                 bookingOpensAt = json.optTime("booking_opens_at")?.toDate(),
                 earlyBooking = json.bool("early_booking"),
-                timeZone = json.optStr("time_zone") ?: "UTC",
+                timeZone = json.str("time_zone"),
                 checkedInAt = json.optTime("checked_in_at")?.toDate(),
                 details = json.optStr("description").orEmpty(), address = json.optStr("address").orEmpty(),
             )

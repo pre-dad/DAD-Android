@@ -34,7 +34,7 @@ android {
         applicationId = "org.dad.foundation"
         minSdk = 26
         targetSdk = 37
-        // Release builds pass -PdadVersionCode (strictly increasing; CI uses the run number) and -PdadVersionName.
+        // Release builds pass -PdadVersionCode (strictly increasing) and -PdadVersionName.
         versionCode = providers.gradleProperty("dadVersionCode").orNull?.toInt() ?: 1
         versionName = providers.gradleProperty("dadVersionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

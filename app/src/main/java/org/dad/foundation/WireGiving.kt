@@ -133,6 +133,7 @@ class WireGiving(
         return command("checkout:$amountMinor:${referralFingerprint(referral)}") { key ->
             product.perform { retrofit ->
                 val json = retrofit.create(GivingApi::class.java).startRecurringCheckout(key, body).givingBody().asObjectOrInvalid()
+                // Strict shape check of the response; the values are unused.
                 json.str("session_id")
                 json.time("expires_at")
                 PaymentPath.WebCheckoutHandoff(hostedUrl(json.str("url")))

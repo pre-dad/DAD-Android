@@ -37,11 +37,13 @@ class KeystoreCredentialStore(
         // unrecoverable; treating it as signed out lets the donor sign in again instead of
         // failing every launch. An unreadable file (I/O error) is also no session, but is left in place: it may read again.
         return try { decrypt(file.readFully()) }
-        catch (_: GeneralSecurityException) { clear(); null }
-        catch (_: IllegalArgumentException) { clear(); null }
-        catch (_: JsonParseException) { clear(); null }
+        catch (_: GeneralSecurityException) { clearQuietly(); null }
+        catch (_: java.security.ProviderException) { clearQuietly(); null }
+        catch (_: IllegalArgumentException) { clearQuietly(); null }
+        catch (_: JsonParseException) { clearQuietly(); null }
         catch (_: java.io.IOException) { null }
     }
+    private fun clearQuietly() { runCatching { clear() } }
     private fun decrypt(raw: ByteArray): Credentials {
         require(raw.size in 29..16384) { "Invalid encrypted session" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

@@ -706,6 +706,7 @@
     <string name="main_profile">Profile</string>
     <string name="main_notifications">Notifications</string>
     <string name="main_emails">Emails</string>
+    <string name="main_push">Push</string>
     <string name="main_privacy">Privacy</string>
     <string name="main_network_visible">Network visible</string>
     <string name="main_volunteer_opt_in">Volunteer opt-in</string>
