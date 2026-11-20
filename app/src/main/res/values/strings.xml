@@ -160,6 +160,8 @@
     <string name="acct_youre_not_signed_in_anywhere_else">You’re not signed in anywhere else.</string>
     <string name="acct_sign_out_of_every_other_device">Sign out of every other device</string>
     <string name="acct_sign_out_on_every_device">Sign out on every device</string>
+    <string name="acct_sign_out_everywhere_title">Sign out on every device?</string>
+    <string name="acct_sign_out_everywhere_body">You’ll be signed out here and on every other device, and will need to sign in again.</string>
     <string name="acct_preparing_your_wallet_pass">Preparing your Wallet pass…</string>
     <string name="acct_add_to_google_wallet">Add to Google Wallet</string>
     <string name="acct_wallet_availability_couldnt_be">Wallet availability couldn’t be checked. Your on-screen code still works.</string>

@@ -80,6 +80,8 @@ class AccountManagementFlowTest {
             compose.tapSafely("session-revoke-22222222-2222-4222-8222-222222222222")
             waitFor("sessions-none")
             compose.tapSafely("sessions-sign-out-everywhere")
+            waitFor("sessions-sign-out-everywhere-confirm")
+            compose.tapSafely("sessions-sign-out-everywhere-confirm")
             waitFor("role-donor")
         }
     }
