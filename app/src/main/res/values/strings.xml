@@ -349,6 +349,7 @@
     <string name="network_invite_only_milestone_events">Invite-only milestone events</string>
     <string name="network_invite_only_events_a_dad_merch">Invite-only events, a DAD merch item, 48-hour early event booking and opt-in name listing on initiative pages</string>
     <string name="network_unlocks_a_member_perk">Unlocks a member perk</string>
+    <string name="network_conversion_gift">Gift</string>
     <string name="network_in_person">In person</string>
     <string name="network_join_me_on_dollar_a_day_give_1_a">Join me on Dollar A Day — give $1 a day to local causes.</string>
     <string name="network_status_giving">giving</string>
