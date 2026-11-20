@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -170,7 +169,7 @@ private fun CheckEmail(email: String, notice: UiText?, onPastedLink: (String) ->
             enabled = remaining == 0,
         ) { onResend() }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onChangeEmail, modifier = Modifier.testTag("check-email-change")) { Text(stringResource(R.string.common_use_a_different_email)) }
+        DadTextButton(stringResource(R.string.common_use_a_different_email), Modifier.testTag("check-email-change"), onClick = onChangeEmail)
     }
 }
 
@@ -236,7 +235,7 @@ internal fun PasswordSection(model: PasswordChangeModel) {
             support = model.newPasswordHint ?: UiText.res(R.string.cred_12_to_72_characters), isError = model.newPasswordHint != null)
         PasswordField(model.confirmPassword, { model.confirmPassword = it; model.edit() }, stringResource(R.string.cred_confirm_new_password), "pw-confirm", enabled = !busy, newPassword = true,
             support = if (model.confirmMismatch) UiText.res(R.string.cred_passwords_dont_match) else null, isError = model.confirmMismatch)
-        Button(onClick = { model.save() }, enabled = model.canSave, modifier = Modifier.testTag("pw-save").padding(top = 4.dp)) { Text(stringResource(R.string.cred_save_password)) }
+        DadPrimaryButton(stringResource(R.string.cred_save_password), Modifier.testTag("pw-save").padding(top = 4.dp), enabled = model.canSave) { model.save() }
         if (busy) CircularProgressIndicator(modifier = Modifier.testTag("pw-working"))
         when (val phase = model.phase) {
             is PasswordChangePhase.Saved -> Text(stringResource(R.string.cred_password_saved), modifier = Modifier.testTag("pw-saved").semantics { liveRegion = LiveRegionMode.Polite })
