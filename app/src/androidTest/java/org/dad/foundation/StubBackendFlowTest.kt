@@ -7,9 +7,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
@@ -155,9 +153,8 @@ class StubBackendFlowTest {
     @Test fun theAnalyticsQuestionIsAskedOnceAndAnsweringYesSendsAnEvent() {
         DebugBackend.resetRequestLog()
         launch("stub_analytics_unset").use {
-            // The analytics question moved off Welcome: it is now a ModalBottomSheet shown ONCE after the
-            // first sign-in. So sign in first, then expect analytics-choice, allow it, and confirm an event
-            // is uploaded. Same copy/options/tags; only WHEN it appears changed.
+            // The analytics question is a ModalBottomSheet shown ONCE after the first sign-in: sign in first,
+            // expect analytics-choice, allow it, and confirm an event is uploaded.
             signIn("123456")
             waitFor("analytics-choice")
             compose.tapSafely("analytics-allow")

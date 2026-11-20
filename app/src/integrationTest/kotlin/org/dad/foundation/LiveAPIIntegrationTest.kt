@@ -10,7 +10,10 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 private class NativeTestStore(private var value: Credentials?) : CredentialStore {

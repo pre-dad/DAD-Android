@@ -22,10 +22,10 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
+/*
  * Keyboard-safe interaction for the instrumentation tests.
  *
- * Root cause (GiftFlowTest, fbbffc8): the soft keyboard's inset animation is driven by the system, not the Compose
+ * Root cause: the soft keyboard's inset animation is driven by the system, not the Compose
  * clock, so waitForIdle does not cover it. A button tapped while the viewport is still shrinking ends up clipped
  * behind the keyboard, and a click on a clipped node is dropped WITHOUT an error. Two safeguards, used by every
  * test that types and then taps:
@@ -66,7 +66,7 @@ private fun imeBottomInset(activity: Activity): Pair<Boolean, Int> {
  */
 fun ComposeTestRule.launchReady(intent: Intent): ActivityScenario<MainActivity> {
     val scenario = ActivityScenario.launch<MainActivity>(intent)
-    waitUntil(READY_TIMEOUT_MS) { runCatching { resumedActivity() != null }.getOrDefault(false) }
+    waitUntil(READY_TIMEOUT_MS) { resumedActivity() != null }
     waitUntil(READY_TIMEOUT_MS) {
         runCatching { onAllNodes(isRoot()).fetchSemanticsNodes().any { it.children.isNotEmpty() } }.getOrDefault(false)
     }
@@ -135,7 +135,7 @@ fun ComposeTestRule.tapNode(node: SemanticsNodeInteraction, description: String)
     // App-shell chrome (the Scaffold TopAppBar back arrow / account avatar and the NavigationBar tabs)
     // is deliberately NOT inside a scrollable container, so performScrollTo there throws "no parent
     // layout with a Scroll SemanticsAction". Such chrome is always on screen, so a failed scroll there
-    // is harmless; attempt the scroll and swallow only that failure (same runCatching idiom as
+    // is harmless; attempt the scroll and swallow the failure (same runCatching idiom as
     // DashboardFlowTest). Reading ScrollBy off the semantics tree to pre-decide missed scrollable text
     // fields, which skipped the scroll, left the field off-screen and unfocused, and timed out the IME
     // wait in awaitKeyboardSettled. Still assert displayed + clear of the keyboard either way.
