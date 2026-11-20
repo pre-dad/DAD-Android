@@ -20,8 +20,8 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
 
     override suspend fun savePreferences(preferences: Preferences): SettingsSnapshot {
         val body = preferencesBody(preferences)
-        // A stale `version` (409) means the caller must re-read; surfaced as unavailable so the model shows retry.
-        return snapshot(product.perform { it.create(DonorApi::class.java).savePreferences(body).requireBody() })
+        // A stale `version` (409) means the caller must re-read; the model does so and asks the donor to try again.
+        return snapshot(product.perform { it.create(DonorApi::class.java).savePreferences(body).requireBody(AccountFailure.Conflict) })
     }
 
     /**
