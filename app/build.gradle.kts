@@ -47,8 +47,9 @@ android {
         buildConfigField("String", "DAD_PUBLIC_ORIGIN", groovy.json.JsonOutput.toJson(publicOrigin))
         // App Links are verified against the public origin's /.well-known/assetlinks.json, so without an origin the
         // filter stays disabled (an intent filter cannot be left without a host).
-        val linkHost = publicOrigin.takeIf { it.isNotBlank() }?.let { URI(it).host }
+        val linkHost = publicOrigin.takeIf { it.isNotBlank() }?.let { runCatching { URI(it).host }.getOrNull() }
         check(publicOrigin.isBlank() || (publicOrigin.startsWith("https://") && !linkHost.isNullOrBlank())) { "dadPublicOrigin must be an https origin" }
+        check(apiOrigin.isBlank() || apiOrigin.startsWith("https://")) { "dadApiOrigin must be an https origin" }
         manifestPlaceholders["dadLinkHost"] = linkHost ?: "links.invalid"
         manifestPlaceholders["dadAppLinks"] = (linkHost != null).toString()
     }
