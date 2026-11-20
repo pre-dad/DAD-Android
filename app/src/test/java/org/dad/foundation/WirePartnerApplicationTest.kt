@@ -72,6 +72,15 @@ class WirePartnerApplicationTest {
         }
     }
 
+    @Test fun aRefusalRestoresTheReceiptOfAnEarlierApplication() = runTest {
+        val earlier = Credentials("E".repeat(43), refresh = "", expiresAtMillis = 99)
+        for (status in listOf(403, 409, 422)) {
+            val store = RecordingStore().apply { save(earlier) }
+            runCatching { WirePartnerApplication(TEST_ORIGIN, store, ScriptedHttp { status to "{}" }.client()).submit(attempt("N".repeat(43))) }
+            assertEquals("$status restores the earlier receipt", earlier, store.value)
+        }
+    }
+
     @Test fun aThrottleOrOutageKeepsTheReceiptSoARetryCanRepeatIt() = runTest {
         for (status in listOf(429, 500, 503)) {
             val store = RecordingStore()

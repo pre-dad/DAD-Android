@@ -77,7 +77,7 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
     private fun sessionList(json: JsonElement): List<DeviceSessionSummary> =
         json.asObjectOrInvalid().array("sessions").map { element ->
             val s = element.asObjectOrInvalid()
-            DeviceSessionSummary(id = s.str("id"), label = s.str("label"), isApp = s.str("client") == "APP",
+            DeviceSessionSummary(id = s.str("id"), label = s.str("label"),
                 lastUsedAt = s.time("last_used_at"), current = s.bool("current"))
         }
 }
