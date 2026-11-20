@@ -101,6 +101,10 @@ class AnalyticsUploader(
         while (true) {
             val batch = synchronized(buffer) { buffer.take(BATCH) }
             if (batch.isEmpty()) return@withLock
+            if (consent.choice != true) {
+                synchronized(buffer) { buffer.clear() }
+                return@withLock
+            }
             try {
                 sink.send(batch)
             } catch (_: AccountFailure.InvalidInput) {
