@@ -183,15 +183,12 @@ class WireGiving(
     private fun Response<JsonElement>.givingBody(): JsonElement {
         if (isSuccessful) return body() ?: throw AccountFailure.InvalidResponse
         val (problemCode, _) = problem()
-        throw when (code()) {
-            401 -> AccountFailure.SignedOut
-            403 -> AccountFailure.Forbidden
-            409 -> AccountFailure.Conflict
-            422 -> AccountFailure.InvalidInput
-            429 -> AccountFailure.RateLimited
+        throw when {
             // A 503 carrying a `code` is a feature this deployment has not configured: do not retry.
-            503 -> if (problemCode != null) AccountFailure.PaymentsUnavailable else AccountFailure.Unavailable
-            else -> AccountFailure.Unavailable
+            code() == 503 && problemCode != null -> AccountFailure.PaymentsUnavailable
+            // Unlike the shared mapping, a 404 here is not a resource the donor can act on.
+            code() == 404 -> AccountFailure.Unavailable
+            else -> failureForStatus(code())
         }
     }
 
@@ -211,7 +208,11 @@ class WireGiving(
     }
 
     companion object {
-        /** A hosted page must be https with no embedded credentials; anything else is never opened. */
+        /**
+         * A hosted page must be https with no embedded credentials; anything else is never opened. The host is
+         * deliberately not allow-listed: the URL arrives over the pinned-https first-party API, and Stripe hosted
+         * pages, custom domains and test hosts all differ by environment.
+         */
         internal fun hostedUrl(text: String): String {
             val url = text.toHttpUrlOrNull() ?: throw AccountFailure.InvalidResponse
             if (!url.isHttps || url.host.isEmpty() || url.username.isNotEmpty() || url.password.isNotEmpty()) throw AccountFailure.InvalidResponse
