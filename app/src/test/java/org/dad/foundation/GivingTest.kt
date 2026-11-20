@@ -23,7 +23,6 @@ class GivingTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    // --- amount rule (G-1/G-2): $1…$30/day, ×30 to monthly cents ---
     @Test fun dailyAmountTimes30IsMonthlyCents() {
         val one = GiftAmount.ofDailyDollars(1)!!
         assertEquals(3000, one.monthlyMinor) // $1/day -> $30/mo -> 3000¢
@@ -72,7 +71,6 @@ class GivingTest {
         assertEquals("$12,345.67", formatUsdMinor(1_234_567))
     }
 
-    // --- cancel copy (G-8/G-9) ---
     @Test fun cancelCopyNamesThePeriodEndAndStreakEnd() {
         val utc = TimeZone.getTimeZone("UTC")
         val parser = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
@@ -82,7 +80,6 @@ class GivingTest {
         assertTrue(copy.text().contains("your streak ends"))
     }
 
-    // --- model state machine ---
     private class FakeGivingService(
         var state: RecurringState = RecurringState.None,
         var failLoad: Boolean = false,
@@ -191,7 +188,6 @@ class GivingTest {
         assertEquals("Your gift is ending", giftHeading(true, RecurringState.Ending("s", 3000, d, d)).textOrNull())
     }
 
-    // --- presets and long dates ---
     @Test fun selectedChipFollowsPresetsAndOther() {
         assertEquals(GiftPresets.Chip.PRESET_1, GiftPresets.selectedChip(1, false))
         assertEquals(GiftPresets.Chip.PRESET_3, GiftPresets.selectedChip(3, false))

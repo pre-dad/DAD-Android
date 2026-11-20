@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -58,9 +59,13 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
     private val saveLock = Mutex()
     private var leaving = false
 
+    private var loading: Job? = null
+
     fun load() {
-        phase = SettingsPhase.Loading
-        viewModelScope.launch {
+        if (loading?.isActive == true) return
+        // A reload over a snapshot already on screen stays quiet instead of swapping the settings for a spinner.
+        if (snapshot == null) phase = SettingsPhase.Loading
+        loading = viewModelScope.launch {
             try {
                 snapshot = service.load()
                 phase = SettingsPhase.Ready
@@ -112,6 +117,16 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
                 } catch (error: Exception) {
                     if (error is AccountFailure.SignedOut) signedOut = true
                     actionError = message(error)
+                    // A stale version: adopt the server's copy so the next tap saves against it.
+                    if (error is AccountFailure.Conflict) {
+                        try {
+                            snapshot = service.load()
+                        } catch (reread: CancellationException) {
+                            throw reread
+                        } catch (_: Exception) {
+                            // Keep the snapshot on screen; the error above already tells the donor the save did not land.
+                        }
+                    }
                 }
             }
         }
@@ -162,6 +177,7 @@ class SettingsModel(private val service: SettingsService) : ViewModel() {
     private fun message(error: Exception): UiText = when (error) {
         is AccountFailure.SignedOut -> UiText.res(R.string.common_please_sign_in_again)
         is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)
+        is AccountFailure.Conflict -> UiText.res(R.string.settings_changed_elsewhere_try_again)
         is AccountFailure.DeletionBlocked ->
             UiText.res(R.string.settings_we_cant_delete_your_account_while)
         else -> UiText.res(R.string.common_something_went_wrong_please_try)

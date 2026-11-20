@@ -23,7 +23,6 @@ class NetworkBadgesTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    // --- Badges (B-1): earned renders perk; unearned renders the RULE text, a11y conveys state ---
     @Test fun earnedBadgeConveysStateInTextAndShowsPerk() {
         val b = Badge(
             code = "FOUNDING_DONOR", title = "Founding Donor",
@@ -122,7 +121,6 @@ class NetworkBadgesTest {
         assertEquals("365-day streak", badges.first { it.title == "One Year" }.rule)
     }
 
-    // --- Network (N-1..N-3): anonymous referrals are counted, never named ---
     @Test fun networkCountsAnonymousButNeverNamesThem() {
         val net = NetworkView(
             activeCount = 5, annualizedMinor = 348_000,
@@ -155,7 +153,6 @@ class NetworkBadgesTest {
         assertNull(net.nextMilestone)
     }
 
-    // --- Invite (R-1..R-4) ---
     @Test fun inviteLinksAreBuiltFromTheConfiguredOriginAndServerRoute() {
         val referral = ReferralInfo("ALEX", linkCount = 2, irlCount = 1, conversions = null)
         assertEquals("https://dad.org/r/ALEX", referral.link("https://dad.org"))

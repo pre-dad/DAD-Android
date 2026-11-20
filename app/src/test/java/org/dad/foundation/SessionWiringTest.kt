@@ -1,10 +1,11 @@
 package org.dad.foundation
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -15,8 +16,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.Executors
 
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class SessionWiringTest {
     private class Api : AccountAPI {
         var refreshes = 0
@@ -37,7 +39,7 @@ class SessionWiringTest {
 
     @Test fun credentialsArePersistedOnTheStorageDispatcherNotTheCaller() = runTest {
         val store = ThreadRecordingStore()
-        val storage = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "storage-thread") }
+        val storage = Executors.newSingleThreadExecutor { Thread(it, "storage-thread") }
         try {
             val session = AccountSession(Api(), store, backgroundScope, storage.asCoroutineDispatcher())
             session.establish { Credentials("in", "in-refresh", Long.MAX_VALUE) }

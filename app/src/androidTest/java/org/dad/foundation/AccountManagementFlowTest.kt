@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.core.app.ActivityScenario
@@ -44,6 +45,8 @@ class AccountManagementFlowTest {
             compose.enterText("email-change-input", "taken@example.org", replace = true)
             compose.tapSafely("email-change-submit")
             compose.waitForTag("email-change-error")
+            val conflict = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.acct_that_address_cant_replace_your)
+            compose.onNodeWithTag("email-change-error").assertTextContains(conflict)
             compose.enterText("email-change-input", "new@example.org", replace = true)
             compose.tapSafely("email-change-submit")
             compose.waitForTag("email-change-sent")

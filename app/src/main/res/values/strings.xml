@@ -7,6 +7,7 @@
     <string name="partner_all_initiatives">All initiatives</string>
     <string name="partner_view_details">View initiative details</string>
     <string name="partner_all_metrics">Verified metrics</string>
+    <string name="partner_no_app_for_that">There’s no app on this device that can open that.</string>
     <string name="partner_no_metrics">No verified metrics yet.</string>
     <string name="partner_no_spend">No verified spend yet.</string>
     <string name="partner_final">Final</string>
@@ -759,6 +760,7 @@
     <string name="settings_delete_account_help">This permanently deletes your personal data. Your required gift records are kept. Type %1$s to confirm.</string>
     <string name="settings_keep_an_interest_to_characters" tools:ignore="PluralsCandidate">Keep an interest to %1$d characters or fewer.</string>
     <string name="settings_you_can_add_up_to_interests" tools:ignore="PluralsCandidate">You can add up to %1$d interests. Remove one to add another.</string>
+    <string name="settings_changed_elsewhere_try_again">Your settings changed on another device. Review them and try again.</string>
     <string name="settings_type_word_to_confirm">Type %1$s to confirm.</string>
     <string name="push_general_channel_name">General</string>
     <string name="push_default_title">DAD</string>

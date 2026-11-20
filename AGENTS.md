@@ -1,6 +1,6 @@
 # Agent guide — DAD-Android
 
-Kotlin/Jetpack Compose donor app built against a vendored snapshot of DAD-Main's API
+Kotlin/Jetpack Compose donor and partner app built against a vendored snapshot of DAD-Main's API
 contract. Start with these; this file only adds what they do not say.
 
 - **[README.md](README.md)** — build/test, the contract/sessions/transport model, release
@@ -19,7 +19,9 @@ node scripts/check-hardcoded-strings.mjs
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
 ```
 
-CI runs the same on API 35 and **lint treats warnings as errors**.
+CI runs these on API 35 (**lint treats warnings as errors**), plus `-PdadLoadTests`, `scripts/check-release-apk.sh`,
+`node --test scripts/*.test.mjs`, an advisory foundation-drift check, and the emulator suite
+(`connectedDebugAndroidTest`).
 
 User-visible text is never a literal in `app/src/main`: add it to `res/values/strings.xml` (formatting
 arguments or `<plurals>` for counts, never concatenated sentences) and use `stringResource`, or return a
@@ -28,7 +30,7 @@ arguments or `<plurals>` for counts, never concatenated sentences) and use `stri
 ## Branch and push discipline
 
 - Work on `dev`; ship via `dev` → PR → `main`. Never push to `main` directly.
-- Run `git commit` and `git push` as two separate commands.
+- Run `git commit` and `git push` as two separate commands; the publish guard rejects a chained `commit && push`.
 
 ## Code comments
 
@@ -38,10 +40,9 @@ arguments or `<plurals>` for counts, never concatenated sentences) and use `stri
 
 ## Gotchas not written in the docs
 
-- **`git add -A` silently stages planning docs.** `docs/requirements/` (dev plan, gap
-  analysis, PRD) is kept untracked but was historically **not** in `.gitignore`. It is now
-  (PR #13), but still: stage specific files, and after any `git add -A` check `git status`
-  for stray `docs/` staging before committing.
+- **`git add -A` can stage planning docs.** `docs/requirements/` (dev plan, gap analysis, PRD) is
+  untracked and gitignored. Stage specific files, and check `git status` for stray `docs/` staging before
+  committing.
 - **Vendored contract is hash-locked.** `foundation.lock.json` pins version + 40-char
   source revision + manifest sha256; `scripts/check-foundation.mjs` verifies every file.
   Re-vendoring requires an **actual tagged** DAD-Main mobile-foundation release — bump the

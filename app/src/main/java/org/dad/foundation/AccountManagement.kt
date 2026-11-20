@@ -16,7 +16,7 @@ import java.time.OffsetDateTime
 // email, where the donor is signed in, their employer and team, and the referral code as a Google Wallet
 // pass. Each model owns its own phase so a failure in one card never blanks the rest of Settings.
 
-data class DeviceSessionSummary(val id: String, val label: String, val isApp: Boolean, val lastUsedAt: OffsetDateTime, val current: Boolean)
+data class DeviceSessionSummary(val id: String, val label: String, val lastUsedAt: OffsetDateTime, val current: Boolean)
 
 data class TeamStanding(
     val id: String, val name: String, val activeGivers: Long, val annualizedMinor: Long, val avgStreakDays: Long, val volunteerMinutes: Long,
@@ -259,6 +259,7 @@ class DeviceSessionsModel(private val service: AccountManagementService) : ViewM
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AccountFailure.NotFound) { busy = false; load() }
             catch (_: AccountFailure.SignedOut) { signedOut = true }
+            catch (error: AccountFailure.RateLimited) { actionError = generic(error) }
             catch (_: Exception) { actionError = UiText.res(R.string.acct_sign_out_wasnt_confirmed_refresh) }
             finally { busy = false }
         }
@@ -323,8 +324,15 @@ class EmployerModel(private val service: AccountManagementService) : ViewModel()
         viewModelScope.launch {
             try {
                 work()
-                team = service.employer()
-                phase = LoadPhase.Ready
+                try {
+                    team = service.employer()
+                    phase = LoadPhase.Ready
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // The write already took effect, so report the failed refresh, not a failed action.
+                    phase = LoadPhase.Failed(UiText.res(R.string.acct_your_employer_details_couldnt_be))
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {

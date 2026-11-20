@@ -1,12 +1,12 @@
 package org.dad.foundation
 
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,7 +17,7 @@ import org.junit.Test
 class WirePartnerTest {
     @Test fun initiativeDetailKeepsCountySpendAndVerificationDates() = runTest {
         val http = ScriptedHttp { 200 to """{"initiatives":[{"id":"i1","title":"Water","summary":"Wells","status":"ACTIVE","region":"West","county_count":6,"committed_minor":2000000,"deployed_minor":1200000,"metrics":[{"label":"People","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"}],"spend":[{"category":"Water","amount_minor":1200000}],"updated_at":"2026-10-28T10:00:00Z"}]}""" }
-        val session = PartnerSession(MemoryStore()).also { it.install("PB") }
+        val session = PartnerSession(RecordingStore()).also { it.install("PB") }
         val initiative = WirePartner(TEST_ORIGIN, session, http.client()).initiatives().single()
         assertEquals(6, initiative.countyCount)
         assertEquals(0.6f, initiative.deployedFraction!!, 0.001f)
@@ -26,16 +26,10 @@ class WirePartnerTest {
         assertEquals(java.time.OffsetDateTime.parse("2026-10-28T10:00:00Z"), initiative.updatedAt)
     }
 
-    private class MemoryStore(var value: Credentials? = null) : CredentialStore {
-        override fun load() = value
-        override fun save(value: Credentials) { this.value = value }
-        override fun clear() { value = null }
-    }
-
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test fun partnerRequestsCannotOutliveTheirSession() = runTest {
         for (rejected in listOf(false, true)) {
-            val store = MemoryStore()
+            val store = RecordingStore()
             val session = PartnerSession(store).also { it.install("old") }
             val gate = CompletableDeferred<Unit>()
             val request = async { runCatching { session.authorized {
@@ -53,7 +47,7 @@ class WirePartnerTest {
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test fun partnerSignInCannotRestoreASignedOutSession() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store)
         val gate = CompletableDeferred<String>()
         val request = async { runCatching { session.establish { gate.await() } } }
@@ -65,7 +59,7 @@ class WirePartnerTest {
     }
 
     @Test fun cancelledPartnerSignInInstallsNothing() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store)
         val request = launch { session.establish { currentCoroutineContext().cancel(); "late" } }
         request.join()
@@ -86,7 +80,7 @@ class WirePartnerTest {
                 else -> 404 to "{}"
             }
         }
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store)
         WirePartnerAuth(TEST_ORIGIN, session, http.client()).accept("INV")
         assertEquals("""{"invite":"INV"}""", http.requests.first().body)
@@ -102,13 +96,13 @@ class WirePartnerTest {
 
     @Test fun aUsedLinkAndABlockedPartnerAreTheirOwnFailures() = runTest {
         mapOf(422 to AccountFailure.InvalidInput, 403 to AccountFailure.Forbidden, 429 to AccountFailure.RateLimited).forEach { (status, expected) ->
-            val wire = WirePartnerAuth(TEST_ORIGIN, PartnerSession(MemoryStore()), ScriptedHttp { status to "{}" }.client())
+            val wire = WirePartnerAuth(TEST_ORIGIN, PartnerSession(RecordingStore()), ScriptedHttp { status to "{}" }.client())
             assertEquals("$status", expected, runCatching { wire.accept("INV") }.exceptionOrNull())
         }
     }
 
     @Test fun aRejectedSessionIsForgotten() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store).also { it.install("PB") }
         val failure = runCatching { WirePartner(TEST_ORIGIN, session, ScriptedHttp { 401 to "{}" }.client()).users() }.exceptionOrNull()
         assertEquals(AccountFailure.SignedOut, failure)
@@ -124,7 +118,7 @@ class WirePartnerTest {
                 else -> 200 to """{"saved":true}"""
             }
         }
-        val wire = WirePartner(TEST_ORIGIN, PartnerSession(MemoryStore()).also { it.install("PB") }, http.client())
+        val wire = WirePartner(TEST_ORIGIN, PartnerSession(RecordingStore()).also { it.install("PB") }, http.client())
         wire.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER)
         wire.removeUser("u2")
         wire.saveLogo(byteArrayOf(1, 2, 3))
@@ -136,16 +130,16 @@ class WirePartnerTest {
     }
 
     @Test fun aMissingLogoIsNoneAndAnAgedOutReportIsNotFound() = runTest {
-        val wire = WirePartner(TEST_ORIGIN, PartnerSession(MemoryStore()).also { it.install("PB") }, ScriptedHttp { 404 to "{}" }.client())
+        val wire = WirePartner(TEST_ORIGIN, PartnerSession(RecordingStore()).also { it.install("PB") }, ScriptedHttp { 404 to "{}" }.client())
         assertNull(wire.logo())
         assertEquals(AccountFailure.NotFound, runCatching { wire.retainedReport("r1") }.exceptionOrNull())
     }
 
     @Test fun signOutForgetsTheSessionEvenWhenTheServerIsDown() = runTest {
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store).also { it.install("PB") }
         WirePartner(TEST_ORIGIN, session, ScriptedHttp { 503 to "{}" }.client()).signOut()
         assertNull(store.value)
-        assertTrue(!session.isSignedIn)
+        assertFalse(session.isSignedIn)
     }
 }

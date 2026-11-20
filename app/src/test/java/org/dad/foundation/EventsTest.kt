@@ -466,4 +466,12 @@ class EventsTest {
         assertEquals(CalendarState.Failed(EventsCopy.GONE), model.calendar)
         assertEquals(EventsPhase.Ready, model.phase)
     }
+
+    @Test fun aCalendarFileThatCannotBeHandedOverFailsTheStateWithoutLeavingTheScreen() = runTest {
+        val model = modelOf(FakeService())
+        model.addToCalendar(live); dispatcher.scheduler.advanceUntilIdle()
+        model.calendarUnavailable()
+        assertTrue(model.calendar is CalendarState.Failed)
+        assertEquals(EventsPhase.Ready, model.phase)
+    }
 }

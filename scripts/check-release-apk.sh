@@ -22,4 +22,10 @@ else
   status=$?
   [ "$status" -eq 1 ] || exit "$status"
 fi
+
+# Gson fills LinkPolicy by field name, so R8 must neither rename nor strip them (either leaves the policy incomplete and
+# every deep link unrouted). A kept field survives as a literal name in the DEX string table.
+for field in accountPaths proofPaths partnerProofPaths claimReturnPaths notificationPaths referralPrefix companyPrefix; do
+  grep -qx "$field" "$dump" || { echo "Release APK renamed or stripped LinkPolicy field: $field" >&2; exit 1; }
+done
 echo "Release APK is free of debug stubs and preview doubles."

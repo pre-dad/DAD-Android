@@ -9,22 +9,21 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 
 /**
- * Settings journey (Phase 7). Launched via the `preview_settings` extra. Covers: the screen
+ * Settings journey. Launched via the `preview_settings` extra. Covers: the screen
  * renders profile + toggles, the delete-account confirm gate stays disabled until the exact word
  * is typed (store-mandated, §6.12), and sign-out leaves the shell. All inline (no OS dialogs).
  * The settings column is long and scrollable, so controls are scrolled into view before use.
@@ -65,9 +64,11 @@ class SettingsFlowTest {
             compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("settings-home")).fetchSemanticsNodes().isNotEmpty() }
             compose.tapSafely("delete-start")
             compose.waitUntil(5_000) { compose.onAllNodes(hasTestTag("delete-confirm")).fetchSemanticsNodes().isNotEmpty() }
-            // Disabled with no / wrong text.
+            // Disabled with no text, and still disabled for the wrong letter case.
             compose.onNodeWithTag("delete-confirm").performScrollTo().assertIsNotEnabled()
-            compose.enterText("delete-input", "DELETE")
+            compose.enterText("delete-input", "delete")
+            compose.onNodeWithTag("delete-confirm").performScrollTo().assertIsNotEnabled()
+            compose.enterText("delete-input", "DELETE", replace = true)
             // Enabled once the exact word is present.
             compose.onNodeWithTag("delete-confirm").performScrollTo().assertIsEnabled()
         }
@@ -94,7 +95,7 @@ class SettingsFlowTest {
             compose.onNodeWithTag("interest-add").performScrollTo().assertIsEnabled()
             compose.tapSafely("interest-add")
             compose.waitForTag("interest-row-Food bank")
-            compose.onNodeWithTag("interest-input").performScrollTo().assert(SemanticsMatcher("an empty field") { (SemanticsProperties.EditableText in it.config).let { has -> if (has) it.config[SemanticsProperties.EditableText] else null }?.text == "" })
+            compose.onNodeWithTag("interest-input").performScrollTo().assert(SemanticsMatcher("an empty field") { it.config.getOrNull(SemanticsProperties.EditableText)?.text == "" })
 
             // A repeat (any letter case) is refused with a message, nothing is added.
             compose.enterText("interest-input", "food BANK")

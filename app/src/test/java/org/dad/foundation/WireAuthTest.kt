@@ -23,7 +23,6 @@ class WireAuthTest {
         val http = ScriptedHttp { status to json }
         return WireAuth(TEST_ORIGIN, device, http.client()) to http
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun requestCodeSendsPhoneWithNativeHeadersAndReturnsItAsHandle() = runTest {
         val (wire, http) = auth(200, """{"sent":true}""")
@@ -79,33 +78,7 @@ class WireAuthTest {
         assertEquals(AccountFailure.InvalidResponse, failure { auth(200, "not json {").first.verifyPhone("+14155551234", "123456") })
     }
 
-    @Test fun oversizedResponseIsRejected() = runTest {
-        val http = OkHttpClient.Builder().addInterceptor { chain ->
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .body("x".repeat(1_048_577).toResponseBody()).build()
-        }.build()
-        assertEquals(AccountFailure.InvalidResponse, failure { WireAuth(TEST_ORIGIN, null, http).verifyPhone("+14155551234", "123456") })
-    }
-
-    @Test fun insecureOrNonOriginConfigurationIsRejected() {
-        listOf("http://api.test", "https://user:pass@api.test", "https://api.test/path", "https://api.test?x=1").forEach {
-            assertTrue(it, runCatching { WireAuth(it) }.isFailure)
-        }
-    }
-
     @Test fun cancellingTheCallerCancelsTheRequestAndRethrowsCancellation() = runBlocking {
-        val started = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val http = OkHttpClient.Builder().addInterceptor { chain ->
-            started.countDown()
-            release.await(10, TimeUnit.SECONDS)
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .body(nativeSessionJson().toResponseBody()).build()
-        }.build()
-        val call = async(Dispatchers.IO) { WireAuth(TEST_ORIGIN, null, http).verifyPhone("+14155551234", "123456") }
-        withTimeout(10_000) { while (started.count > 0) kotlinx.coroutines.delay(10) }
-        call.cancelAndJoin()
-        release.countDown()
-        assertTrue(call.isCancelled)
+        assertCancellationReachesTheRequest(nativeSessionJson()) { http -> WireAuth(TEST_ORIGIN, null, http).verifyPhone("+14155551234", "123456") }
     }
 }

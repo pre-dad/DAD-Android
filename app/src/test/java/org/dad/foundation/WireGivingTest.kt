@@ -30,8 +30,6 @@ class WireGivingTest {
         fun posts(path: String) = http.requests.filter { it.method == "POST" && it.path == path }
     }
 
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
-
     private val sub = "11111111-2222-4333-8444-555555555555"
     private val periodEnd = "2026-11-30T12:00:00Z"
     private fun periodEndDate(): Date = Date.from(java.time.Instant.parse(periodEnd))
@@ -396,7 +394,6 @@ class WireGivingTest {
                 1 -> 503 to ""
                 2 -> 429 to ""
                 3 -> 200 to ""            // lost / empty response
-                4 -> 201 to checkout
                 else -> 201 to checkout
             }
         }

@@ -14,6 +14,7 @@ local.properties
 keystore.properties
 *.keystore
 *.jks
+app/google-services.json
 
 # Untracked planning/requirements working docs (not shipped software).
 docs/requirements/

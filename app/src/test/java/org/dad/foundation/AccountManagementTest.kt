@@ -57,10 +57,11 @@ class AccountManagementModelTest {
         val saved = mutableListOf<Triple<String, String, String>>()
         val emailRequests = mutableListOf<String>()
         var list = listOf(
-            DeviceSessionSummary("this", "Pixel", true, OffsetDateTime.parse("2026-10-30T10:00:00Z"), true),
-            DeviceSessionSummary("web", "Web browser", false, OffsetDateTime.parse("2026-10-29T10:00:00Z"), false),
+            DeviceSessionSummary("this", "Pixel", OffsetDateTime.parse("2026-10-30T10:00:00Z"), true),
+            DeviceSessionSummary("web", "Web browser", OffsetDateTime.parse("2026-10-29T10:00:00Z"), false),
         )
         var team = EmployerTeam(null, null, emptyList())
+        var employerFailure: Exception? = null
         var everywhere = 0
         private fun check() { failure?.let { throw it } }
 
@@ -78,7 +79,7 @@ class AccountManagementModelTest {
         }
         override suspend fun revokeOtherSessions(): List<DeviceSessionSummary> { check(); list = list.filter { it.current }; return list }
         override suspend fun signOutEverywhere() { check(); everywhere++ }
-        override suspend fun employer(): EmployerTeam { check(); return team }
+        override suspend fun employer(): EmployerTeam { check(); employerFailure?.let { throw it }; return team }
         override suspend fun enroll(companyCode: String): String {
             check()
             if (companyCode != "ACME42") throw AccountFailure.InvalidInput
@@ -175,6 +176,28 @@ class AccountManagementModelTest {
         assertEquals("Platform", model.team?.teamName)
     }
 
+    @Test fun employerRefreshFailureAfterASavedWriteShowsRetryNotAnActionError() {
+        val service = Fake()
+        val model = EmployerModel(service).apply { load() }
+        service.employerFailure = AccountFailure.Unavailable
+        model.companyCode = "ACME42"
+        model.enroll()
+        assertEquals("Acme", service.team.organization)
+        assertNull(model.actionError)
+        assertTrue(model.phase is LoadPhase.Failed)
+        service.employerFailure = null
+        model.load()
+        assertEquals(LoadPhase.Ready, model.phase)
+        assertEquals("Acme", model.team?.organization)
+    }
+
+    @Test fun rateLimitedSessionActionExplainsTheWait() {
+        val service = Fake().apply { failure = AccountFailure.RateLimited }
+        val model = DeviceSessionsModel(service)
+        model.revokeOthers()
+        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError.textOrNull())
+    }
+
     @Test fun employerAlreadyLinkedElsewhere() {
         val service = Fake()
         val model = EmployerModel(service).apply { load() }
@@ -239,7 +262,6 @@ class WireAccountManagementTest {
         val wire = WireAccountManagement(ProductClient(TEST_ORIGIN, session, client))
         val wallet = WireWalletPass(ProductClient(TEST_ORIGIN, session, client))
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun saveProfileSendsAllThreeFieldsAndMapsTheProfile() = runTest {
         val rig = Rig(backgroundScope) { 200 to profileJson() }
@@ -279,7 +301,6 @@ class WireAccountManagementTest {
         val rig = Rig(backgroundScope) { 200 to SESSION_LIST }
         val list = rig.wire.sessions()
         assertEquals(listOf(true, false), list.map { it.current })
-        assertEquals(listOf(true, false), list.map { it.isApp })
         rig.wire.revokeSession("22222222-2222-4222-8222-222222222222")
         assertEquals("/donor/me/sessions/22222222-2222-4222-8222-222222222222/revoke", rig.http.requests.last().path)
         assertEquals(AccountFailure.NotFound, failure { Rig(backgroundScope) { 404 to "{}" }.wire.revokeSession("x") })

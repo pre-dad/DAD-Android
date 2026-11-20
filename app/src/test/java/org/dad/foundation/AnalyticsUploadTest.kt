@@ -41,6 +41,7 @@ class AnalyticsUploadTest {
         assertEquals(listOf(PlainEvent.EVENT_CHECKED_IN), observed("POST", "/donor/me/events/check-in"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/donor/me/events/e1"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/events/e1"))
+        assertEquals(emptyList<PlainEvent>(), observed("GET", "/donor/me/events/invite-only"))
         assertEquals(listOf(PlainEvent.PARTNER_REPORT_EXPORTED), observed("GET", "/donor/partner/report.pdf"))
         assertEquals(listOf(PlainEvent.EVENT_RESERVED), observed("POST", "/donor/me/events/e1/reserve", response = """{"status":"RESERVED"}"""))
         assertEquals(listOf(PlainEvent.EVENT_WAITLISTED), observed("POST", "/donor/me/events/e1/reserve", response = """{"status":"WAITLISTED"}"""))

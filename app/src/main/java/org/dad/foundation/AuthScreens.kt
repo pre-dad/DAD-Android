@@ -138,10 +138,9 @@ private fun BrandTile() {
  */
 internal fun foundingDaysRemaining(now: java.time.Instant = java.time.Instant.now()): Long? {
     val zone = java.time.ZoneId.of("America/New_York")
-    val deadline = java.time.LocalDate.of(2026, 12, 31).atTime(23, 59, 59).atZone(zone).toInstant()
-    if (!now.isBefore(deadline)) return null
-    val days = java.time.Duration.between(now, deadline).toDays()
-    return days + 1 // count the current partial day as a full day remaining
+    val lastDay = java.time.LocalDate.of(2026, 12, 31)
+    if (!now.isBefore(lastDay.plusDays(1).atStartOfDay(zone).toInstant())) return null
+    return java.time.temporal.ChronoUnit.DAYS.between(now.atZone(zone).toLocalDate(), lastDay) + 1 // the current day counts in full
 }
 
 /** Unauthenticated splash: pick a journey before signing in. Shows [notice] (a failed link, a revoked
@@ -284,7 +283,7 @@ private fun PhoneSignIn(model: PhoneSignInModel, onSignedIn: () -> Unit) {
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("sign-in-working")) }
         (model.phase as? PhoneSignInPhase.Failed)?.let {
             Spacer(Modifier.height(12.dp))
-            Text(it.message.asString(), modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
+            Text(it.message.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
 }

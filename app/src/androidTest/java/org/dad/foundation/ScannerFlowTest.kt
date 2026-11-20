@@ -5,13 +5,16 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContract
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -24,8 +27,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import androidx.compose.ui.platform.testTag
-import androidx.compose.runtime.rememberUpdatedState
 
 /**
  * Event check-in by QR through the real screens, with a FAKE scanner source and permission (no camera in the
@@ -46,7 +47,7 @@ class ScannerFlowTest {
                 sink = { text -> Handler(Looper.getMainLooper()).post { latest.value(text) } }
                 onStatus(ScannerStatus.Ready(hasTorch = true))
             }
-            androidx.compose.runtime.DisposableEffect(Unit) { onDispose { composed = false; sink = null } }
+            DisposableEffect(Unit) { onDispose { composed = false; sink = null } }
             Box(modifier.background(Color.DarkGray).testTag("fake-camera")) { Box(Modifier.fillMaxSize()) }
         }
         fun emit(text: String) = checkNotNull(sink) { "the viewfinder is not showing" }(text)

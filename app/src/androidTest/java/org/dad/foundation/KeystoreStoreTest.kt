@@ -1,8 +1,11 @@
 package org.dad.foundation
 
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.*
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -11,12 +14,12 @@ import java.io.File
 class KeystoreStoreTest {
     @Test fun credentialsRoundTripEncryptedOutsideBackupAndCanBeCleared() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val store = KeystoreCredentialStore(context)
+        val store = KeystoreCredentialStore(context, "test-session")
         try {
             val value = Credentials("synthetic-access-secret", "synthetic-refresh-secret", 1234)
             store.save(value)
             assertEquals(value, store.load())
-            val bytes = File(context.noBackupFilesDir, "donor-session.enc").readBytes()
+            val bytes = File(context.noBackupFilesDir, "test-session.enc").readBytes()
             assertFalse(String(bytes, Charsets.ISO_8859_1).contains("synthetic"))
             store.clear()
             assertNull(store.load())
@@ -25,8 +28,8 @@ class KeystoreStoreTest {
 
     @Test fun corruptedSessionFileLoadsAsSignedOutAndIsRemoved() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val store = KeystoreCredentialStore(context)
-        val file = File(context.noBackupFilesDir, "donor-session.enc")
+        val store = KeystoreCredentialStore(context, "test-corrupt-session")
+        val file = File(context.noBackupFilesDir, "test-corrupt-session.enc")
         try {
             store.save(Credentials("synthetic-access-secret", "synthetic-refresh-secret", 1234))
             file.writeBytes(ByteArray(64) { it.toByte() })
@@ -60,14 +63,14 @@ class KeystoreStoreTest {
 
     @Test fun donorPartnerAndApplicationReceiptAreSeparateEncryptedEntries() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val donor = KeystoreCredentialStore(context)
-        val partner = KeystoreCredentialStore(context, "partner-session", refreshable = false)
-        val receipt = KeystoreCredentialStore(context, "partner-application-receipt", refreshable = false)
+        val donor = KeystoreCredentialStore(context, "test-donor-session")
+        val partner = KeystoreCredentialStore(context, "test-partner-session", refreshable = false)
+        val receipt = KeystoreCredentialStore(context, "test-application-receipt", refreshable = false)
         try {
             donor.save(Credentials("synthetic-donor-access", "synthetic-donor-refresh", 1))
             partner.save(Credentials("synthetic-partner-access", "", 2))
             receipt.save(Credentials("synthetic-receipt", "", 3))
-            for (name in listOf("donor-session", "partner-session", "partner-application-receipt")) {
+            for (name in listOf("test-donor-session", "test-partner-session", "test-application-receipt")) {
                 assertTrue(name, File(context.noBackupFilesDir, "$name.enc").exists())
             }
             partner.clear()

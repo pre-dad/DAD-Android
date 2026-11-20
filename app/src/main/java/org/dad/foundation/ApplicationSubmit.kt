@@ -102,7 +102,7 @@ private interface ApplicationWrites {
 /**
  * Submits `applyWithReceipt` over the native transport (`X-DAD-Client: native`, no Origin or cookie). The receipt is
  * stored in its own [CredentialStore] — apart from the donor and partner sessions — before the request leaves, and
- * forgotten only on a definitive refusal; the status card then reads it back through [WireApplicationStatus].
+ * forgotten only on a definitive refusal, which restores any receipt it replaced; the status card then reads it back through [WireApplicationStatus].
  */
 class WirePartnerApplication(
     origin: String,
@@ -115,12 +115,15 @@ class WirePartnerApplication(
     override suspend fun submit(attempt: PartnerApplicationAttempt) {
         // Keep the receipt before the request leaves: the server never echoes it, so a crash after send must still
         // be able to read the status. Its 30-day server lifetime is mirrored as the stored expiry.
-        withContext(Dispatchers.IO) { receipt.save(Credentials(attempt.receipt, refresh = "", expiresAtMillis = now() + RECEIPT_LIFETIME_MILLIS)) }
+        val prior = withContext(Dispatchers.IO) {
+            receipt.load()?.takeIf { it.access != attempt.receipt }.also { receipt.save(Credentials(attempt.receipt, refresh = "", expiresAtMillis = now() + RECEIPT_LIFETIME_MILLIS)) }
+        }
         try {
             send(attempt)
         } catch (failure: ApplicationSubmitFailure) {
             when (failure) {
-                is ApplicationSubmitFailure.Invalid, ApplicationSubmitFailure.Conflict, ApplicationSubmitFailure.Forbidden -> withContext(NonCancellable + Dispatchers.IO) { receipt.clear() }
+                is ApplicationSubmitFailure.Invalid, ApplicationSubmitFailure.Conflict, ApplicationSubmitFailure.Forbidden ->
+                    withContext(NonCancellable + Dispatchers.IO) { prior?.let(receipt::save) ?: receipt.clear() }
                 is ApplicationSubmitFailure.RateLimited, ApplicationSubmitFailure.Unconfirmed -> Unit
             }
             throw failure
@@ -218,6 +221,15 @@ class PartnerApplicationModel(
         }
 
     val canSubmit: Boolean get() = phase != ApplicationSubmitPhase.Submitting && (frozen != null || application != null)
+
+    /** Starts a fresh form after a sent application, so reopening it never reports a stale "submitted". */
+    fun reset() {
+        if (phase == ApplicationSubmitPhase.Submitting) return
+        organization = ""; website = ""; type = PartnerOrganizationType.CORPORATE; contactName = ""
+        title = ""; workEmail = ""; phone = ""; workforce = ""
+        frozen = null
+        phase = ApplicationSubmitPhase.Editing
+    }
 
     fun submit() {
         if (!canSubmit || phase == ApplicationSubmitPhase.Submitted) return

@@ -24,7 +24,6 @@ class WireCredentialAuthTest {
         val http = ScriptedHttp { status to json }
         return WireCredentialAuth(TEST_ORIGIN, device, http.client()) to http
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
     private val form = SignupForm("Alex Doe", "alex@example.org", "78701", "Austin")
 
     // MARK: sign-in link
@@ -125,34 +124,8 @@ class WireCredentialAuthTest {
         assertFalse(error?.message.orEmpty().contains("s3cret"))
     }
 
-    @Test fun oversizedResponseIsRejected() = runTest {
-        val http = OkHttpClient.Builder().addInterceptor { chain ->
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .body("x".repeat(1_048_577).toResponseBody()).build()
-        }.build()
-        assertEquals(AccountFailure.InvalidResponse, failure { WireCredentialAuth(TEST_ORIGIN, null, http).signIn("a@b.co", "pw") })
-    }
-
-    @Test fun insecureOrNonOriginConfigurationIsRejected() {
-        listOf("http://api.test", "https://user:pass@api.test", "https://api.test/path").forEach {
-            assertTrue(it, runCatching { WireCredentialAuth(it) }.isFailure)
-        }
-    }
-
     @Test fun cancellingTheCallerRethrowsCancellation() = runBlocking {
-        val started = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val http = OkHttpClient.Builder().addInterceptor { chain ->
-            started.countDown()
-            release.await(10, TimeUnit.SECONDS)
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .body(nativeSessionJson().toResponseBody()).build()
-        }.build()
-        val call = async(Dispatchers.IO) { WireCredentialAuth(TEST_ORIGIN, null, http).signIn("a@b.co", "pw") }
-        withTimeout(10_000) { while (started.count > 0) kotlinx.coroutines.delay(10) }
-        call.cancelAndJoin()
-        release.countDown()
-        assertTrue(call.isCancelled)
+        assertCancellationReachesTheRequest(nativeSessionJson()) { http -> WireCredentialAuth(TEST_ORIGIN, null, http).signIn("a@b.co", "pw") }
     }
 
     @Test fun signInThroughTheSessionInstallsCredentialsOnce() = runTest {
@@ -246,23 +219,16 @@ class WireCredentialAuthTest {
     }
 
     @Test fun callerCancellationIsRethrownAndKeepsTheSession() = runBlocking<Unit> {
-        val started = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val http = OkHttpClient.Builder().addInterceptor { chain ->
-            started.countDown()
-            release.await(10, TimeUnit.SECONDS)
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
-                .body("""{"saved":true}""".toResponseBody()).build()
-        }.build()
         val store = RecordingStore(validCredentials())
         val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
-        val session = AccountSession(WireAPI(TEST_ORIGIN, http), store, scope)
-        val call = async(Dispatchers.IO) { WirePasswordSettings(ProductClient(TEST_ORIGIN, session, http)).setPassword(null, "brand-new-password") }
-        withTimeout(10_000) { while (started.count > 0) kotlinx.coroutines.delay(10) }
-        call.cancelAndJoin()
-        release.countDown()
-        assertTrue(call.isCancelled)
-        assertEquals(0, store.clears)
-        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        try {
+            assertCancellationReachesTheRequest("""{"saved":true}""") { http ->
+                val session = AccountSession(WireAPI(TEST_ORIGIN, http), store, scope)
+                WirePasswordSettings(ProductClient(TEST_ORIGIN, session, http)).setPassword(null, "brand-new-password")
+            }
+            assertEquals(0, store.clears)
+        } finally {
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        }
     }
 }

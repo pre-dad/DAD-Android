@@ -17,19 +17,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Real conformer + real AccountSession + real Retrofit stack over a scripted transport. */
 class WireDashboardTest {
-    private class Rig(
-        creds: Credentials? = validCredentials(),
-        scope: kotlinx.coroutines.CoroutineScope,
-        handler: (Recorded) -> Pair<Int, String>,
-    ) {
-        val http = ScriptedHttp(handler)
-        val store = RecordingStore(creds)
-        val client = http.client()
-        val session = AccountSession(WireAPI(TEST_ORIGIN, client), store, scope)
-        val wire = WireDashboard(ProductClient(TEST_ORIGIN, session, client))
-    }
-
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
+    private fun Rig(scope: kotlinx.coroutines.CoroutineScope, creds: Credentials? = validCredentials(), handler: (Recorded) -> Pair<Int, String>) =
+        WireRig(scope, creds, handler) { WireDashboard(it) }
 
     private val giftId = "00000000-0000-4000-8000-000000000007"
 

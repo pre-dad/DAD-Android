@@ -22,5 +22,6 @@
 -keepclassmembers class org.dad.foundation.LinkTokens { <fields>; }
 
 # The link policy is read from links.json by Gson into LinkPolicy by field name; renamed fields would leave it incomplete
-# and the router unbuilt in release.
--keepclassmembers class org.dad.foundation.LinkPolicy { <fields>; }
+# and the router unbuilt in release. Only Gson ever creates a LinkPolicy, so R8 sees it as never instantiated and strips
+# its fields even under -keepclassmembers; -keep holds the class, and with it the fields.
+-keep class org.dad.foundation.LinkPolicy { <fields>; }

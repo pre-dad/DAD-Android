@@ -3,6 +3,7 @@ package org.dad.foundation
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -35,6 +36,12 @@ class EventsWiredFlowTest {
 
     private fun tap(tag: String) = compose.tapSafely(tag)
 
+    private fun textMatches(tag: String, pattern: Regex) = compose.waitUntil(20_000) {
+        runCatching {
+            compose.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }.contains(pattern)
+        }.getOrDefault(false)
+    }
+
     private fun openEvents() {
         compose.waitForTag("open-events")
         compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
@@ -65,7 +72,7 @@ class EventsWiredFlowTest {
                     runCatching { compose.onNodeWithTag("event-start-${StubEvents.PARK}").assertTextContains("CDT", substring = true) }.isSuccess
             }
             openEvent(StubEvents.PARK)
-            compose.waitForTagText("event-time", "C")
+            textMatches("event-time", Regex("\\bC[SD]T\\b"))
             compose.waitForTagText("event-spots", "5 spots left")
             tap("reserve-${StubEvents.PARK}")
             compose.waitForTag("reserve-confirm")
@@ -132,7 +139,7 @@ class EventsWiredFlowTest {
             compose.enterText("checkin-code", "short", replace = true)
             tap("checkin-submit")
             compose.waitForTagText("checkin-error", "66 characters")
-            assertTrue(before == DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" })
+            assertEquals(before, DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" })
             // The real code checks in.
             compose.enterText("checkin-code", StubEvents.TOKEN, replace = true)
             tap("checkin-submit")
@@ -155,7 +162,7 @@ class EventsWiredFlowTest {
             compose.waitForTagText("checkin-closed", "opens when the event starts")
             assertTrue(!compose.tagExists("checkin-code"))
             // New York venue: the zone is the venue's.
-            compose.waitForTagText("event-time", "E")
+            textMatches("event-time", Regex("\\bE[SD]T\\b"))
         }
     }
 

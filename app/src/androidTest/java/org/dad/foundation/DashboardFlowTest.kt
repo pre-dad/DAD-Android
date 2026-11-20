@@ -115,7 +115,7 @@ class DashboardFlowTest {
             compose.onNodeWithTag("gift-row-0").performClick()
             compose.waitForTag("receipt-detail")
             compose.onNodeWithTag("receipt-detail").assertIsDisplayed()
-            // history-close now lives in the always-visible TopAppBar (not the scrollable list), so tap it directly.
+            // history-close lives in the always-visible TopAppBar (not the scrollable list), so tap it directly.
             compose.onNodeWithTag("history-close").performClick()
             compose.waitForTag("open-history")
         }

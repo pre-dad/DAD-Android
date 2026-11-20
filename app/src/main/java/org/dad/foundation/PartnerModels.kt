@@ -305,6 +305,12 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     /** The share sheet has the report; forget the bytes. */
     fun reportShared() { report = null }
 
+    /** No app can take the report: say so instead of dropping it silently. */
+    fun reportUnavailable() {
+        report = null
+        actionError = UiText.res(R.string.partner_no_app_for_that)
+    }
+
     fun signOut() {
         viewModelScope.launch {
             bestEffort { service.unregisterPushDevice() }

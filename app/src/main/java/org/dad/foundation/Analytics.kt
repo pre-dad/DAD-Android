@@ -2,7 +2,7 @@ package org.dad.foundation
 
 /**
  * The shared analytics event taxonomy (PRD §9). Every §4 growth metric depends on these
- * events being emitted from day one, so the schema is modelled as a sealed type rather than
+ * events being emitted, so the schema is modelled as a sealed type rather than
  * free-form strings — a new event is a compile-time addition, and each event carries exactly
  * the properties the metric needs. Property values are already sanitized (codes are the
  * Attribution-sanitized form); no PII or raw credential ever enters an event.
@@ -76,11 +76,4 @@ enum class AttributionSource(val wire: String) {
  */
 interface AnalyticsEmitter {
     fun emit(event: AnalyticsEvent)
-}
-
-/** Test/collector emitter that records events in emission order. */
-class RecordingAnalyticsEmitter : AnalyticsEmitter {
-    private val _events = mutableListOf<AnalyticsEvent>()
-    val events: List<AnalyticsEvent> get() = _events.toList()
-    override fun emit(event: AnalyticsEvent) { _events.add(event) }
 }

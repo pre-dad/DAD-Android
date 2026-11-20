@@ -93,6 +93,7 @@ object PreviewPartnerSignIn : PartnerSignInService {
 
 /** In-memory partner service for previews/UITests: an admin or viewer portal. */
 class PreviewPartnerService(private val role: PartnerRole = PartnerRole.ADMIN) : PartnerService {
+    private var nextUserId = 3
     private val userList = mutableListOf(
         PartnerUser("u1", "ada@acme.com", "Ada Admin", PartnerRole.ADMIN),
         PartnerUser("u2", "val@acme.com", "Val Viewer", PartnerRole.VIEWER),
@@ -130,7 +131,7 @@ class PreviewPartnerService(private val role: PartnerRole = PartnerRole.ADMIN) :
     override suspend fun teams(): List<TeamStanding> = listOf(TeamStanding("t1", "Engineering", 31, 1_200_000, 40, 1_200))
     override suspend fun users(): List<PartnerUser> = userList.toList()
     override suspend fun inviteUser(email: String, name: String, role: PartnerRole) {
-        userList.add(PartnerUser("u${userList.size + 1}", email, name, role))
+        userList.add(PartnerUser("u${nextUserId++}", email, name, role))
     }
     override suspend fun removeUser(id: String) { userList.removeAll { it.id == id } }
     override suspend fun saveProfile(organization: String, description: String) { this.organization = organization; about = description }
@@ -169,7 +170,7 @@ class PreviewEventsService : EventsService {
     override suspend fun event(id: String): DonorEvent = store[id] ?: throw AccountFailure.NotFound
 
     override suspend fun reserve(eventId: String): ReservationOutcome {
-        val e = store.getValue(eventId)
+        val e = store[eventId] ?: throw AccountFailure.NotFound
         val outcome = if (e.spotsLeft > 0) ReservationOutcome.RESERVED else ReservationOutcome.WAITLISTED
         store[eventId] = e.copy(
             spotsLeft = maxOf(0, e.spotsLeft - 1),
@@ -179,7 +180,7 @@ class PreviewEventsService : EventsService {
     }
 
     override suspend fun cancel(eventId: String) {
-        val e = store.getValue(eventId)
+        val e = store[eventId] ?: throw AccountFailure.NotFound
         store[eventId] = e.copy(spotsLeft = e.spotsLeft + 1, status = ReservationStatus.NONE)
     }
 
@@ -246,6 +247,7 @@ class PreviewStore(signedIn: Boolean = true) : CredentialStore {
     override fun save(value: Credentials) { this.value = value }
     override fun clear() { value = null }
 }
+
 class PreviewAPI(private var failFirst: Boolean) : AccountAPI {
     override suspend fun profile(access: String): AccountProfile {
         delay(250)
@@ -256,12 +258,14 @@ class PreviewAPI(private var failFirst: Boolean) : AccountAPI {
     override suspend fun claim(token: String): Credentials = throw AccountFailure.Unavailable
     override suspend fun logout(access: String) = Unit
 }
+
 /** DEBUG preview sign-in (`preview_signed_out`): accepts code 123456, never touches a network. */
 class PreviewSignIn : SignInService {
     override suspend fun requestPhoneCode(phone: String): String = phone
     override suspend fun verifyPhone(handle: String, code: String): Credentials =
         if (code == "123456") Credentials("preview", "preview-refresh", Long.MAX_VALUE) else throw AccountFailure.SignedOut
 }
+
 /** Preview settings tied to the live (preview) session, so signing out or deleting from the donor
  *  shell really ends the session and routes back to sign-in, like a release build. */
 class PreviewSessionSettings(private val session: AccountSession) : SettingsService {
@@ -271,7 +275,6 @@ class PreviewSessionSettings(private val session: AccountSession) : SettingsServ
     override suspend fun deleteAccount() { session.discardLocal() }
     override suspend fun signOut() { session.logout() }
 }
-
 
 fun EngagementModel.Companion.previewFactory(): ViewModelProvider.Factory = viewModelFactory {
     initializer { EngagementModel(PreviewEngagementService()) }
