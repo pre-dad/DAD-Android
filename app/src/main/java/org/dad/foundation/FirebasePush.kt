@@ -57,11 +57,23 @@ class PushNotifier(private val context: Context) {
         val requestCode = "${notice.tap?.category}|${notice.tap?.path}".hashCode()
         val pending = PendingIntent.getActivity(context, requestCode, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val built = android.app.Notification.Builder(context, channelId)
-            .setSmallIcon(R.drawable.app_icon)
+            .setSmallIcon(R.drawable.ic_stat_dad)
             .setContentTitle(notice.title.resolve(context))
             .setContentText(notice.body.resolve(context))
             .setContentIntent(pending)
             .setAutoCancel(true)
+            .apply {
+                // A gift notice names an amount; the lock screen shows only the category until the device is unlocked.
+                if (notice.category == PushCategory.GIFT_PROCESSED) {
+                    setVisibility(android.app.Notification.VISIBILITY_PRIVATE)
+                    setPublicVersion(
+                        android.app.Notification.Builder(context, channelId)
+                            .setSmallIcon(R.drawable.ic_stat_dad)
+                            .setContentTitle(notice.category.label.resolve(context))
+                            .build(),
+                    )
+                }
+            }
             .build()
         // The system posts a background push under (tag, 0); the same key makes a redelivery replace, not repeat.
         if (notice.id != null) manager.notify(notice.id, 0, built) else manager.notify(requestCode, built)
