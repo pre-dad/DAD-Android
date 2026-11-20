@@ -30,7 +30,7 @@ internal class StubEngagement(private val scenario: StubEngagementScenario) {
 
     private fun sharing(): String {
         val name = publicName ?: return """{"public_name":null,"link":null,"irl_link":null,"referral_code":null}"""
-        return """{"public_name":"$name","link":"https://stub.invalid/r/ALEX2026","irl_link":"https://stub.invalid/r/ALEX2026?via=irl","referral_code":"ALEX2026"}"""
+        return """{"public_name":${com.google.gson.Gson().toJson(name)},"link":"https://stub.invalid/r/ALEX2026","irl_link":"https://stub.invalid/r/ALEX2026?via=irl","referral_code":"ALEX2026"}"""
     }
 
     private fun badges(): String {

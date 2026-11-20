@@ -45,30 +45,22 @@ internal class StubPartner(
         if (method == "POST" && path == "/donor/partner/applications") {
             // Native only: no Authorization, an Idempotency-Key, a 43-char receipt and an organization.
             val receipt = field("receipt").orEmpty()
-            val organization = Regex("\"application\"\\s*:\\s*\\{[^}]*\"organization\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(payload)?.groupValues?.get(1).orEmpty()
-            if (authorization != null || idempotencyKey.isNullOrBlank() || receipt.length != 43 || organization.isEmpty()) return Reply(422, "{}")
-            val attempt = synchronized(this) { ++submitAttempts }
-            return when (applicationSubmit) {
-                StubApplicationSubmit.INVALID -> Reply(422, "{}")
-                StubApplicationSubmit.THROTTLED -> Reply(429, ByteArray(0), headers = mapOf("Retry-After" to "30")) // ingress 429: no JSON body
-                StubApplicationSubmit.FAILS_FIRST -> if (attempt == 1) {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(503, "{}")
-                } else {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(200, """{"received":true}""")
-                }
-                StubApplicationSubmit.ACCEPTS -> {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(200, """{"received":true}""")
-                }
+            val applicantOrganization = Regex("\"application\"\\s*:\\s*\\{[^}]*\"organization\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(payload)?.groupValues?.get(1).orEmpty()
+            if (authorization != null || idempotencyKey.isNullOrBlank() || receipt.length != 43 || applicantOrganization.isEmpty()) return Reply(422, "{}")
+            val attempt = ++submitAttempts
+            when (applicationSubmit) {
+                StubApplicationSubmit.INVALID -> return Reply(422, "{}")
+                StubApplicationSubmit.THROTTLED -> return Reply(429, ByteArray(0), headers = mapOf("Retry-After" to "30")) // ingress 429: no JSON body
+                StubApplicationSubmit.FAILS_FIRST, StubApplicationSubmit.ACCEPTS -> Unit
             }
+            submittedReceipts[receipt] = applicantOrganization
+            return if (applicationSubmit == StubApplicationSubmit.FAILS_FIRST && attempt == 1) Reply(503, "{}") else Reply(200, """{"received":true}""")
         }
         if (method == "GET" && path == "/donor/partner/application-status") {
             val bearer = authorization?.removePrefix("Bearer ")?.takeIf { authorization.startsWith("Bearer ") }
             // A receipt submitted this session reads back as PENDING with its organization; a launch-seeded receipt
             // reads back with the seeded status; anything else is unknown.
-            val submitted = bearer?.let { synchronized(this) { submittedReceipts[it] } }
+            val submitted = bearer?.let { submittedReceipts[it] }
             return when {
                 submitted != null -> Reply(200, """{"organization":${quoted(submitted)},"status":"PENDING"}""")
                 bearer?.startsWith("stub-receipt-") == true && application != null ->
@@ -77,7 +69,7 @@ internal class StubPartner(
             }
         }
         if (authorization?.startsWith("Bearer stub-partner-") != true) return Reply(401, "{}")
-        val adminOnly = method == "POST" && !path.endsWith("/sign-out") && !path.contains("/push-device") ||
+        val adminOnly = (method == "POST" && !path.endsWith("/sign-out") && !path.contains("/push-device")) ||
             path == "/donor/partner/exports" || path.endsWith("report.pdf")
         if (viewer && adminOnly) return Reply(403, "{}")
         return when (method to path) {
@@ -149,5 +141,9 @@ internal class StubPartner(
         }
     }
 
-    private fun quoted(text: String) = com.google.gson.Gson().toJson(text)
+    private fun quoted(text: String) = GSON.toJson(text)
+
+    private companion object {
+        val GSON = com.google.gson.Gson()
+    }
 }
