@@ -57,6 +57,25 @@ class PartnerApplicationModelTest {
         assertNull(model.application)
     }
 
+    @Test fun blankingAnyRequiredFieldBlocksSubmit() {
+        val blankers = mapOf<String, (PartnerApplicationModel) -> Unit>(
+            "organization" to { it.organization = " " },
+            "website" to { it.website = "" },
+            "contact" to { it.contactName = "" },
+            "title" to { it.title = "" },
+            "email" to { it.workEmail = "" },
+            "phone" to { it.phone = "" },
+            "workforce" to { it.workforce = "" },
+        )
+        blankers.forEach { (field, blank) ->
+            val model = PartnerApplicationModel(Service())
+            fill(model)
+            assertTrue(field, model.canSubmit)
+            blank(model)
+            assertFalse(field, model.canSubmit)
+        }
+    }
+
     @Test fun aSuccessfulSubmitReachesSubmittedAndUnlocks() = runTest {
         val service = Service()
         val model = PartnerApplicationModel(service)
@@ -65,6 +84,18 @@ class PartnerApplicationModelTest {
         advanceUntilIdle()
         assertEquals(ApplicationSubmitPhase.Submitted, model.phase)
         assertEquals(1, service.sent.size)
+        assertFalse(model.isLocked)
+    }
+
+    @Test fun resettingASentApplicationReopensAnEmptyEditableForm() = runTest {
+        val model = PartnerApplicationModel(Service())
+        fill(model)
+        model.submit()
+        advanceUntilIdle()
+        model.reset()
+        assertEquals(ApplicationSubmitPhase.Editing, model.phase)
+        assertEquals("", model.organization)
+        assertFalse(model.canSubmit)
         assertFalse(model.isLocked)
     }
 

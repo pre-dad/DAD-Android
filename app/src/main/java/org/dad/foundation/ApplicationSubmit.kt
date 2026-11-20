@@ -219,6 +219,15 @@ class PartnerApplicationModel(
 
     val canSubmit: Boolean get() = phase != ApplicationSubmitPhase.Submitting && (frozen != null || application != null)
 
+    /** Starts a fresh form after a sent application, so reopening it never reports a stale "submitted". */
+    fun reset() {
+        if (phase == ApplicationSubmitPhase.Submitting) return
+        organization = ""; website = ""; type = PartnerOrganizationType.CORPORATE; contactName = ""
+        title = ""; workEmail = ""; phone = ""; workforce = ""
+        frozen = null
+        phase = ApplicationSubmitPhase.Editing
+    }
+
     fun submit() {
         if (!canSubmit || phase == ApplicationSubmitPhase.Submitted) return
         val attempt = frozen ?: application?.let(makeAttempt) ?: return

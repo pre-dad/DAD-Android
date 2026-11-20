@@ -39,10 +39,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -146,10 +149,14 @@ fun PartnerSignInFlow(
                     }
                     if (applyUrl != null) {
                         val context = LocalContext.current
+                        var browserMissing by rememberSaveable { mutableStateOf(false) }
                         TextButton(
-                            onClick = { try { CustomTabsIntent.Builder().build().launchUrl(context, applyUrl.toUri()) } catch (_: ActivityNotFoundException) { } },
+                            onClick = {
+                                try { CustomTabsIntent.Builder().build().launchUrl(context, applyUrl.toUri()) } catch (_: ActivityNotFoundException) { browserMissing = true }
+                            },
                             modifier = Modifier.fillMaxWidth().testTag("partner-apply"),
                         ) { Text(if (applicationSubmit == null) stringResource(R.string.partner_new_partner_apply_on_the_website) else stringResource(R.string.partner_prefer_the_website_apply_there)) }
+                        if (browserMissing) Text(stringResource(R.string.partner_no_app_for_that), modifier = Modifier.testTag("partner-apply-error").semantics { liveRegion = LiveRegionMode.Polite })
                     }
                 }
             }
@@ -160,16 +167,15 @@ fun PartnerSignInFlow(
 
 /**
  * The application form: the website's fields, submitted natively. After an unconfirmed attempt the form locks and
- * the button becomes "Retry", which resends exactly what was sent. A `.contain` container keeps each field's own
- * test tag (a bare container tag would flatten them).
+ * the button becomes "Retry", which resends exactly what was sent.
  */
 @Composable
 private fun PartnerApplicationForm(service: PartnerApplicationService, onCancel: () -> Unit, onSubmitted: () -> Unit) {
     val model: PartnerApplicationModel = viewModel(key = "partner-application-form", factory = PartnerApplicationModel.factory(service))
-    LaunchedEffect(model.phase) { if (model.phase == ApplicationSubmitPhase.Submitted) onSubmitted() }
+    LaunchedEffect(model.phase) { if (model.phase == ApplicationSubmitPhase.Submitted) { model.reset(); onSubmitted() } }
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().testTag("partner-application-form").semantics(mergeDescendants = false) {},
+        modifier = Modifier.fillMaxWidth().testTag("partner-application-form"),
     ) {
         Text(stringResource(R.string.partner_apply_as_a_partner), style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
         Text(stringResource(R.string.partner_tell_us_about_your_organization), style = MaterialTheme.typography.bodyMedium)
@@ -301,8 +307,9 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val logo = remember(snapshot?.logo) { snapshot?.logo?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } }
-            if (logo != null) {
+            val logoBytes = snapshot?.logo
+            val logo by produceState<Bitmap?>(null, logoBytes) { value = logoBytes?.let { withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(it, 0, it.size) } } }
+            logo?.let { logo ->
                 Image(logo.asImageBitmap(), contentDescription = stringResource(R.string.partner_organization_logo), modifier = Modifier.size(44.dp).testTag("partner-logo"))
             }
             Column {
@@ -325,6 +332,14 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                         FilterChip(selected = section == it, onClick = { section = it; initiativeId = null }, label = { Text(stringResource(it.label), maxLines = 1, softWrap = false) },
                             modifier = Modifier.testTag("partner-tab-${it.name.lowercase()}"))
                     }
+                }
+                if (phase is PartnerPhase.Failed) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("partner-refresh-failed")) {
+                        Text(phase.message.asString(), modifier = Modifier.testTag("partner-error").semantics { liveRegion = LiveRegionMode.Polite })
+                        OutlinedButton(onClick = model::load) { Text(stringResource(R.string.common_try_again)) }
+                    }
+                } else if (phase == PartnerPhase.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp).testTag("partner-refreshing"))
                 }
                 if (snapshot.sectionsUnavailable) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("partner-partial")) {
@@ -405,10 +420,11 @@ private fun PartnerInitiativeHeading(initiative: PartnerInitiative) {
 
 @Composable
 private fun PartnerMetricLine(metric: PartnerMetric) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(stringResource(R.string.partner_label_value, metric.label, metric.valueLabel))
         metric.verifiedOn?.let {
-            Text(stringResource(R.string.partner_verified_on, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(java.util.Locale.US).format(it)),
+            Text(stringResource(R.string.partner_verified_on, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(it)),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -416,9 +432,10 @@ private fun PartnerMetricLine(metric: PartnerMetric) {
 
 @Composable
 private fun PartnerUpdatedAt(time: java.time.OffsetDateTime?) {
+    val locale = LocalConfiguration.current.locales[0]
     Text(if (time == null) stringResource(R.string.partner_update_unknown) else
         stringResource(R.string.partner_updated_at, DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.LONG)
-            .withLocale(java.util.Locale.US).format(time.atZoneSameInstant(java.time.ZoneId.systemDefault()))),
+            .withLocale(locale).format(time.atZoneSameInstant(java.time.ZoneId.systemDefault()))),
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -590,11 +607,11 @@ internal object LogoImage {
 private fun PartnerCompanyCode(code: String, publicOrigin: String) {
     val context = LocalContext.current
     val shareTitle = stringResource(R.string.partner_share_sign_up_link)
+    var shareMissing by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.common_company_code), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         Text(code, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace), modifier = Modifier.testTag("partner-company-code"))
-        if (publicOrigin.isBlank()) return@Column
-        val link = publicOrigin.trimEnd('/') + "/c/" + code
+        val link = Referral.companyLink(publicOrigin, code) ?: return@Column
         val qr = remember(link) { runCatching { qrBitmap(link) }.getOrNull() }
         if (qr != null) {
             Image(qr.asImageBitmap(), contentDescription = stringResource(R.string.partner_qr_code_for, link), filterQuality = FilterQuality.None,
@@ -603,10 +620,11 @@ private fun PartnerCompanyCode(code: String, publicOrigin: String) {
         OutlinedButton(
             onClick = {
                 val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, link) }
-                try { context.startActivity(Intent.createChooser(send, shareTitle)) } catch (_: ActivityNotFoundException) { }
+                try { context.startActivity(Intent.createChooser(send, shareTitle)) } catch (_: ActivityNotFoundException) { shareMissing = true }
             },
             modifier = Modifier.testTag("partner-company-share"),
         ) { Text(stringResource(R.string.partner_share_sign_up_link)) }
+        if (shareMissing) Text(stringResource(R.string.partner_no_app_for_that), modifier = Modifier.testTag("partner-company-share-error").semantics { liveRegion = LiveRegionMode.Polite })
     }
 }
 
@@ -693,16 +711,21 @@ private fun PartnerReportShare(model: PartnerModel) {
     val context = LocalContext.current
     val report = model.report
     val shareTitle = stringResource(R.string.partner_share_report)
+    // The exported PDF names the organization's giving; it must not outlive the screen that offered it.
+    DisposableEffect(Unit) { onDispose { clearShared(context, "reports") } }
     LaunchedEffect(report?.id) {
         if (report == null) return@LaunchedEffect
-        val file = withContext(Dispatchers.IO) { sharedFile(context, "reports", report.name).also { it.writeBytes(report.pdf) } }
+        val file = withContext(Dispatchers.IO) { freshSharedFile(context, "reports", report.name).also { it.writeBytes(report.pdf) } }
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/pdf"
             putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, fileAuthority(context), file))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        try { context.startActivity(Intent.createChooser(send, shareTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-        catch (_: ActivityNotFoundException) { }
-        model.reportShared()
+        try {
+            context.startActivity(Intent.createChooser(send, shareTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            model.reportShared()
+        } catch (_: ActivityNotFoundException) {
+            model.reportUnavailable()
+        }
     }
 }

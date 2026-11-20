@@ -499,7 +499,7 @@ class MainActivity : ComponentActivity() {
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
                             PushMirroringSettings(
-                                WireSettings(product, onLocalWipe = { LegacyAttribution.clear(appContext); linkTokens.clear(); milestones.clear() }),
+                                WireSettings(product, onLocalWipe = { LegacyAttribution.clear(appContext); linkTokens.clear(); milestones.clear(); clearShared(appContext, "calendar"); clearShared(appContext, "reports") }),
                                 record = pushOptOuts::record, clear = pushOptOuts::clear,
                             ),
                             signup = credentialAuth,

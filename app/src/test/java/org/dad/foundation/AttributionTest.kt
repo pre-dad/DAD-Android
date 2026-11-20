@@ -21,6 +21,16 @@ class AttributionTest {
         assertEquals("ABC_123-xyz", Attribution.sanitized("  ABC_123-xyz  "))
     }
 
+    @Test fun companyLinksCarryOnlySanitizedCodesOnAnHttpsOrigin() {
+        assertEquals("https://dad.org/c/ACME-1", Referral.companyLink("https://dad.org/", "ACME-1"))
+        assertNull(Referral.companyLink("https://dad.org", "A/../x"))
+        assertNull(Referral.companyLink("https://dad.org", "A?x=1"))
+        assertNull(Referral.companyLink("https://dad.org", "A#frag"))
+        assertNull(Referral.companyLink("https://dad.org", ""))
+        assertNull(Referral.companyLink("http://dad.org", "ACME"))
+        assertNull(Referral.companyLink("", "ACME"))
+    }
+
     // --- Play Install Referrer parsing (D-3) ---
     @Test fun installReferrerParsesAndSanitizes() {
         val a = InstallReferrerParser.parse("invite=FRIEND123&utm_source=instagram&company=ACME")

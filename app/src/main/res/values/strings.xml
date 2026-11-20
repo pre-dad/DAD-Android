@@ -7,6 +7,7 @@
     <string name="partner_all_initiatives">All initiatives</string>
     <string name="partner_view_details">View initiative details</string>
     <string name="partner_all_metrics">Verified metrics</string>
+    <string name="partner_no_app_for_that">There’s no app on this device that can open that.</string>
     <string name="partner_no_metrics">No verified metrics yet.</string>
     <string name="partner_no_spend">No verified spend yet.</string>
     <string name="partner_final">Final</string>

@@ -27,6 +27,14 @@ object Referral {
         return "$origin/r/$sanitized" + if (inPerson) "?via=irl" else ""
     }
 
+    /** The company sign-up link `/c/<code>`; null for a malformed origin or a code that fails sanitization. */
+    fun companyLink(publicOrigin: String, code: String): String? {
+        val sanitized = Attribution.sanitized(code) ?: return null
+        val origin = publicOrigin.trimEnd('/')
+        if (!origin.startsWith("https://") || origin.length < "https://a".length) return null
+        return "$origin/c/$sanitized"
+    }
+
     /**
      * Encode a string into a QR bit-matrix (true = dark module). Pure computation — rendering to
      * a Compose/Bitmap surface is the caller's job — so the encode/decode round-trip is a unit
