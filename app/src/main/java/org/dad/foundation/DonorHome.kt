@@ -22,8 +22,6 @@ import java.time.OffsetDateTime
 // plus two view models; the network sits behind [DashboardService]. Money is int64 USD minor units,
 // formatted only by [formatMinorUsd]. Nothing here logs. The Kotlin counterpart of iOS wiring P2.
 
-// MARK: - Dashboard
-
 /** The streak card ladder (S-2/S-3). [bar] has one segment per day of the current window. */
 data class HomeLadder(
     val days: Long,
@@ -87,19 +85,17 @@ sealed interface DashboardState {
     data class Ready(val dashboard: HomeDashboard) : DashboardState
 }
 
-// MARK: - Today's initiative
-
-data class HomeMetric(val label: String, val value: Long, val unit: Unit?, val verifiedOn: String) {
-    enum class Unit { USD_CENTS, PEOPLE, INITIATIVES, PARTNERS }
+data class HomeMetric(val label: String, val value: Long, val unit: MetricUnit?, val verifiedOn: String) {
+    enum class MetricUnit { USD_CENTS, PEOPLE, INITIATIVES, PARTNERS }
 
     val valueLabel: UiText get() {
         val count = String.format(java.util.Locale.US, "%,d", value)
         val quantity = value.toQuantity()
         return when (unit) {
-            Unit.USD_CENTS -> UiText.plain(formatMinorUsd(value))
-            Unit.PEOPLE -> UiText.plural(R.plurals.home_metric_people, quantity, count)
-            Unit.INITIATIVES -> UiText.plural(R.plurals.home_metric_initiatives, quantity, count)
-            Unit.PARTNERS -> UiText.plural(R.plurals.home_metric_partners, quantity, count)
+            MetricUnit.USD_CENTS -> UiText.plain(formatMinorUsd(value))
+            MetricUnit.PEOPLE -> UiText.plural(R.plurals.home_metric_people, quantity, count)
+            MetricUnit.INITIATIVES -> UiText.plural(R.plurals.home_metric_initiatives, quantity, count)
+            MetricUnit.PARTNERS -> UiText.plural(R.plurals.home_metric_partners, quantity, count)
             null -> UiText.plain(count)
         }
     }
@@ -123,8 +119,6 @@ data class HomeInitiative(
         val ATTRIBUTION_NOTE = UiText.res(R.string.home_this_is_display_attribution_not)
     }
 }
-
-// MARK: - Gifts
 
 data class HomeGift(
     val id: String,
@@ -158,8 +152,6 @@ data class AnnualGivingSummary(
     val netLabel: String get() = formatMinorUsd(netMinor)
 }
 
-// MARK: - Service seam
-
 /** The donor-home read seam. [todayInitiative] answers null for a 404 (nothing in rotation today). */
 interface DashboardService {
     suspend fun dashboard(): DashboardState
@@ -174,8 +166,6 @@ internal fun homeMessage(error: Throwable): UiText = when (error) {
     is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_requests_please_wait_a)
     else -> UiText.res(R.string.home_we_couldnt_load_this_right_now)
 }
-
-// MARK: - Dashboard model
 
 /**
  * Drives the donor home cards. A refresh that fails or is cancelled keeps the cards already on
@@ -264,8 +254,6 @@ class DashboardModel(private val service: DashboardService) : ViewModel() {
         }
     }
 }
-
-// MARK: - Gift history model
 
 /**
  * Paginated gift history (50 rows a page from the server). Memory is bounded: past [MAX_ROWS] the model
@@ -423,8 +411,6 @@ class GiftHistoryModel(
     }
 }
 
-// MARK: - Streak milestones
-
 /** The highest streak milestone the donor has already been shown (or that predates this install). */
 interface MilestoneStore {
     fun seen(): Long?
@@ -440,12 +426,6 @@ class PrefsMilestoneStore(context: android.content.Context) : MilestoneStore {
     override fun clear() { prefs.edit { clear() } }
 
     private companion object { const val KEY = "highest_seen" }
-}
-
-class MemoryMilestoneStore(private var value: Long? = null) : MilestoneStore {
-    override fun seen(): Long? = value
-    override fun markSeen(milestone: Long) { value = milestone }
-    override fun clear() { value = null }
 }
 
 /**

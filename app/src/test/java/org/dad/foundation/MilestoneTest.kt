@@ -4,6 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+private class MemoryMilestoneStore(private var value: Long? = null) : MilestoneStore {
+    override fun seen(): Long? = value
+    override fun markSeen(milestone: Long) { value = milestone }
+    override fun clear() { value = null }
+}
+
 class MilestoneTest {
     private fun streak(current: Int, last: Long) =
         HomeStreak(current, false, null, HomeLadder(current.toLong(), last, null, null, emptyList()))

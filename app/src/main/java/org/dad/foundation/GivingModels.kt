@@ -330,8 +330,6 @@ class GivingModel(
         phase = GivingPhase.Failed(UiText.res(R.string.give_we_couldnt_open_the_secure_payment))
     }
 
-    // MARK: private
-
     private fun begin(purpose: HostedHandoff.Purpose, startedFromConflict: Boolean, open: suspend () -> PaymentPath) {
         phase = GivingPhase.Working
         notice = null

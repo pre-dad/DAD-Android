@@ -45,13 +45,12 @@ class ExternalSignInTest {
         val google = SignInCapabilities.of(config, googleProviderAvailable = true)
         assertTrue(google.google); assertFalse(google.passkey)
         val both = SignInCapabilities.of(config, googleProviderAvailable = true, passkeyProviderAvailable = true)
-        assertTrue(both.isAvailable(SignInMethod.GOOGLE)); assertTrue(both.isAvailable(SignInMethod.PASSKEY))
+        assertTrue(both.google); assertTrue(both.passkey)
         val provided = ExternalSignInDeps(both, googleTokens = { _ -> "t" }, authenticator = { throw ExternalSignInError.Unsupported })
         assertTrue(provided.offersGoogle); assertTrue(provided.offersPasskey)
         assertFalse(ExternalSignInDeps(both).offersGoogle) // a capability without a provider shows nothing
         assertFalse(ExternalSignInDeps(provided.capabilities.copy(google = false), googleTokens = { _ -> "t" }).offersGoogle)
-        assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PHONE)); assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSWORD))
-        assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.GOOGLE)); assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSKEY))
+        assertFalse(SignInCapabilities.NONE.google); assertFalse(SignInCapabilities.NONE.passkey)
     }
 
     @Test fun anUnconfiguredBuildFailsClearly() = runTest {

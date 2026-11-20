@@ -7,8 +7,6 @@ import java.time.OffsetDateTime
 // rule text for unearned) and sharing visibility are unit-testable without a network or UI — the
 // Kotlin counterpart of the iOS Phase D engagement/badge domain.
 
-// MARK: - Network (N-1..N-3)
-
 /**
  * The next referral tier the donor has not yet reached (N-2). Null at the network level once every
  * tier is reached.
@@ -74,8 +72,6 @@ data class NetworkView(
     /** True once every referral tier is reached (no next milestone). */
     val allTiersReached: Boolean get() = nextMilestone == null
 }
-
-// MARK: - Badges (B-1..B-4)
 
 /**
  * One badge in the 24-badge grid. [earned] drives earned-in-color vs greyed; the [rule] text is
@@ -153,12 +149,8 @@ data class BadgeGrid(
     val activePerks: List<UiText> get() = earned.filter { it.perkActive }.mapNotNull { it.perk }
 }
 
-// MARK: - Sharing visibility (N opt-in / A-5)
-
 /** Longest public name the server accepts (`saveSharing`: 1..80). */
 const val MAX_PUBLIC_NAME = 80
-
-// MARK: - Invite (R-1..R-4)
 
 /** One referral's first gift. It carries nothing about the referred donor; [kind] is an open string. */
 data class Conversion(val convertedAt: OffsetDateTime, val kind: String) {

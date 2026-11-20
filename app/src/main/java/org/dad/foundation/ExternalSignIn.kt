@@ -37,20 +37,12 @@ data class SignInConfig(val googleWebClientId: String?, val passkeyRelyingParty:
     }
 }
 
-enum class SignInMethod { PHONE, PASSWORD, GOOGLE, PASSKEY }
-
 /**
  * Which sign-in methods can actually run in this build. Phone and password need no client
  * configuration and are always on. Google and passkeys are off until configured AND a platform provider
  * exists (a client ID or domain alone never switches a method on).
  */
 data class SignInCapabilities(val google: Boolean = false, val passkey: Boolean = false) {
-    fun isAvailable(method: SignInMethod) = when (method) {
-        SignInMethod.PHONE, SignInMethod.PASSWORD -> true
-        SignInMethod.GOOGLE -> google
-        SignInMethod.PASSKEY -> passkey
-    }
-
     companion object {
         val NONE = SignInCapabilities()
         fun of(config: SignInConfig, googleProviderAvailable: Boolean = false, passkeyProviderAvailable: Boolean = false) =

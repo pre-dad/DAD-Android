@@ -99,10 +99,10 @@ class WireEngagementTest {
     @Test fun rankStatesMapDistinctly() = runTest {
         val unranked = readyDashboard.replace(Regex("\"rank\":\\{[^}]*\\}"), "\"rank\":null")
         val notRanked = Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to unranked else happy(r) }.wire.snapshot().ranking!!
-        assertFalse(notRanked.isOptedOut)
+        assertFalse(notRanked.optedOut)
         assertNull(notRanked.nationalLabel)
         val hidden = readyDashboard.replace("\"rankings_opted_out\":false", "\"rankings_opted_out\":true")
-        assertTrue(Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to hidden else happy(r) }.wire.snapshot().ranking!!.isOptedOut)
+        assertTrue(Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to hidden else happy(r) }.wire.snapshot().ranking!!.optedOut)
     }
 
     @Test fun aPreparingDashboardStillReadsTheRankingsChoiceFromTheProfile() = runTest {
@@ -115,7 +115,7 @@ class WireEngagementTest {
         }
         val snapshot = rig.wire.snapshot()
         assertNull(snapshot.impact)
-        assertTrue(snapshot.ranking!!.isOptedOut)
+        assertTrue(snapshot.ranking!!.optedOut)
     }
 
     @Test fun noPublicNameMeansNeedsNameAndNoConversionsRead() = runTest {
@@ -165,7 +165,7 @@ class WireEngagementTest {
     @Test fun optingOutReadsTheProfileThenSavesTheWholeBlockWithItsVersion() = runTest {
         val rig = Rig(backgroundScope, handler = prefsHandler({ 200 }))
         val standing = rig.wire.setRankingOptIn(false)
-        assertTrue(standing.isOptedOut)
+        assertTrue(standing.optedOut)
         assertEquals(listOf("/donor/me/profile", "/donor/me/preferences"), rig.http.requests.map { it.path })
         val body = rig.http.requests.last().body
         assertTrue(body.contains("\"version\":3"))
@@ -183,14 +183,14 @@ class WireEngagementTest {
     @Test fun optingBackInKeepsTheChoiceWhenThePositionReadFails() = runTest {
         val rig = Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 503 to "{}" else prefsHandler({ 200 })(r) }
         val standing = rig.wire.setRankingOptIn(true)
-        assertFalse(standing.isOptedOut)
+        assertFalse(standing.optedOut)
         assertNull(standing.nationalLabel)
     }
 
     @Test fun aStaleVersionRereadsAndRetriesOnce() = runTest {
         var saves = 0
         val rig = Rig(backgroundScope, handler = prefsHandler({ if (++saves == 1) 409 else 200 }))
-        assertTrue(rig.wire.setRankingOptIn(false).isOptedOut)
+        assertTrue(rig.wire.setRankingOptIn(false).optedOut)
         assertEquals(2, rig.http.count("/donor/me/preferences"))
         assertEquals(2, rig.http.count("/donor/me/profile"))
     }
