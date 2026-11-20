@@ -20,3 +20,7 @@
 -keepclassmembers class org.dad.foundation.Credentials { <fields>; }
 -keepclassmembers class org.dad.foundation.Attribution { <fields>; }
 -keepclassmembers class org.dad.foundation.LinkTokens { <fields>; }
+
+# The link policy is read from links.json by Gson into LinkPolicy by field name; renamed fields would leave it incomplete
+# and the router unbuilt in release.
+-keepclassmembers class org.dad.foundation.LinkPolicy { <fields>; }

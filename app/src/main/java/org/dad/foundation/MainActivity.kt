@@ -185,11 +185,9 @@ class AccountModel(
                     watchTokenRotations(it)
                 }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) {
-            configurationFailed = true
-            notice = PhoneSignInModel.NOT_CONFIGURED
-            null
-        }
+        catch (_: IllegalArgumentException) { configurationFailed = true; notice = PhoneSignInModel.NOT_CONFIGURED; null }
+        catch (_: IllegalStateException) { configurationFailed = true; notice = PhoneSignInModel.NOT_CONFIGURED; null }
+        catch (_: Exception) { null }
     }
 
     /** Launch: restore the stored session, or land on sign-in. */
@@ -546,11 +544,12 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(Unit) { model.start(launch) }
             LaunchedEffect(linkEvent) {
-                val router = linkRouter ?: run {
-                    if (BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank()) model.configurationUnavailable()
-                    return@LaunchedEffect
-                }
                 incomingLink?.let { link ->
+                    val router = linkRouter
+                    if (router == null) {
+                        if (BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank()) model.configurationUnavailable()
+                        return@let
+                    }
                     model.receive(link, router)?.let {
                         try { CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, it.toUri()) }
                         catch (_: android.content.ActivityNotFoundException) { model.configurationUnavailable() }
@@ -868,8 +867,8 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                     }
                     Pushed.Spend -> {
                         val target = spendTarget
+                        BackHandler { pushed = null; spendTarget = null }
                         if (target != null && engagementService != null) {
-                            BackHandler { pushed = null; spendTarget = null }
                             holder.SaveableStateProvider("spend") {
                                 InitiativeSpendScreen(
                                     viewModel(key = "spend-${model.generation}-${target.id}", factory = InitiativeSpendModel.factory(engagementService, target.id)),
@@ -999,8 +998,6 @@ private fun DadBrandTile(modifier: Modifier = Modifier) {
 private fun HomeTopBar(model: AccountModel, onSettings: (() -> Unit)?) {
     val publicName = (model.state as? AccountState.Ready)?.profile?.publicName?.trim()?.takeIf { it.isNotEmpty() }
     TopAppBar(
-        // The brand tile is the leading element (the old "DAD" wordmark lived in the body header,
-        // removed in this phase); it carries a description so the mark is not colour alone.
         navigationIcon = { DadBrandTile(Modifier.padding(start = 16.dp)) },
         title = { Text(if (publicName != null) stringResource(R.string.main_hi_name, publicName) else stringResource(R.string.common_welcome_back), modifier = Modifier.dadHeading()) },
         actions = {
@@ -1026,9 +1023,6 @@ private fun HomeTopBar(model: AccountModel, onSettings: (() -> Unit)?) {
 @Composable
 private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {}) {
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center) {
-        // The old "DAD / Good things start together. / Welcome, … / Your account has a home here."
-        // header is gone: the greeting now lives in the Home TopAppBar ("Hi, {publicName}"). Only the
-        // account sub-states (loading / unavailable / signed-out) keep an on-screen answer here.
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             when (model.state) {
                 AccountState.Loading -> { CircularProgressIndicator(); Text(stringResource(R.string.main_loading_your_account)) }
@@ -1131,7 +1125,7 @@ private fun SettingsContent(
     SettingsHeading(stringResource(R.string.main_notifications))
     // Payment-failure email is absent by design (non-toggleable server-side).
     SettingsToggleSection(stringResource(R.string.main_emails), snapshot.preferences.emailToggles, model)
-    SettingsToggleSection(stringResource(R.string.main_notifications), snapshot.preferences.pushToggles, model)
+    SettingsToggleSection(stringResource(R.string.main_push), snapshot.preferences.pushToggles, model)
     SettingsHeading(stringResource(R.string.main_privacy))
     Column {
         ToggleRow(stringResource(R.string.common_show_my_ranking), snapshot.preferences.showRanking, "ranking-toggle", "star") {
