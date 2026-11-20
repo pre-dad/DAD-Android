@@ -1,7 +1,6 @@
 package org.dad.foundation
 
 import androidx.compose.material3.Typography
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +27,6 @@ private fun text(step: String): androidx.compose.ui.unit.TextUnit = (DADTokens.t
  * of each style (line height, letter spacing) keeps the Material default. body/title/label are left
  * untouched so running copy stays on Roboto.
  */
-@Composable
 fun dadTypography(): Typography = dadTypographyValue
 
 private val dadTypographyValue: Typography by lazy {

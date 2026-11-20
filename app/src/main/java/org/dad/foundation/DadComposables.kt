@@ -12,14 +12,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-// Shared DAD composables (design-system primitives). Additive: these are wired into screens in later
-// PRs, so no screen behaviour or testTags change here. Token colours only; 48dp-safe; a title that is a
-// section heading carries dadHeading().
-
 /**
  * Frames a recurring gift as its monthly and daily amounts at EQUAL visual weight — both lines use the
- * same figure style and colour, so neither reads as subordinate (replacing the old displaySmall vs
- * bodyLarge imbalance). The pair is one semantics group for TalkBack.
+ * same figure style and colour, so neither reads as subordinate. The pair is one semantics group for TalkBack.
  */
 @Composable
 fun DadGiftFraming(

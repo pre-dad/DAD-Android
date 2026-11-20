@@ -70,7 +70,7 @@ internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
     val busy = model.phase == DetailsPhase.Saving
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("details-section")) {
         Text(stringResource(R.string.acct_your_details), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-        Text(stringResource(R.string.acct_your_zip_code_sets_your_city_for), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.acct_your_zip_code_suggests_your_time_zone), style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
             value = model.zip, onValueChange = { model.zip = it.take(10) }, label = { Text(stringResource(R.string.common_zip_code)) }, singleLine = true, enabled = !busy,
             isError = !model.zipValid, supportingText = if (model.zipValid) null else ({ Text(stringResource(R.string.acct_enter_a_5_digit_zip_code_or_leave)) }),

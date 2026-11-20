@@ -79,6 +79,12 @@ internal fun <T> Response<T>.problem(): Pair<String?, String?> = try {
 internal fun <T> Response<T>.requireBody(conflict: AccountFailure = AccountFailure.Unavailable): T =
     checked(conflict).body() ?: throw AccountFailure.InvalidResponse
 
+/** A malformed id is a 404 server-side and a dot segment could re-route the path, so it is refused before it becomes a path segment. */
+internal fun String.requireUuid(): String {
+    if (length != 36 || runCatching { java.util.UUID.fromString(this) }.isFailure) throw AccountFailure.InvalidInput
+    return this
+}
+
 /**
  * A malformed 200 body is an invalid response, not an unhandled parser crash. An empty body surfaces from
  * Gson as an [java.io.EOFException]; the transport has already read the whole body by then (see

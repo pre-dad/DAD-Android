@@ -1,5 +1,6 @@
 package org.dad.foundation
 
+import com.google.gson.annotations.SerializedName
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import org.dad.foundation.generated.api.AccountApi
@@ -8,7 +9,7 @@ import org.dad.foundation.generated.model.ClaimRequest
 import org.dad.foundation.generated.model.RefreshRequest
 
 // Generator 7.20 emits a String literal for this boolean const; keep the wire contract intact.
-data class LogoutAcknowledgement(@com.google.gson.annotations.SerializedName("signed_out") val signedOut: Boolean)
+data class LogoutAcknowledgement(@SerializedName("signed_out") val signedOut: Boolean)
 
 /** Session-bootstrap operations: profile, refresh, claim, logout. */
 class WireAPI(origin: String, private val baseClient: OkHttpClient = defaultNativeClient()) : AccountAPI {

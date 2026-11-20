@@ -37,7 +37,12 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
 
     override suspend fun sessions() = product.perform { sessionList(it.create(SessionReads::class.java).sessions().body_()) }
 
-    override suspend fun revokeSession(id: String) = product.perform { retrofit ->
+    override suspend fun revokeSession(id: String): List<DeviceSessionSummary> {
+        id.requireUuid()
+        return revoke(id)
+    }
+
+    private suspend fun revoke(id: String) = product.perform { retrofit ->
         val response = retrofit.create(SessionReads::class.java).revoke(id)
         if (response.code() == 404) { response.errorBody()?.close(); throw AccountFailure.NotFound }
         sessionList(response.requireBody(conflict = AccountFailure.Conflict))

@@ -74,6 +74,12 @@ class PhoneSignInModelTest {
         assertEquals(PhoneSignInPhase.SignedIn, m.phase)
     }
 
+    @Test fun aSignedOutReplyToTheCodeRequestIsNotReportedAsAWrongCode() {
+        val m = model(Fake(requestFailure = AccountFailure.SignedOut))
+        m.phone = "+14155551234"; m.requestCode()
+        assertEquals("Something went wrong. Please try again.", (m.phase as PhoneSignInPhase.Failed).message.text())
+    }
+
     @Test fun requestFailuresMapToUserCopyAndReturnToThePhoneScreen() {
         val cases = mapOf<Exception, String>(
             AccountFailure.InvalidInput to "That phone number doesn’t look right. Check it and try again.",

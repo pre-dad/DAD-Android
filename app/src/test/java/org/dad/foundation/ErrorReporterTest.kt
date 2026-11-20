@@ -13,11 +13,13 @@ class ErrorReporterTest {
     }
 
     @Test fun dedupeKeyIsStablePerScreenOperationKind() {
-        val a = ClientError("settings", "load", ClientError.Kind.SIGNED_OUT, "x")
-        val b = ClientError("settings", "load", ClientError.Kind.SIGNED_OUT, "different detail")
-        val c = ClientError("settings", "save", ClientError.Kind.SIGNED_OUT, "x")
-        assertEquals(a.dedupeKey, b.dedupeKey) // detail does not affect the key
-        assertTrue(a.dedupeKey != c.dedupeKey) // operation does
+        val a = ClientError("settings", "load", ClientError.Kind.SIGNED_OUT)
+        val same = ClientError("settings", "load", ClientError.Kind.SIGNED_OUT)
+        val otherOperation = ClientError("settings", "save", ClientError.Kind.SIGNED_OUT)
+        val otherKind = ClientError("settings", "load", ClientError.Kind.UNAVAILABLE)
+        assertEquals(a.dedupeKey, same.dedupeKey)
+        assertTrue(a.dedupeKey != otherOperation.dedupeKey)
+        assertTrue(a.dedupeKey != otherKind.dedupeKey)
     }
 
     private class RecordingReporter : ErrorReporter {
@@ -28,11 +30,10 @@ class ErrorReporterTest {
     @Test fun dedupingReporterForwardsEachDistinctErrorOnce() {
         val sink = RecordingReporter()
         val reporter = DedupingErrorReporter(sink)
-        val err = ClientError("events", "reserve", ClientError.Kind.UNAVAILABLE, "409")
+        val err = ClientError("events", "reserve", ClientError.Kind.UNAVAILABLE)
         reporter.report(err)
         reporter.report(err) // same key — dropped
-        reporter.report(ClientError("events", "reserve", ClientError.Kind.UNAVAILABLE, "other detail")) // same key — dropped
-        reporter.report(ClientError("events", "cancel", ClientError.Kind.UNAVAILABLE, "409")) // different op — forwarded
+        reporter.report(ClientError("events", "cancel", ClientError.Kind.UNAVAILABLE)) // different op — forwarded
         assertEquals(2, sink.received.size)
         assertEquals(2, reporter.reportedCount)
     }
@@ -45,9 +46,9 @@ class ErrorReporterTest {
     @Test fun theSameOperationFailingDifferentlyReportsEachKindOnce() {
         val sink = RecordingReporter()
         val reporter = DedupingErrorReporter(sink)
-        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE, "a"))
-        reporter.report(ClientError("home", "load", ClientError.Kind.SIGNED_OUT, "a"))
-        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE, "b"))
+        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE))
+        reporter.report(ClientError("home", "load", ClientError.Kind.SIGNED_OUT))
+        reporter.report(ClientError("home", "load", ClientError.Kind.UNAVAILABLE))
         assertEquals(listOf(ClientError.Kind.UNAVAILABLE, ClientError.Kind.SIGNED_OUT), sink.received.map { it.kind })
     }
 }

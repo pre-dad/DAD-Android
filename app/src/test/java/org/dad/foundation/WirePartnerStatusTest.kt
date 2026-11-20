@@ -33,13 +33,13 @@ class WirePartnerStatusTest {
         "teams" to { it.teams() },
         "users" to { it.users() },
         "invite" to { it.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) },
-        "remove" to { it.removeUser("u2") },
+        "remove" to { it.removeUser("33333333-3333-4333-8333-333333333333") },
         "saveProfile" to { it.saveProfile("Acme", "About") },
         "saveWorkforce" to { it.saveWorkforce(10) },
         "saveLogo" to { it.saveLogo(byteArrayOf(1)) },
         "exports" to { it.exports() },
         "report" to { it.report() },
-        "retained" to { it.retainedReport("r1") },
+        "retained" to { it.retainedReport("44444444-4444-4444-8444-444444444444") },
     )
 
     @Test fun reportLimitsPreserveTheSessionAndExplainTheRefusal() = runTest {

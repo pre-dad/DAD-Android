@@ -7,14 +7,6 @@ import java.time.format.FormatStyle
 import java.util.Date
 import java.util.Locale
 
-// Donor events & volunteering (PRD E-1..E-10, §6.11). Pure value types and the display /
-// eligibility rules live here so event availability, the check-in window, invite-only gating and
-// reservation transitions are unit-testable without a network, a camera, or UI — the Kotlin
-// counterpart of the iOS Phase E events domain. The server is always authoritative for
-// reservation and check-in; these are the client-side pre-checks that drive what the UI offers.
-
-// MARK: - Reservation status (E-3, E-4)
-
 /** Where the signed-in donor stands on one event, mirroring the contract's reservation_status. */
 enum class ReservationStatus {
     NONE, RESERVED, WAITLISTED, CHECKED_IN;
@@ -29,8 +21,6 @@ enum class ReservationStatus {
         }
     }
 }
-
-// MARK: - Availability (E-2, E-3, E-4)
 
 /**
  * What the detail screen's primary action should offer, derived from capacity, the donor's
@@ -48,8 +38,6 @@ sealed interface EventAvailability {
     data object CheckedIn : EventAvailability
     data object Cancelled : EventAvailability
 }
-
-// MARK: - Event (list/detail model)
 
 /**
  * One event as the list and detail screens render it. Independent of the generated client so the
@@ -93,7 +81,7 @@ data class DonorEvent(
         get() = when (type.lowercase()) {
             "volunteer" -> UiText.res(R.string.events_volunteer)
             "community" -> UiText.res(R.string.events_community)
-            "invite_only" -> UiText.res(R.string.events_invite_only_2)
+            "invite_only" -> UiText.res(R.string.events_type_invite_only)
             "" -> UiText.res(R.string.events_event)
             else -> UiText.plain(type.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() })
         }
@@ -140,8 +128,6 @@ data class DonorEvent(
         }
 }
 
-// MARK: - Check-in window (E-8)
-
 /**
  * The client-side check-in gate. The server is authoritative, but the screen should only offer check-in
  * inside the window and say why when it is not open, rather than firing a request bound to 422. The contract
@@ -170,15 +156,11 @@ object CheckInCode {
     fun isWellFormed(code: String): Boolean = shape.matches(code)
 }
 
-// MARK: - Reservation outcome (E-4)
-
 /** The result of a reserve attempt — a confirmed seat vs a waitlist placement (E-4). */
 enum class ReservationOutcome {
     RESERVED, WAITLISTED;
 
     companion object {
-        fun from(raw: String): ReservationOutcome =
-            if (raw.lowercase() == "waitlisted") WAITLISTED else RESERVED
         /** The contract's result status, or null for one this build does not know (the caller re-reads instead of guessing). */
         fun parse(raw: String): ReservationOutcome? = when (raw.uppercase()) {
             "RESERVED" -> RESERVED
@@ -192,8 +174,6 @@ enum class ReservationOutcome {
         get() = if (this == WAITLISTED) UiText.res(R.string.events_well_notify_you_if_a_spot_opens_up)
         else UiText.res(R.string.events_your_spot_is_confirmed_add_it_to)
 }
-
-// MARK: - Time display (E-3)
 
 /**
  * Event times in the venue's own zone (the contract's `time_zone`) with the donor's locale (E-3). The zone

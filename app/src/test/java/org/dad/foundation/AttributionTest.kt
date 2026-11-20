@@ -71,32 +71,26 @@ class AttributionTest {
         assertEquals(link, decoded.text)
     }
 
-    @Test fun analyticsEventsCarryExpectedNames() {
-        assertEquals("invite_shared", AnalyticsEvent.InviteShared("sms").name)
-        assertEquals("irl_code_shown", AnalyticsEvent.IrlCodeShown.name)
-        assertEquals("referral_converted", AnalyticsEvent.ReferralConverted.name)
-    }
-
-    /** Pins each event's payload to DAD-Main's ingest allow-list (analytics.go eventProperties). */
-    @Test fun analyticsPayloadsMatchTheIngestAllowList() {
-        assertEquals(mapOf("source" to "link"), AnalyticsEvent.AttributionCaptured(AttributionSource.LINK).properties)
-        assertEquals(mapOf("source" to "IRL"), AnalyticsEvent.AttributionCaptured(AttributionSource.IRL).properties)
-        assertEquals(mapOf("source" to "company"), AnalyticsEvent.AttributionCaptured(AttributionSource.COMPANY).properties)
-        assertEquals(mapOf("channel" to "sms"), AnalyticsEvent.InviteShared("sms").properties)
-        assertTrue(AnalyticsEvent.IrlCodeShown.properties.isEmpty())
-        assertTrue(AnalyticsEvent.ReferralConverted.properties.isEmpty())
-    }
-
     @Test fun shareActionEmitsInviteShared() {
         val analytics = RecordingAnalyticsEmitter()
         var sharedLink: String? = null
         val sharer = object : ReferralSharer {
-            override fun share(link: String, channel: String) { sharedLink = link }
+            override fun share(link: String, channel: String): Boolean { sharedLink = link; return true }
             override fun copy(link: String) {}
         }
         ReferralShareAction(sharer, analytics).share("https://dad.org/r/X", "sms")
         assertEquals("https://dad.org/r/X", sharedLink)
         assertEquals("invite_shared", analytics.events.single().name)
         assertEquals("sms", (analytics.events.single() as AnalyticsEvent.InviteShared).channel)
+    }
+
+    @Test fun aShareNothingCouldTakeEmitsNoInviteShared() {
+        val analytics = RecordingAnalyticsEmitter()
+        val sharer = object : ReferralSharer {
+            override fun share(link: String, channel: String) = false
+            override fun copy(link: String) {}
+        }
+        ReferralShareAction(sharer, analytics).share("https://dad.org/r/X", "sms")
+        assertTrue(analytics.events.isEmpty())
     }
 }

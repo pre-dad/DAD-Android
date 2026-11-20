@@ -31,7 +31,6 @@ class PushFcmTest {
     private class RecordingPush(var failure: Exception? = null) : PushRegistration {
         val registered = mutableListOf<String>()
         override suspend fun register(token: String) { failure?.let { throw it }; registered += token }
-        override suspend fun unregister() = Unit
     }
 
     private fun model(push: RecordingPush, tokens: PushTokenProvider?, store: RecordingStore = RecordingStore(validCredentials())) =

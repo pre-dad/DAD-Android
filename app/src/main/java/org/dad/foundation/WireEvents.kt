@@ -9,7 +9,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import java.util.Date
-import java.util.UUID
 
 /**
  * The events routes, read as raw JSON on purpose. The generated models cannot express what the server may
@@ -65,12 +64,12 @@ class WireEvents(private val product: ProductClient) : EventsService {
     }
 
     override suspend fun event(id: String): DonorEvent {
-        requireId(id)
+        id.requireUuid()
         return product.perform { mapEvent(it.create(EventsApi::class.java).detail(id).eventBody().asObjectOrInvalid()) }
     }
 
     override suspend fun reserve(eventId: String): ReservationOutcome? {
-        requireId(eventId)
+        eventId.requireUuid()
         return product.perform { retrofit ->
             val status = retrofit.create(EventsApi::class.java).reserve(eventId).eventBody().asObjectOrInvalid().str("status")
             // CANCELLED is not a place a reserve can leave the donor in; an unknown value is re-read, not guessed.
@@ -79,7 +78,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
     }
 
     override suspend fun cancel(eventId: String) {
-        requireId(eventId)
+        eventId.requireUuid()
         product.perform { retrofit ->
             // Anything but CANCELLED means the server did not do what was asked: do not report success.
             val status = retrofit.create(EventsApi::class.java).cancel(eventId).eventBody().asObjectOrInvalid().str("status")
@@ -98,7 +97,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
     }
 
     override suspend fun calendar(eventId: String): ByteArray {
-        requireId(eventId)
+        eventId.requireUuid()
         return product.perform { retrofit ->
             val response = retrofit.create(EventsApi::class.java).calendar(eventId)
             if (!response.isSuccessful) { response.errorBody()?.close(); throw failureForStatus(response.code()) }
@@ -107,13 +106,6 @@ class WireEvents(private val product: ProductClient) : EventsService {
             if (bytes == null || bytes.isEmpty() || !String(bytes, Charsets.UTF_8).trimStart().startsWith("BEGIN:VCALENDAR")) throw AccountFailure.InvalidResponse
             bytes
         }
-    }
-
-    // MARK: helpers
-
-    /** A malformed id is a 404 server-side; refuse it before it becomes a path segment. */
-    private fun requireId(id: String) {
-        if (id.length != 36 || runCatching { UUID.fromString(id) }.isFailure) throw AccountFailure.InvalidInput
     }
 
     private fun Response<JsonElement>.eventBody(): JsonElement = successBody()

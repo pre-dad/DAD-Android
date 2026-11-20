@@ -41,7 +41,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -497,6 +499,9 @@ private fun GiftRow(model: GiftHistoryModel, gift: HomeGift, index: Int) {
             Modifier.fillMaxWidth().heightIn(min = 48.dp)
                 .clickable(onClickLabel = if (open) stringResource(R.string.home_hide_the_gift_record) else stringResource(R.string.home_show_the_gift_record), role = Role.Button) {
                     if (open) model.hideReceipt() else model.showReceipt(gift.id)
+                }
+                .semantics {
+                    if (open) collapse { model.hideReceipt(); true } else expand { model.showReceipt(gift.id); true }
                 }
                 .testTag("gift-row-$index"),
         ) {

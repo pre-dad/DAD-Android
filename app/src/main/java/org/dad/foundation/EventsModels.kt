@@ -55,7 +55,7 @@ sealed interface CheckInState {
 sealed interface CalendarState {
     data object Idle : CalendarState
     data class Fetching(val eventId: String) : CalendarState
-    data class Ready(val eventId: String, val title: String, val bytes: ByteArray) : CalendarState
+    class Ready(val eventId: String, val title: String, val bytes: ByteArray) : CalendarState
     data class Failed(val message: UiText) : CalendarState
 }
 
@@ -67,7 +67,7 @@ internal object EventsCopy {
     val CHANGED = UiText.res(R.string.events_this_event_changed_while_you_were)
     val TOO_MANY = UiText.res(R.string.common_too_many_attempts_please_wait_a)
     val GENERIC = UiText.res(R.string.common_something_went_wrong_please_try)
-    val BAD_SHAPE = UiText.res(R.string.events_that_doesnt_look_like_an_event)
+    val BAD_SHAPE = UiText.res(R.string.events_that_doesnt_look_like_an_event, CheckInCode.LENGTH)
     val CODE_REFUSED = UiText.res(R.string.events_that_code_didnt_work_check_that)
     val WRONG_EVENT = UiText.res(R.string.events_that_code_is_for_a_different_event)
     val NOT_HELD = UiText.res(R.string.events_check_in_is_for_donors_who_hold_a)
@@ -117,7 +117,7 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
 
     fun load() {
         if (loading?.isActive == true) return
-        phase = EventsPhase.Loading
+        if (events.isEmpty()) phase = EventsPhase.Loading
         loading = viewModelScope.launch {
             try {
                 events = service.events().sortedBy { it.startsAt } // soonest-first (E-2)
@@ -126,7 +126,7 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
                 throw error
             } catch (error: Exception) {
                 note(error)
-                phase = EventsPhase.Failed(EventsCopy.general(error))
+                if (events.isEmpty()) phase = EventsPhase.Failed(EventsCopy.general(error)) else phase = EventsPhase.Ready
             }
         }
     }
@@ -204,6 +204,8 @@ class EventsModel(private val service: EventsService, private val clock: () -> D
                 if (!result.eventId.equals(event.id, ignoreCase = true)) {
                     // A real code, but for another event: nothing was checked in here.
                     checkIn = CheckInState.Failed(EventsCopy.WRONG_EVENT)
+                } else if (!result.checkedIn && !result.alreadyCheckedIn) {
+                    checkIn = CheckInState.Failed(EventsCopy.GENERIC)
                 } else {
                     checkIn = CheckInState.Done(result.alreadyCheckedIn)
                     refresh(event.id)

@@ -129,7 +129,7 @@ private fun EventRow(event: DonorEvent, now: Date, onOpen: (String) -> Unit) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(event.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(EventTime.start(event), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-start-${event.id}"))
-            Text(listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", ") + " · " + event.spotsLabel.asString(), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.common_pair_dot, listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", "), event.spotsLabel.asString()), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // State in text, not colour alone.
                 if (event.isInviteOnly) Text(stringResource(R.string.events_invite_only), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
@@ -216,7 +216,7 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
                 Column(modifier = Modifier.testTag("cancel-confirm-${event.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist) else stringResource(R.string.events_give_up_your_spot), style = MaterialTheme.typography.bodyLarge)
                     DadDestructiveTextButton(
-                        if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist_2) else stringResource(R.string.events_give_up_my_spot),
+                        if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist_button) else stringResource(R.string.events_give_up_my_spot),
                         Modifier.fillMaxWidth().testTag("cancel-confirm-go"), enabled = !busy,
                     ) { confirmingCancel = false; model.cancel(event.id) }
                     DadSecondaryButton(stringResource(R.string.events_keep_it), Modifier.fillMaxWidth().testTag("cancel-keep")) { confirmingCancel = false }
@@ -235,8 +235,6 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
         event.reportIssueUrl?.let { url -> ReportIssue(url) }
     }
 }
-
-// MARK: check-in (E-8)
 
 @Composable
 private fun CheckInSection(model: EventsModel, event: DonorEvent, now: Date) {
@@ -273,8 +271,6 @@ private fun CheckInSection(model: EventsModel, event: DonorEvent, now: Date) {
         }
     }
 }
-
-// MARK: calendar (E-6)
 
 @Composable
 private fun AddToCalendar(model: EventsModel, event: DonorEvent) {
@@ -316,8 +312,6 @@ private fun CalendarShare(model: EventsModel) {
         }
     }
 }
-
-// MARK: report an issue (E-10)
 
 @Composable
 private fun ReportIssue(url: String) {

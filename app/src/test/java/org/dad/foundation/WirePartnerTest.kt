@@ -114,17 +114,17 @@ class WirePartnerTest {
         val http = ScriptedHttp {
             when (it.path) {
                 "/donor/partner/users" -> 200 to """{"invited":true}"""
-                "/donor/partner/users/u2/remove" -> 200 to """{"removed":true}"""
+                "/donor/partner/users/33333333-3333-4333-8333-333333333333/remove" -> 200 to """{"removed":true}"""
                 else -> 200 to """{"saved":true}"""
             }
         }
         val wire = WirePartner(TEST_ORIGIN, PartnerSession(RecordingStore()).also { it.install("PB") }, http.client())
         wire.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER)
-        wire.removeUser("u2")
+        wire.removeUser("33333333-3333-4333-8333-333333333333")
         wire.saveLogo(byteArrayOf(1, 2, 3))
         wire.saveLogo(null)
         assertEquals("""{"email":"b@x.com","name":"Bea","role":"VIEWER"}""", http.requests[0].body)
-        assertEquals("/donor/partner/users/u2/remove", http.requests[1].path)
+        assertEquals("/donor/partner/users/33333333-3333-4333-8333-333333333333/remove", http.requests[1].path)
         assertEquals("""{"data_url":"data:image/png;base64,AQID"}""", http.requests[2].body)
         assertEquals("""{"data_url":""}""", http.requests[3].body)
     }
@@ -132,7 +132,17 @@ class WirePartnerTest {
     @Test fun aMissingLogoIsNoneAndAnAgedOutReportIsNotFound() = runTest {
         val wire = WirePartner(TEST_ORIGIN, PartnerSession(RecordingStore()).also { it.install("PB") }, ScriptedHttp { 404 to "{}" }.client())
         assertNull(wire.logo())
-        assertEquals(AccountFailure.NotFound, runCatching { wire.retainedReport("r1") }.exceptionOrNull())
+        assertEquals(AccountFailure.NotFound, runCatching { wire.retainedReport("44444444-4444-4444-8444-444444444444") }.exceptionOrNull())
+    }
+
+    @Test fun aMalformedIdNeverBecomesAPathSegment() = runTest {
+        val http = ScriptedHttp { 200 to "{}" }
+        val wire = WirePartner(TEST_ORIGIN, PartnerSession(RecordingStore()).also { it.install("PB") }, http.client())
+        listOf("u2", "..", "../logout").forEach {
+            assertEquals(it, AccountFailure.InvalidInput, runCatching { wire.removeUser(it) }.exceptionOrNull())
+            assertEquals(it, AccountFailure.InvalidInput, runCatching { wire.retainedReport(it) }.exceptionOrNull())
+        }
+        assertEquals(0, http.requests.size)
     }
 
     @Test fun signOutForgetsTheSessionEvenWhenTheServerIsDown() = runTest {

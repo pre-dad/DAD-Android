@@ -91,7 +91,8 @@ class WireGiving(
     }
 
     override suspend fun changeAmount(subscriptionId: String, amountMinor: Int): RecurringState {
-        if (!subscriptionId.isUuid() || GiftAmount.ofMonthlyMinor(amountMinor) == null) throw AccountFailure.InvalidInput
+        subscriptionId.requireUuid()
+        if (GiftAmount.ofMonthlyMinor(amountMinor) == null) throw AccountFailure.InvalidInput
         // The command echoes what the matching GET returned, so read it fresh; a subscription that is no
         // longer the one on screen is a conflict, not something to send.
         val offer = amountOffer() ?: throw AccountFailure.Unavailable
@@ -110,7 +111,7 @@ class WireGiving(
     }
 
     override suspend fun cancel(subscriptionId: String, periodEnd: Date): RecurringState {
-        if (!subscriptionId.isUuid()) throw AccountFailure.InvalidInput
+        subscriptionId.requireUuid()
         val body = JsonObject().apply {
             addProperty("subscription_id", subscriptionId)
             addProperty("period_end", periodEnd.toIsoString())
@@ -156,8 +157,6 @@ class WireGiving(
             )
         }
     }
-
-    // MARK: helpers
 
     /**
      * Run a command under its Idempotency-Key. Definitive refusals and successes retire the key; a retryable
@@ -221,6 +220,5 @@ class WireGiving(
     }
 }
 
-private fun String.isUuid(): Boolean = length == 36 && runCatching { UUID.fromString(this) }.isSuccess
 private fun OffsetDateTime.toDate(): Date = Date.from(toInstant())
 private fun Date.toIsoString(): String = Instant.ofEpochMilli(time).toString()

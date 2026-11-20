@@ -117,8 +117,8 @@ object PushPermissionPolicy {
         sdk >= RUNTIME_PERMISSION_SDK && !granted && !alreadyAsked && pushAvailable && signedIn
 }
 
-/** Donor push over the donor session (`registerPushDevice` / `unregisterPushDevice`). The server drops the token
- *  itself when the session ends, so sign-out needs no unregister. */
+/** Donor push over the donor session (`registerPushDevice`). The server drops the token itself when the session
+ *  ends, so sign-out needs no unregister. */
 class WireDonorPush(private val product: ProductClient) : PushRegistration {
     override suspend fun register(token: String) {
         product.perform {
@@ -126,10 +126,6 @@ class WireDonorPush(private val product: ProductClient) : PushRegistration {
                 RegisterPushDeviceRequest(RegisterPushDeviceRequest.Platform.ANDROID, token, environment = null),
             ).requireBody()
         }
-    }
-
-    override suspend fun unregister() {
-        product.perform { it.create(AccountApi::class.java).unregisterPushDevice().requireBody() }
     }
 }
 

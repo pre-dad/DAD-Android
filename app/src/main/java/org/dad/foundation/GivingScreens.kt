@@ -138,7 +138,6 @@ internal fun summaryLine(model: GivingModel): String {
 fun GiftScreen(model: GivingModel, stubComplete: ((HostedHandoff.Purpose) -> Unit)? = null, onClose: (() -> Unit)? = null, onSignedOut: () -> Unit = {}, onOpenHistory: (() -> Unit)? = null) {
     LaunchedEffect(Unit) { model.load() }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
-    if (hostedPage(model, stubComplete)) return
     val haptics = rememberDadHaptics()
     // Start from the current values so opening the screen on an existing state stays silent; only a
     // change made while the donor is here buzzes.
@@ -154,6 +153,7 @@ fun GiftScreen(model: GivingModel, stubComplete: ((HostedHandoff.Purpose) -> Uni
         attentionSeen = needsAttention
     }
     var confirmingCancel by rememberSaveable { mutableStateOf(false) }
+    if (hostedPage(model, stubComplete)) return
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("gift-screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -296,8 +296,9 @@ internal fun GiftAmountChips(dailyDollars: Int, enabled: Boolean, onSelect: (Int
     val chip = GiftPresets.selectedChip(dailyDollars, otherPicked)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            GiftPresets.DAILY.forEach { dollars ->
-                AmountChip(dailyPhrase(dollars), chip == GiftPresets.Chip.entries[GiftPresets.DAILY.indexOf(dollars)], enabled, "gift-chip-$dollars") {
+            GiftPresets.presets.forEach { preset ->
+                val dollars = preset.dollars ?: return@forEach
+                AmountChip(dailyPhrase(dollars), chip == preset, enabled, "gift-chip-$dollars") {
                     otherPicked = false
                     onSelect(dollars)
                 }

@@ -216,7 +216,7 @@ private fun SignInMethods(
         Text(stringResource(R.string.common_welcome_back), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         Spacer(Modifier.height(20.dp))
         // The screen's single filled primary.
-        DadPrimaryButton(stringResource(R.string.auth_continue_with_phone), Modifier.testTag("method-phone"), onPhone)
+        DadPrimaryButton(stringResource(R.string.auth_continue_with_phone), Modifier.testTag("method-phone"), onClick = onPhone)
         Spacer(Modifier.height(12.dp))
         DadSecondaryButton(stringResource(R.string.common_email_me_a_sign_in_link), Modifier.fillMaxWidth().testTag("method-email-link"), onClick = onEmailLink)
         Spacer(Modifier.height(12.dp))
@@ -229,7 +229,6 @@ private fun SignInMethods(
             ExternalMethods(external, establish, generation, onSignedIn)
         }
         Spacer(Modifier.height(24.dp))
-        // "New to DAD?" is a small bottom card with a secondary "Get started".
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,

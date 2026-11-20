@@ -14,10 +14,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-// Settings view model + the service seam. The model owns load/ready/failed state, the
-// toggle-and-save path (optimistic version bump), and the delete-account flow (confirm gate ->
-// server delete -> local wipe), so it is unit-tested without a network or UI.
-
 data class SettingsSnapshot(val profile: ProfileSummary, val preferences: Preferences)
 
 /** The seam the settings model calls. A conformer maps to the generated client or a test double. */

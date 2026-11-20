@@ -5,9 +5,9 @@ import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import org.dad.foundation.generated.api.AccountApi
 import org.dad.foundation.generated.api.DonorApi
+import org.dad.foundation.generated.model.LoginRequest
 import org.dad.foundation.generated.model.PostDonorMePasswordRequest
 import org.dad.foundation.generated.model.PostDonorPasswordSignInRequest
-import org.dad.foundation.generated.model.LoginRequest
 import org.dad.foundation.generated.model.PostDonorSignupRequest
 import retrofit2.Response
 import retrofit2.http.Body
