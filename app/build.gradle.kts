@@ -6,7 +6,10 @@ plugins {
 
 // Push is dormant until the owner adds app/google-services.json (see README "Enabling push"): the plugin is
 // applied only then, and without it Firebase never initialises, so every build and test still works.
-if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
 
 // Release signing credentials live in keystore.properties (gitignored); see
 // keystore.properties.example. Absent (CI, local debug builds) the release
@@ -174,6 +177,7 @@ dependencies {
     // Push (FCM). The BoM pins the matching firebase-messaging version.
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-crashlytics")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

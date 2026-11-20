@@ -486,7 +486,7 @@ class MainActivity : ComponentActivity() {
                         val origin = BuildConfig.DAD_API_ORIGIN
                         lateinit var session: AccountSession
                         val analytics = AnalyticsUploader(PrefsAnalyticsConsent(appContext), WireAnalytics(origin, access = { session.accessToken() }), scope)
-                        val http = defaultNativeClient().newBuilder().addInterceptor(AnalyticsObserver(analytics)).build()
+                        val http = defaultNativeClient().newBuilder().addInterceptor(ErrorObserver()).addInterceptor(AnalyticsObserver(analytics)).build()
                         session = AccountSession(WireAPI(origin, http), KeystoreCredentialStore(appContext), scope)
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
@@ -1146,6 +1146,7 @@ private fun SettingsContent(
         if (analytics != null) {
             ToggleRow(stringResource(R.string.main_usage_analytics), analytics.choice == true, "analytics-toggle", "shield") { analytics.choose(it) }
         }
+        DiagnosticsChoice()
     }
     if (snapshot.preferences.volunteer) VolunteerInterestsSection(model, snapshot.preferences.volunteerInterests)
     if (analytics != null) {
@@ -1188,6 +1189,19 @@ private fun SettingsContent(
 }
 
 @Composable
+private fun DiagnosticsChoice() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val consent = remember { DiagnosticsConsent(context) }
+    var allowed by remember { mutableStateOf(consent.allowed) }
+    ToggleRow(stringResource(R.string.diagnostics_title), allowed, "diagnostics-toggle", "shield", enabled = Diagnostics.available || allowed) {
+        Diagnostics.choose(it)
+        allowed = it
+    }
+    Text(stringResource(R.string.diagnostics_explainer), style = MaterialTheme.typography.bodySmall)
+    if (!Diagnostics.available) Text(stringResource(R.string.diagnostics_unavailable), style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable
 private fun SettingsToggleSection(title: String, toggles: List<Preferences.Toggle>, model: SettingsModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.titleSmall)
@@ -1201,14 +1215,14 @@ private fun SettingsHeading(title: String) {
 }
 
 @Composable
-private fun ToggleRow(label: String, value: Boolean, tag: String, icon: String, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(label: String, value: Boolean, tag: String, icon: String, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     // Tag and toggle state share one node (the ListItem); the Switch itself is display-only.
     ListItem(
         headlineContent = { Text(label) },
         leadingContent = { DadSymbol(icon, "", Modifier.clearAndSetSemantics {}) },
-        trailingContent = { Switch(checked = value, onCheckedChange = null) },
+        trailingContent = { Switch(checked = value, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.fillMaxWidth().testTag(tag)
-            .toggleable(value = value, role = Role.Switch, onValueChange = onChange),
+            .toggleable(value = value, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
 }

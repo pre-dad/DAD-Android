@@ -1,9 +1,5 @@
 package org.dad.foundation
 
-// Client error tracking (PRD §10 observability). A seam for a crash/error backend (owner decision: Crashlytics,
-// Sentry, ...) so no screen couples to an SDK. Nothing calls it yet and the default is a no-op, so the app sends
-// no error reports. The recorder de-dups so one failing load does not spam the backend. Pure + testable.
-
 /** One reported client error. [screen] and [operation] locate it; [kind] is a coarse bucket. */
 data class ClientError(
     val screen: String,
@@ -32,21 +28,28 @@ interface ErrorReporter {
     fun report(error: ClientError)
 }
 
-/** The shipped default until a backend reporter is installed: reports nothing. Keeps the call
- *  sites in place (screens always report) without sending anything in a build with no backend. */
+internal class ConsentErrorReporter(private val allowed: () -> Boolean, private val delegate: ErrorReporter) : ErrorReporter {
+    override fun report(error: ClientError) { if (allowed()) delegate.report(error) }
+}
+
+/** Used by unconfigured clients and tests. */
 object NoopErrorReporter : ErrorReporter {
     override fun report(error: ClientError) {}
 }
 
 /**
  * Wraps a reporter and drops repeats within a session (one failing load should not spam the
- * backend). Thread-confined to the main thread like the models that use it; not for concurrent use.
+ * backend). Bounded and thread-safe because OkHttp reports from worker threads.
  */
 class DedupingErrorReporter(private val delegate: ErrorReporter) : ErrorReporter {
     private val seen = mutableSetOf<String>()
-    override fun report(error: ClientError) {
-        if (seen.add(error.dedupeKey)) delegate.report(error)
+    @Synchronized override fun report(error: ClientError) {
+        if (seen.size < 256 && seen.add(error.dedupeKey)) {
+            // Telemetry must never turn a recoverable API error into a failed user action.
+            runCatching { delegate.report(error) }
+        }
     }
+    @Synchronized fun clear() { seen.clear() }
     /** Test/inspection aid: how many distinct errors have been forwarded this session. */
-    val reportedCount: Int get() = seen.size
+    val reportedCount: Int @Synchronized get() = seen.size
 }

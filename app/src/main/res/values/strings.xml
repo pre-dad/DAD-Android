@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="partner_spend_title">Spend by category</string>
+    <string name="diagnostics_title">Share crash and error reports</string>
+    <string name="diagnostics_unavailable">Diagnostic sharing is unavailable in this build.</string>
+    <string name="diagnostics_explainer">Optional: share crash traces, app and device information, and saved diagnostic reports with Google Firebase to help fix problems. This is separate from usage analytics. You can turn sharing off here.</string>
     <string name="partner_all_initiatives">All initiatives</string>
     <string name="partner_view_details">View initiative details</string>
     <string name="partner_all_metrics">Verified metrics</string>

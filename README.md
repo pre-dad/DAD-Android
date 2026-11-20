@@ -262,10 +262,15 @@ Settings also shows an About DAD section with the legal organization name and th
 
 ### Client error reporting
 
-`ErrorReporter.kt` defines a reporting interface and a deduplicating wrapper, but no product model calls it and
-no reporting backend is configured. The app currently sends no client error reports. R1's error-tracking
-requirement still needs a provider decision, privacy review and integration; usage analytics is a separate,
-opt-in feature.
+Release builds with Firebase configured use Crashlytics for crash reports and coarse API transport/server
+failures. Sharing defaults to off in the manifest and has its own opt-in under Settings → Privacy; usage
+analytics consent does not enable it. Debug/synthetic builds never send diagnostics. Unconfigured builds
+show the sharing control as unavailable. Turning sharing off disables collection and deletes unsent reports.
+The SDK's crash reports include technical/device information; the opt-in explains that saved reports may
+also be shared. Non-fatal API reports contain only the code-defined operation and failure category, never
+request paths, bodies, tokens, user IDs or the original server/exception message. Duplicate reports are
+bounded and thread-safe. Release symbol mapping is handled by the Crashlytics Gradle plugin when Firebase
+is configured. Actual delivery and privacy/store disclosures remain deployment acceptance checks.
 
 ## Partner portal (contract 2.9.0)
 
