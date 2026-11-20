@@ -853,7 +853,6 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                         holder.SaveableStateProvider("history") {
                             GiftHistoryScreen(
                                 viewModel(key = "history-${model.generation}", factory = GiftHistoryModel.factory(dashboard)),
-                                onClose = { pushed = null },
                                 onSignedOut = { pushed = null; model.onSignedOut() },
                             )
                         }

@@ -81,6 +81,17 @@ class AccountModelTest {
         assertTrue(m.generation > before)
     }
 
+    @Test fun aTransientBuildFailureIsNotRecordedAsAnUnconfiguredBuild() = runTest {
+        var calls = 0
+        val m = AccountModel({ scope, _ ->
+            if (calls++ == 0) throw java.io.UncheckedIOException(java.io.IOException("disk busy"))
+            AppServices(AccountSession(Api(), RecordingStore(), scope, dispatcher), UnconfiguredSignIn, null)
+        }, dispatcher)
+        m.start()
+        assertEquals(AccountState.Unavailable, m.state)
+        assertNull(m.notice)
+    }
+
     @Test fun anUnconfiguredBuildShowsANoticeAndNeverServesSyntheticData() = runTest {
         val m = AccountModel({ _, _ -> throw IllegalStateException("DAD_API_ORIGIN must be set for a release build") }, dispatcher)
         m.start()

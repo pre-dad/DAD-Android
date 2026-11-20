@@ -19,7 +19,7 @@ class GiftHistorySummaryTest {
             override suspend fun annualSummary(year: Int) = AnnualGivingSummary(year, 1, 3000, 0, 3000, taxReceipt = true)
         }
         val model = GiftHistoryModel(service, year = 2026, showPriorYear = false)
-        compose.setContent { GiftHistoryScreen(model, onClose = {}, onSignedOut = {}) }
+        compose.setContent { GiftHistoryScreen(model, onSignedOut = {}) }
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("history-year-total")).fetchSemanticsNodes().isNotEmpty() }
         val sandboxNotice = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.home_sandbox_records_not_tax_receipts)
         compose.onNodeWithText(sandboxNotice).assertDoesNotExist()

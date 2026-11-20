@@ -62,14 +62,13 @@ private val longDate: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(Form
 internal fun friendlyDate(value: String): String =
     try { LocalDate.parse(value).format(longDate) } catch (_: java.time.format.DateTimeParseException) { value }
 
-private fun friendlyDate(value: OffsetDateTime): String = value.toLocalDate().format(longDate)
+internal fun friendlyDate(value: OffsetDateTime): String = value.atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate().format(longDate)
 
 @Composable
 internal fun HomeCard(tag: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         modifier = modifier.fillMaxWidth().testTag(tag),
-        // Card radius comes from the token via MaterialTheme.shapes.medium (radius("card") = 18dp),
-        // so the old takeIf{>0} fallback is no longer needed.
+        // Card radius comes from the token via MaterialTheme.shapes.medium (radius("card") = 18dp).
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, DadTheme.color("line")),
         tonalElevation = 1.dp,
@@ -133,7 +132,7 @@ fun DonorHome(
  *  Carries `gift-summary-card` on the card, `gift-summary` on the state line and `open-gift` on the row. */
 @Composable
 private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
-    // giving.load() is driven by DonorHome's top-level LaunchedEffect, matching the old GiftSummaryCard.
+    // giving.load() is driven by DonorHome's top-level LaunchedEffect.
     HomeCard("gift-summary-card") {
         Text(stringResource(R.string.home_your_monthly_gift), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         // The tap target carries `open-gift` and is a MERGING clickable, so `gift-summary` must stay a
@@ -435,7 +434,7 @@ private fun InitiativeCard(phase: DashboardModel.InitiativePhase, onRetry: () ->
 
 /** Gift history (paged) with an inline gift record per row and the calendar-year total on top. */
 @Composable
-fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut: () -> Unit) {
+fun GiftHistoryScreen(model: GiftHistoryModel, onSignedOut: () -> Unit) {
     LaunchedEffect(Unit) { model.load() }
     DisposableEffect(Unit) { onDispose { model.cancel() } }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }

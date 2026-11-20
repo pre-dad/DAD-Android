@@ -120,6 +120,11 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidResponse, failure { rig.wire.events() })
     }
 
+    @Test fun aMissingVenueZoneIsAnInvalidResponse() = runTest {
+        val rig = Rig(backgroundScope) { 200 to list(view(zone = "null")) }
+        assertEquals(AccountFailure.InvalidResponse, failure { rig.wire.events() })
+    }
+
     @Test fun aMissingRequiredFieldIsAnInvalidResponse() = runTest {
         val rig = Rig(backgroundScope) { 200 to """{"events":[{"slug":"x","title":"No id"}]}""" }
         assertEquals(AccountFailure.InvalidResponse, failure { rig.wire.events() })

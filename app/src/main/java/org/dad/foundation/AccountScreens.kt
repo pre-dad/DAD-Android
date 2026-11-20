@@ -151,7 +151,7 @@ internal fun EmailChangeSection(model: EmailChangeModel) {
                     modifier = Modifier.fillMaxWidth().testTag("email-change-input"),
                 )
                 (model.phase as? EmailChangePhase.Failed)?.let { ErrorLine(it.message, "email-change-error") }
-                DadPrimaryButton(stringResource(R.string.acct_send_confirmation), Modifier.testTag("email-change-submit")) { model.submit() }
+                DadPrimaryButton(stringResource(R.string.acct_send_confirmation), Modifier.testTag("email-change-submit"), enabled = model.canSubmit) { model.submit() }
                 OutlinedButton(onClick = { model.edit(); expanded = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_cancel)) }
             }
         }
@@ -216,7 +216,7 @@ private fun Linked(model: EmployerModel, organization: String, team: EmployerTea
             Column(Modifier.testTag("leaderboard-${row.id}")) {
                 Text(if (ranksVerified) stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name) else row.name, style = MaterialTheme.typography.titleSmall)
                 if (row.metricsVerified) {
-                    Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatUsdMinor(row.annualizedMinor.clampToInt()), row.avgStreakDays),
+                    Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatMinorUsd(row.annualizedMinor), row.avgStreakDays),
                         style = MaterialTheme.typography.bodySmall)
                 } else Text(stringResource(R.string.metrics_awaiting), style = MaterialTheme.typography.bodySmall)
             }
@@ -242,7 +242,7 @@ internal fun SessionsSection(model: DeviceSessionsModel, onSignedOut: () -> Unit
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f)) {
                             Text(if (session.current) stringResource(R.string.acct_session_this_device, session.label) else session.label)
-                            Text(stringResource(R.string.acct_session_last_used, session.lastUsedAt.format(lastUsedFormat)), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.acct_session_last_used, session.lastUsedAt.atZoneSameInstant(java.time.ZoneId.systemDefault()).format(lastUsedFormat)), style = MaterialTheme.typography.bodySmall)
                         }
                         if (!session.current) {
                             TextButton(onClick = { model.revoke(session.id) }, enabled = !model.busy,
@@ -278,6 +278,8 @@ internal fun WalletPassButton(model: WalletPassModel) {
             try {
                 uriHandler.openUri(url)
             } catch (_: android.content.ActivityNotFoundException) {
+                model.openFailed()
+            } catch (_: IllegalArgumentException) {
                 model.openFailed()
             }
         }
