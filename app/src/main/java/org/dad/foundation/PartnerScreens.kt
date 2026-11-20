@@ -338,7 +338,7 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                 model.actionError?.let { ErrorLine(it, "partner-action-error") }
                 val selected = snapshot.initiatives.firstOrNull { it.id == initiativeId }
                 if (selected != null) {
-                    TextButton(onClick = { initiativeId = null }, modifier = Modifier.testTag("partner-detail-back")) { Text(stringResource(R.string.common_back)) }
+                    DadTextButton(stringResource(R.string.common_back), Modifier.testTag("partner-detail-back")) { initiativeId = null }
                     PartnerInitiativeDetail(selected)
                 } else when (section) {
                     PartnerSection.OVERVIEW -> {
