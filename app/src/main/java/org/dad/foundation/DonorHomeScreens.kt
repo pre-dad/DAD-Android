@@ -235,6 +235,7 @@ private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, mil
         // milestone they reached before it existed. Dismissal is remembered per milestone in the store.
         if (milestones != null) {
             val context = LocalContext.current
+            LaunchedEffect(streak, milestones) { seedMilestoneBaseline(streak, milestones) }
             val pending = remember(streak, milestones) { pendingMilestone(streak, milestones) }
             var dismissed by rememberSaveable(pending) { mutableStateOf(false) }
             if (pending != null && !dismissed) {

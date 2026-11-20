@@ -448,18 +448,16 @@ class MemoryMilestoneStore(private var value: Long? = null) : MilestoneStore {
     override fun clear() { value = null }
 }
 
-/**
- * The newly crossed milestone to celebrate, or null. The first call seeds the baseline silently so
- * milestones reached before this feature existed never pop a card; after that only a milestone above
- * the baseline that the current streak still covers counts.
- */
+/** Records the current milestone as the baseline the first time a streak is seen, so earlier milestones never pop a card. */
+fun seedMilestoneBaseline(streak: HomeStreak?, store: MilestoneStore) {
+    val last = streak?.ladder?.lastMilestone ?: return
+    if (store.seen() == null) store.markSeen(last)
+}
+
+/** The newly crossed milestone to celebrate, or null: above the seeded baseline and still covered by the current streak. */
 fun pendingMilestone(streak: HomeStreak?, store: MilestoneStore): Long? {
     val last = streak?.ladder?.lastMilestone ?: return null
-    val baseline = store.seen()
-    if (baseline == null) {
-        store.markSeen(last)
-        return null
-    }
+    val baseline = store.seen() ?: return null
     return last.takeIf { it > baseline && streak.current >= it }
 }
 
