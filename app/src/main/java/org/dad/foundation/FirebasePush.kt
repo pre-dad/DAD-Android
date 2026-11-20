@@ -21,6 +21,7 @@ fun firebasePushTokens(context: Context): PushTokenProvider {
         available = { firebasePushAvailable(app) },
         fetch = {
             // The pinned API accepts registration tokens; Installation ID messaging needs a coordinated server/contract migration.
+            @Suppress("DEPRECATION")
             suspendCancellableCoroutine { continuation ->
                 FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                     if (task.isSuccessful) continuation.resume(task.result)
@@ -90,6 +91,7 @@ class PushNotifier(private val context: Context) {
 }
 
 class DadMessagingService : FirebaseMessagingService() {
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onNewToken(token: String) {
         PushTokenRelay.rotated(token)
     }
