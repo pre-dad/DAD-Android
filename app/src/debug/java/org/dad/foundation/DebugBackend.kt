@@ -153,9 +153,10 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
     }
 
     @Synchronized private fun profile(): String {
+        val correction = account.timezoneOverride?.let { ",\"timezone_override\":${com.google.gson.Gson().toJson(it)}" }.orEmpty()
         val flags = prefs.entries.joinToString(",") { "\"${it.key}\":${it.value}" }
         return """{"email":"alex@example.org","public_name":"Alex","account_role":"DONOR","zip":"${account.zip}","city":"${account.city}",""" +
-            """"timezone":"America/Chicago","phone":"${account.phone}","volunteer_interests":${com.google.gson.Gson().toJson(interests)},"version":$version,"consent_version":"stub-v1",$flags}"""
+            """"timezone":${com.google.gson.Gson().toJson(account.timezoneOverride ?: "America/Chicago")}$correction,"phone":"${account.phone}","volunteer_interests":${com.google.gson.Gson().toJson(interests)},"version":$version,"consent_version":"stub-v1",$flags}"""
     }
 
     @Synchronized override fun intercept(chain: Interceptor.Chain): Response {

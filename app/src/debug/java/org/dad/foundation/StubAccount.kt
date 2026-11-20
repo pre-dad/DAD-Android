@@ -13,6 +13,8 @@ internal class StubAccount {
         private set
     var phone = ""
         private set
+    var timezoneOverride: String? = null
+        private set
     private var otherSessions = listOf(OTHER_SESSION)
     private var employer: String? = null
     private var team: String? = null
@@ -28,7 +30,15 @@ internal class StubAccount {
             path == "/donor/me/profile" -> {
                 val newZip = field("zip").orEmpty()
                 if (newZip.isNotEmpty() && !Regex("^[0-9]{5}(-[0-9]{4})?$").matches(newZip)) 422 to "{}"
-                else { zip = newZip; city = field("city").orEmpty(); phone = field("phone").orEmpty(); 200 to profile() }
+                else {
+                    val zone = field("timezone_override")
+                    if (zone != null && StreakTimeZone.choices.none { it.first == zone }) 422 to "{}"
+                    else {
+                        zip = newZip; city = field("city").orEmpty(); phone = field("phone").orEmpty()
+                        if (zone != null) timezoneOverride = zone.ifEmpty { null }
+                        200 to profile()
+                    }
+                }
             }
             path == "/donor/me/email-change" -> when {
                 field("email").orEmpty().startsWith("taken") -> 409 to "{}"
