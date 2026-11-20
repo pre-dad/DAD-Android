@@ -520,6 +520,7 @@
     <string name="give_your_gift_changed_while_you_were">Your gift changed while you were looking at it. We’ve refreshed it; please review and try again.</string>
     <string name="give_payments_arent_available_right_now">Payments aren’t available right now. Please try again later.</string>
     <string name="give_your_gift_is_set_up">Your gift is set up.</string>
+    <string name="give_we_couldnt_check_your_gift_status">We couldn’t check your gift status just now. Please check again in a moment.</string>
     <string name="give_we_havent_seen_a_new_gift_yet_if">We haven’t seen a new gift yet. If you finished checkout, it can take a moment to appear.</string>
     <string name="give_were_still_waiting_for_the_payment">We’re still waiting for the payment provider to confirm. Check back in a moment.</string>
     <string name="give_your_payment_method_was_updated">Your payment method was updated.</string>

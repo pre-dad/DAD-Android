@@ -208,6 +208,27 @@ class GivingModelTest {
         }
     }
 
+    @Test fun aConfirmationThatCouldNotReadTheServerSaysSoInsteadOfNoGift() = runTest {
+        val service = Fake()
+        val model = loaded(service)
+        model.startGift(); advanceUntilIdle()
+        service.recurringError = AccountFailure.Unavailable
+        model.handoffFinished(); advanceUntilIdle()
+        assertFalse(model.celebrating)
+        assertTrue(model.notice!!.text().startsWith("We couldn’t check your gift status"))
+    }
+
+    @Test fun aReadThatRecoversBeforeTheLastAttemptReportsTheRealOutcome() = runTest {
+        val service = Fake()
+        val model = loaded(service)
+        model.startGift(); advanceUntilIdle()
+        service.recurringError = AccountFailure.Unavailable
+        val recoversAt = service.recurringReads + 3
+        service.onRecurring = { if (it == recoversAt) service.recurringError = null }
+        model.handoffFinished(); advanceUntilIdle()
+        assertTrue(model.notice!!.text().startsWith("We haven’t seen a new gift yet"))
+    }
+
     @Test fun aFailedPaymentReadCannotReuseAnEarlierAppliedUpdate() = runTest {
         val service = Fake(active).apply { payment = PaymentMethodState(PaymentMethodState.Kind.APPLIED, periodEnd) }
         val model = loaded(service)
