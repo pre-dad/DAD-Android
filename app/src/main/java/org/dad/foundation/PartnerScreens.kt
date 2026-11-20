@@ -14,6 +14,7 @@ import androidx.annotation.StringRes
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -382,7 +383,7 @@ private fun PartnerInitiativesSection(initiatives: List<PartnerInitiative>, onOp
                 PartnerInitiativeHeading(initiative)
                 initiative.headlineMetrics.forEach { PartnerMetricLine(it) }
                 PartnerUpdatedAt(initiative.updatedAt)
-                Text(stringResource(R.string.partner_view_details), color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.partner_view_details), color = DadTheme.brandAccent(isSystemInDarkTheme()))
             }
         }
     }

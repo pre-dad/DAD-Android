@@ -62,7 +62,7 @@ class NativeLoadTest {
     }
 
     @Test fun soakRepeatedlyRefreshesAndRevokesIndependentSessions() = runBlocking {
-        val seconds = System.getProperty("dad.load.soakSeconds", "60").toLong()
+        val seconds = (System.getProperty("dad.load.soakSeconds") ?: "60").toLong()
         require(seconds in 60..3600) { "dadSoakSeconds must be between 60 and 3600" }
         val deadline = System.nanoTime() + seconds * 1_000_000_000L
         var completed = 0
