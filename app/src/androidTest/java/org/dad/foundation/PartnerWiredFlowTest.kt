@@ -61,10 +61,8 @@ class PartnerWiredFlowTest {
             runCatching { compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
         }
 
-    // Before the hierarchy attaches, fetchSemanticsNodes throws rather than returning empty; a node that is not
-    // there yet is, for this helper's purpose, absent.
-    private fun absent(tag: String) =
-        runCatching { compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty() }.getOrDefault(true)
+    // launchReady guarantees an attached hierarchy, so a failed probe is a real error, never "absent".
+    private fun absent(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()
 
     private fun openOrganization() {
         waitFor("partner-tab-organization")
@@ -166,7 +164,10 @@ class PartnerWiredFlowTest {
         @Suppress("DEPRECATION")
         val stream = send?.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
         assertTrue("$stream", stream?.path?.endsWith(".pdf") == true)
-        assertTrue(DebugBackend.requestLog.count { it == "GET /donor/partner/exports" } >= 2)
+        assertEquals(
+            "one exports read on load and one refresh after the report",
+            2, DebugBackend.requestLog.count { it == "GET /donor/partner/exports" },
+        )
     }
 
     @Test fun aPendingApplicationShowsItsStatusAboveSignIn() {
