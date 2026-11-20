@@ -26,6 +26,8 @@ function zipEntry(name, contents) {
   return Buffer.concat([local, filename, data, central, filename, end]);
 }
 
+const keptNames = "accountPaths proofPaths partnerProofPaths claimReturnPaths notificationPaths referralPrefix companyPrefix".split(" ").join("\n");
+
 function check(bytes) {
   const directory = mkdtempSync(join(tmpdir(), "dad-release-test-"));
   try {
@@ -36,12 +38,12 @@ function check(bytes) {
 }
 
 test("a release with readable DEX and no debug markers passes", () => {
-  const result = check(zipEntry("classes.dex", "release code"));
+  const result = check(zipEntry("classes.dex", `release code\n${keptNames}`));
   assert.equal(result.status, 0, result.stderr);
 });
 
 test("a debug marker in DEX fails the release gate", () => {
-  const result = check(zipEntry("classes.dex", "stub_backend"));
+  const result = check(zipEntry("classes.dex", `stub_backend\n${keptNames}`));
   assert.equal(result.status, 1);
   assert.match(result.stderr, /stub_backend/);
 });
@@ -56,4 +58,10 @@ test("an APK without DEX never passes as free of debug code", () => {
   const result = check(zipEntry("AndroidManifest.xml", "manifest"));
   assert.notEqual(result.status, 0);
   assert.doesNotMatch(result.stdout, /free of debug/);
+});
+
+test("a release that renamed the link policy fields fails the gate", () => {
+  const result = check(zipEntry("classes.dex", "release code\na\nb"));
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /renamed or stripped LinkPolicy field/);
 });
