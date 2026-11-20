@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -34,61 +33,55 @@ class EventsWiredFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { exists(tag) }
-    private fun waitGone(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { !exists(tag) }
     private fun tap(tag: String) = compose.tapSafely(tag)
-    private fun textOf(tag: String, text: String) = compose.waitUntil(20_000) {
-        runCatching { compose.onNodeWithTag(tag).assertTextContains(text, substring = true) }.isSuccess
-    }
 
     private fun openEvents() {
-        waitFor("open-events")
-        compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+        compose.waitForTag("open-events")
+        compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
         compose.waitForIdle()
         tap("open-events")
-        waitFor("events-home")
+        compose.waitForTag("events-home")
     }
 
     private fun openEvent(id: String) {
-        waitFor("open-event-$id")
+        compose.waitForTag("open-event-$id")
         tap("open-event-$id")
-        waitFor("event-detail")
-        waitFor("event-title")
+        compose.waitForTag("event-detail")
+        compose.waitForTag("event-title")
     }
 
     private fun backToList() {
         tap("event-back")
-        waitFor("events-home")
+        compose.waitForTag("events-home")
     }
 
     @Test fun browseListThenDetailThenReserveThenCancel() {
         launch().use {
             openEvents()
-            waitFor("open-event-${StubEvents.PARK}")
+            compose.waitForTag("open-event-${StubEvents.PARK}")
             // The time shows in the venue's zone, with the zone named (E-3).
             compose.waitUntil(20_000) {
                 runCatching { compose.onNodeWithTag("event-start-${StubEvents.PARK}").assertTextContains("CST", substring = true) }.isSuccess ||
                     runCatching { compose.onNodeWithTag("event-start-${StubEvents.PARK}").assertTextContains("CDT", substring = true) }.isSuccess
             }
             openEvent(StubEvents.PARK)
-            textOf("event-time", "C")
-            textOf("event-spots", "5 spots left")
+            compose.waitForTagText("event-time", "C")
+            compose.waitForTagText("event-spots", "5 spots left")
             tap("reserve-${StubEvents.PARK}")
-            waitFor("reserve-confirm")
-            waitFor("going-${StubEvents.PARK}")
-            textOf("event-spots", "4 spots left")
+            compose.waitForTag("reserve-confirm")
+            compose.waitForTag("going-${StubEvents.PARK}")
+            compose.waitForTagText("event-spots", "4 spots left")
             assertTrue(DebugBackend.requestLog.contains("POST /donor/me/events/${StubEvents.PARK}/reserve"))
             // Cancel keeps a prior state until confirmed, then releases the seat.
             tap("cancel-${StubEvents.PARK}")
-            waitFor("cancel-confirm-${StubEvents.PARK}")
+            compose.waitForTag("cancel-confirm-${StubEvents.PARK}")
             tap("cancel-keep")
-            waitGone("cancel-confirm-${StubEvents.PARK}")
-            waitFor("going-${StubEvents.PARK}")
+            compose.waitForTagGone("cancel-confirm-${StubEvents.PARK}")
+            compose.waitForTag("going-${StubEvents.PARK}")
             tap("cancel-${StubEvents.PARK}")
             tap("cancel-confirm-go")
-            waitFor("reserve-${StubEvents.PARK}")
-            textOf("event-spots", "5 spots left")
+            compose.waitForTag("reserve-${StubEvents.PARK}")
+            compose.waitForTagText("event-spots", "5 spots left")
             assertTrue(DebugBackend.requestLog.contains("POST /donor/me/events/${StubEvents.PARK}/cancel"))
         }
     }
@@ -97,30 +90,30 @@ class EventsWiredFlowTest {
         launch().use {
             openEvents()
             openEvent(StubEvents.FOOD)
-            textOf("event-spots", "Full")
+            compose.waitForTagText("event-spots", "Full")
             tap("waitlist-${StubEvents.FOOD}")
-            waitFor("waitlisted-${StubEvents.FOOD}")
+            compose.waitForTag("waitlisted-${StubEvents.FOOD}")
             compose.waitUntil(20_000) { compose.onAllNodes(hasText("on the waitlist", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             backToList()
-            textOf("event-status-${StubEvents.FOOD}", "On the waitlist")
+            compose.waitForTagText("event-status-${StubEvents.FOOD}", "On the waitlist")
         }
     }
 
     @Test fun theInviteOnlyEventIsHiddenUnlessTheServerReturnsIt() {
         launch().use {
             openEvents()
-            waitFor("open-event-${StubEvents.PARK}")
-            assertTrue(!exists("open-event-${StubEvents.DINNER}"))
+            compose.waitForTag("open-event-${StubEvents.PARK}")
+            assertTrue(!compose.tagExists("open-event-${StubEvents.DINNER}"))
         }
     }
 
     @Test fun theInviteOnlyEventAppearsWhenTheServerReturnsIt() {
         launch("stub_events_invited").use {
             openEvents()
-            waitFor("open-event-${StubEvents.DINNER}")
-            waitFor("invite-only-${StubEvents.DINNER}")
+            compose.waitForTag("open-event-${StubEvents.DINNER}")
+            compose.waitForTag("invite-only-${StubEvents.DINNER}")
             openEvent(StubEvents.DINNER)
-            textOf("invitation-note", "Invitation earned")
+            compose.waitForTagText("invitation-note", "Invitation earned")
         }
     }
 
@@ -128,29 +121,29 @@ class EventsWiredFlowTest {
         launch().use {
             openEvents()
             openEvent(StubEvents.LIVE)
-            waitFor("checkin-code")
+            compose.waitForTag("checkin-code")
             // A wrong (well formed) code is refused with the reason, and nothing is checked in.
             compose.enterText("checkin-code", StubEvents.WRONG_TOKEN)
             tap("checkin-submit")
-            waitFor("checkin-error")
-            textOf("checkin-error", "didn’t work")
+            compose.waitForTag("checkin-error")
+            compose.waitForTagText("checkin-error", "didn’t work")
             // A malformed code never reaches the server.
             val before = DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" }
             compose.enterText("checkin-code", "short", replace = true)
             tap("checkin-submit")
-            textOf("checkin-error", "66 characters")
+            compose.waitForTagText("checkin-error", "66 characters")
             assertTrue(before == DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" })
             // The real code checks in.
             compose.enterText("checkin-code", StubEvents.TOKEN, replace = true)
             tap("checkin-submit")
-            waitFor("checkedin-${StubEvents.LIVE}")
-            waitGone("checkin-code")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
+            compose.waitForTagGone("checkin-code")
             // Checked-in survives a reload of the list (checked_in_at comes back from the server).
             backToList()
             tap("events-back")
-            waitFor("open-events")
+            compose.waitForTag("open-events")
             tap("open-events")
-            textOf("event-status-${StubEvents.LIVE}", "Checked in")
+            compose.waitForTagText("event-status-${StubEvents.LIVE}", "Checked in")
         }
     }
 
@@ -158,11 +151,11 @@ class EventsWiredFlowTest {
         launch().use {
             openEvents()
             openEvent(StubEvents.LATER)
-            waitFor("checkin-closed")
-            textOf("checkin-closed", "opens when the event starts")
-            assertTrue(!exists("checkin-code"))
+            compose.waitForTag("checkin-closed")
+            compose.waitForTagText("checkin-closed", "opens when the event starts")
+            assertTrue(!compose.tagExists("checkin-code"))
             // New York venue: the zone is the venue's.
-            textOf("event-time", "E")
+            compose.waitForTagText("event-time", "E")
         }
     }
 
@@ -204,19 +197,19 @@ class EventsWiredFlowTest {
             openEvents()
             openEvent(StubEvents.PARK)
             tap("reserve-${StubEvents.PARK}")
-            waitFor("events-action-error")
-            textOf("events-action-error", "not eligible")
-            waitFor("reserve-${StubEvents.PARK}")
+            compose.waitForTag("events-action-error")
+            compose.waitForTagText("events-action-error", "not eligible")
+            compose.waitForTag("reserve-${StubEvents.PARK}")
         }
     }
 
     @Test fun aFailedLoadOffersARetry() {
         launch("stub_events_fail_first").use {
             openEvents()
-            waitFor("events-error")
+            compose.waitForTag("events-error")
             tap("events-retry")
-            waitFor("open-event-${StubEvents.PARK}")
-            waitGone("events-error")
+            compose.waitForTag("open-event-${StubEvents.PARK}")
+            compose.waitForTagGone("events-error")
         }
     }
 }

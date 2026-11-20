@@ -2,7 +2,6 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -29,26 +28,21 @@ class CredentialAuthFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun waitFor(tag: String, timeout: Long = 15_000) =
-        compose.waitUntil(timeout) { compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }
-
-    private fun absent(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()
-
     private fun type(tag: String, text: String) {
         compose.enterText(tag, text)
         compose.waitForIdle()
     }
 
     private fun openMethods() {
-        waitFor("role-donor")
+        compose.waitForTag("role-donor")
         compose.tapSafely("role-donor")
-        waitFor("sign-in-methods")
+        compose.waitForTag("sign-in-methods")
     }
 
     private fun fillSignup(email: String = "new.donor@example.org") {
         openMethods()
         compose.tapSafely("method-signup")
-        waitFor("signup")
+        compose.waitForTag("signup")
         type("signup-name", "Alex Doe")
         type("signup-email", email)
         type("signup-zip", "78701")
@@ -61,7 +55,7 @@ class CredentialAuthFlowTest {
         // Password sign-in lives under "More options" in the redesigned methods screen.
         compose.tapSafely("more-options")
         compose.tapSafely("method-password")
-        waitFor("password-sign-in")
+        compose.waitForTag("password-sign-in")
         type("password-email", email)
         type("password-input", password)
         compose.tapSafely("password-submit")
@@ -70,11 +64,11 @@ class CredentialAuthFlowTest {
     @Test fun newDonorSignsUpThenClaimsAPastedLinkAndLandsInTheDonorShell() {
         launch().use {
             fillSignup()
-            waitFor("check-email")
+            compose.waitForTag("check-email")
             compose.onNodeWithTag("check-email-address").assertIsDisplayed()
             type("paste-input", "https://stub.invalid/account/claim#token=good" + "A".repeat(40) + "&next=/account/dashboard")
             compose.tapSafely("paste-submit")
-            waitFor("open-settings")
+            compose.waitForTag("open-settings")
         }
     }
 
@@ -82,42 +76,42 @@ class CredentialAuthFlowTest {
         launch().use {
             openMethods()
             compose.tapSafely("method-email-link")
-            waitFor("email-link-sign-in")
+            compose.waitForTag("email-link-sign-in")
             type("email-link-email", "alex@example.org")
             compose.tapSafely("email-link-submit")
-            waitFor("check-email")
+            compose.waitForTag("check-email")
             type("paste-input", "https://stub.invalid/account/claim#token=good" + "A".repeat(40))
             compose.tapSafely("paste-submit")
-            waitFor("open-settings")
+            compose.waitForTag("open-settings")
         }
     }
 
     @Test fun aLinkThatIsNotADadSignInLinkIsRefusedInline() {
         launch().use {
             fillSignup()
-            waitFor("check-email")
+            compose.waitForTag("check-email")
             type("paste-input", "https://example.com/not-dad")
             compose.tapSafely("paste-submit")
-            waitFor("paste-error")
-            assertTrue(absent("open-settings"))
+            compose.waitForTag("paste-error")
+            assertTrue(compose.tagAbsent("open-settings"))
         }
     }
 
     @Test fun anExpiredClaimLinkShowsTheNoticeAndStaysSignedOut() {
         launch().use {
             fillSignup()
-            waitFor("check-email")
+            compose.waitForTag("check-email")
             type("paste-input", "https://stub.invalid/account/claim#token=stale" + "B".repeat(40))
             compose.tapSafely("paste-submit")
-            waitFor("check-email-notice")
-            assertTrue(absent("open-settings"))
+            compose.waitForTag("check-email-notice")
+            assertTrue(compose.tagAbsent("open-settings"))
         }
     }
 
     @Test fun signupValidationErrorShowsAndKeepsTheForm() {
         launch().use {
             fillSignup(email = "bad.address@example.org")
-            waitFor("signup-error")
+            compose.waitForTag("signup-error")
             compose.onNodeWithTag("signup-submit").assertExists()
         }
     }
@@ -125,15 +119,15 @@ class CredentialAuthFlowTest {
     @Test fun passwordSignInSucceedsIntoTheDonorShell() {
         launch().use {
             passwordSignIn("alex@example.org", "correct-horse-battery")
-            waitFor("open-settings")
+            compose.waitForTag("open-settings")
         }
     }
 
     @Test fun aWrongPasswordStaysSignedOutWithTheMessage() {
         launch().use {
             passwordSignIn("alex@example.org", "not-the-password")
-            waitFor("password-error")
-            assertTrue(absent("open-settings"))
+            compose.waitForTag("password-error")
+            assertTrue(compose.tagAbsent("open-settings"))
             compose.onNodeWithTag("password-input").assertExists()
         }
     }
@@ -141,16 +135,16 @@ class CredentialAuthFlowTest {
     @Test fun aThrottledPasswordSignInShowsTheWaitMessage() {
         launch().use {
             passwordSignIn("throttle@example.org", "whatever-password")
-            waitFor("password-error")
-            assertTrue(absent("open-settings"))
+            compose.waitForTag("password-error")
+            assertTrue(compose.tagAbsent("open-settings"))
         }
     }
 
     private fun openPasswordSettings() {
         passwordSignIn("alex@example.org", "correct-horse-battery")
-        waitFor("open-settings")
+        compose.waitForTag("open-settings")
         compose.tapSafely("open-settings")
-        waitFor("pw-save")
+        compose.waitForTag("pw-save")
     }
 
     @Test fun settingAPasswordSavesAndTheSessionStays() {
@@ -160,7 +154,7 @@ class CredentialAuthFlowTest {
             type("pw-new", "a-brand-new-password")
             type("pw-confirm", "a-brand-new-password")
             compose.tapSafely("pw-save")
-            waitFor("pw-saved")
+            compose.waitForTag("pw-saved")
             compose.onNodeWithTag("settings-signout").performScrollTo().assertExists()
         }
     }
@@ -172,9 +166,9 @@ class CredentialAuthFlowTest {
             type("pw-new", "a-brand-new-password")
             type("pw-confirm", "a-brand-new-password")
             compose.tapSafely("pw-save")
-            waitFor("pw-error")
+            compose.waitForTag("pw-error")
             compose.onNodeWithTag("settings-signout").performScrollTo().assertExists()
-            assertTrue(absent("role-donor"))
+            assertTrue(compose.tagAbsent("role-donor"))
         }
     }
 
@@ -183,9 +177,9 @@ class CredentialAuthFlowTest {
             openMethods()
             compose.tapSafely("more-options")
             compose.onNodeWithTag("method-password").performScrollTo().assertIsDisplayed()
-            assertTrue(absent("external-unavailable"))
-            assertTrue(absent("method-google"))
-            assertTrue(absent("method-passkey"))
+            assertTrue(compose.tagAbsent("external-unavailable"))
+            assertTrue(compose.tagAbsent("method-google"))
+            assertTrue(compose.tagAbsent("method-passkey"))
         }
     }
 }

@@ -82,13 +82,9 @@ class SettingsFlowTest {
         }
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitForTag(tag: String) = compose.waitUntil(10_000) { exists(tag) }
-    private fun waitGone(tag: String) = compose.waitUntil(10_000) { !exists(tag) }
-
     @Test fun volunteerInterestsLoadAddRemoveAndAnnounceThemselves() {
         launch().use {
-            waitForTag("interests-section")
+            compose.waitForTag("interests-section")
             // The saved interest is listed, with a control TalkBack reads as "Remove <interest>".
             compose.onNodeWithTag("interest-row-Park cleanups").performScrollTo().assertIsDisplayed()
             compose.onNodeWithTag("interest-remove-Park cleanups").performScrollTo().assertContentDescriptionEquals("Remove Park cleanups")
@@ -97,17 +93,17 @@ class SettingsFlowTest {
             compose.enterText("interest-input", "  Food bank ")
             compose.onNodeWithTag("interest-add").performScrollTo().assertIsEnabled()
             compose.tapSafely("interest-add")
-            waitForTag("interest-row-Food bank")
+            compose.waitForTag("interest-row-Food bank")
             compose.onNodeWithTag("interest-input").performScrollTo().assert(SemanticsMatcher("an empty field") { (SemanticsProperties.EditableText in it.config).let { has -> if (has) it.config[SemanticsProperties.EditableText] else null }?.text == "" })
 
             // A repeat (any letter case) is refused with a message, nothing is added.
             compose.enterText("interest-input", "food BANK")
             compose.tapSafely("interest-add")
-            waitForTag("interest-notice")
+            compose.waitForTag("interest-notice")
             compose.onNodeWithTag("interest-notice").assertTextContains("already on your list", substring = true)
 
             compose.tapSafely("interest-remove-Park cleanups")
-            waitGone("interest-row-Park cleanups")
+            compose.waitForTagGone("interest-row-Park cleanups")
             compose.onNodeWithTag("interest-row-Food bank").assertIsDisplayed()
         }
     }

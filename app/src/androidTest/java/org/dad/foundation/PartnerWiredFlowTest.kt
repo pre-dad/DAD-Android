@@ -53,19 +53,8 @@ class PartnerWiredFlowTest {
         return compose.launchReady(intent)
     }
 
-    // On the slow headless CI emulator the Activity's setContent can land after the first probe, so
-    // fetchSemanticsNodes throws "No compose hierarchies found" before the tree attaches. Treat that transient
-    // state as "not yet" and keep waiting, rather than letting it abort the wait on the first frame.
-    private fun waitFor(tag: String, timeout: Long = 15_000) =
-        compose.waitUntil(timeout) {
-            runCatching { compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
-        }
-
-    // launchReady guarantees an attached hierarchy, so a failed probe is a real error, never "absent".
-    private fun absent(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()
-
     private fun openOrganization() {
-        waitFor("partner-tab-organization")
+        compose.waitForTag("partner-tab-organization")
         compose.tapSafely("partner-tab-organization")
     }
 
@@ -73,28 +62,28 @@ class PartnerWiredFlowTest {
         // Under CI load a single role-select tap can be dropped before the screen is interactive, leaving the app
         // on role-select so the partner email field never appears. Tap, then if the transition did not happen,
         // tap again — the real wait semantics are kept, only a lost first click is recovered.
-        waitFor("role-partner")
+        compose.waitForTag("role-partner")
         repeat(3) {
-            if (!absent("partner-sign-in-email")) return
+            if (!compose.tagAbsent("partner-sign-in-email")) return
             // Only (re)tap while still on role-select; mid-transition the role button is already gone.
-            if (!absent("role-partner")) compose.tapSafely("role-partner")
-            val reached = runCatching { compose.waitUntil(6_000) { !absent("partner-sign-in-email") } }.isSuccess
+            if (!compose.tagAbsent("role-partner")) compose.tapSafely("role-partner")
+            val reached = runCatching { compose.waitUntil(6_000) { !compose.tagAbsent("partner-sign-in-email") } }.isSuccess
             if (reached) return
             compose.waitForIdle()
         }
-        waitFor("partner-sign-in-email")
+        compose.waitForTag("partner-sign-in-email")
     }
 
     @Test fun aViewerSeesNoAdminActionsAndTheServerWouldRefuseThemAnyway() {
         launch("stub_partner_signed_in", "stub_partner_viewer").use {
-            waitFor("partner-committed")
+            compose.waitForTag("partner-committed")
             openOrganization()
             compose.onNodeWithTag("partner-readonly").performScrollTo().assertIsDisplayed()
-            assertTrue(absent("partner-invite"))
-            assertTrue(absent("partner-export"))
-            assertTrue(absent("partner-profile-save"))
-            assertTrue(absent("partner-remove-u1"))
-            assertTrue(absent("partner-remove-u2"))
+            assertTrue(compose.tagAbsent("partner-invite"))
+            assertTrue(compose.tagAbsent("partner-export"))
+            assertTrue(compose.tagAbsent("partner-profile-save"))
+            assertTrue(compose.tagAbsent("partner-remove-u1"))
+            assertTrue(compose.tagAbsent("partner-remove-u2"))
         }
     }
 
@@ -104,7 +93,7 @@ class PartnerWiredFlowTest {
             compose.enterText("partner-invite-name", "Taken Person")
             compose.enterText("partner-invite-email", "taken@acme.com")
             compose.tapSafely("partner-invite")
-            waitFor("partner-action-error")
+            compose.waitForTag("partner-action-error")
             compose.onNodeWithTag("partner-action-error").performScrollTo()
                 .assertTextContains("That email already signs in to DAD with another role or organization.")
             // A refused invite keeps what was typed, so it can be corrected rather than retyped.
@@ -123,13 +112,13 @@ class PartnerWiredFlowTest {
     @Test fun removingAUserNeedsConfirmationAndTheAdminCannotRemoveThemselves() {
         launch("stub_partner_signed_in").use {
             openOrganization()
-            waitFor("partner-remove-u2")
-            assertTrue(absent("partner-remove-u1"))
+            compose.waitForTag("partner-remove-u2")
+            assertTrue(compose.tagAbsent("partner-remove-u1"))
             compose.tapSafely("partner-remove-u2")
             compose.tapSafely("partner-remove-confirm-u2")
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("Val Viewer · Viewer")).fetchSemanticsNodes().isEmpty() }
             // Ada is now the only user and the last admin: nothing is left to remove.
-            assertTrue(absent("partner-remove-u1"))
+            assertTrue(compose.tagAbsent("partner-remove-u1"))
         }
     }
 
@@ -173,7 +162,7 @@ class PartnerWiredFlowTest {
     @Test fun aPendingApplicationShowsItsStatusAboveSignIn() {
         launch("stub_application_pending").use {
             openApplicantSignIn()
-            waitFor("partner-application-status")
+            compose.waitForTag("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains("being reviewed", substring = true)
         }
     }
@@ -181,9 +170,9 @@ class PartnerWiredFlowTest {
     private fun applicationShows(extra: String, text: String) {
         launch(extra).use {
             openApplicantSignIn()
-            waitFor("partner-application-status")
+            compose.waitForTag("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains(text, substring = true)
-            assertTrue(absent("partner-application-error"))
+            assertTrue(compose.tagAbsent("partner-application-error"))
         }
     }
 
@@ -197,8 +186,8 @@ class PartnerWiredFlowTest {
         launch().use {
             openApplicantSignIn()
             compose.waitForIdle()
-            assertTrue(absent("partner-application-status"))
-            assertTrue(absent("partner-application-error"))
+            assertTrue(compose.tagAbsent("partner-application-status"))
+            assertTrue(compose.tagAbsent("partner-application-error"))
         }
     }
 
@@ -216,15 +205,15 @@ class PartnerWiredFlowTest {
         launch().use {
             openApplicantSignIn()
             // No receipt yet: the status card is absent and the apply button is offered.
-            assertTrue(absent("partner-application-status"))
+            assertTrue(compose.tagAbsent("partner-application-status"))
             compose.tapSafely("partner-apply-in-app")
-            waitFor("partner-app-submit")
+            compose.waitForTag("partner-app-submit")
             fillApplication()
             compose.tapSafely("partner-app-submit")
             // Back on sign-in, the just-stored receipt reads as PENDING and the apply button is gone.
-            waitFor("partner-application-status")
+            compose.waitForTag("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains("being reviewed", substring = true)
-            assertTrue(absent("partner-apply-in-app"))
+            assertTrue(compose.tagAbsent("partner-apply-in-app"))
         }
     }
 
@@ -232,12 +221,12 @@ class PartnerWiredFlowTest {
         launch("stub_application_submit_invalid").use {
             openApplicantSignIn()
             compose.tapSafely("partner-apply-in-app")
-            waitFor("partner-app-submit")
+            compose.waitForTag("partner-app-submit")
             fillApplication()
             compose.tapSafely("partner-app-submit")
-            waitFor("partner-app-error")
+            compose.waitForTag("partner-app-error")
             // A 422 unlocks the form: the organization field is still there to correct.
-            assertTrue(!absent("partner-app-organization"))
+            assertTrue(!compose.tagAbsent("partner-app-organization"))
         }
     }
 
@@ -245,12 +234,12 @@ class PartnerWiredFlowTest {
         launch("stub_application_submit_throttled").use {
             openApplicantSignIn()
             compose.tapSafely("partner-apply-in-app")
-            waitFor("partner-app-submit")
+            compose.waitForTag("partner-app-submit")
             fillApplication()
             compose.tapSafely("partner-app-submit")
-            waitFor("partner-app-error")
+            compose.waitForTag("partner-app-error")
             compose.onNodeWithTag("partner-app-error").performScrollTo().assertTextContains("Please wait 30 seconds", substring = true)
-            assertTrue(absent("partner-application-status"))
+            assertTrue(compose.tagAbsent("partner-application-status"))
         }
     }
 
@@ -258,13 +247,13 @@ class PartnerWiredFlowTest {
         launch("stub_application_submit_fails_first").use {
             openApplicantSignIn()
             compose.tapSafely("partner-apply-in-app")
-            waitFor("partner-app-submit")
+            compose.waitForTag("partner-app-submit")
             fillApplication()
             compose.tapSafely("partner-app-submit")
-            waitFor("partner-app-error")
+            compose.waitForTag("partner-app-error")
             // The first attempt was a 503: the button is now "Retry" and resends the same attempt, which succeeds.
             compose.tapSafely("partner-app-submit")
-            waitFor("partner-application-status")
+            compose.waitForTag("partner-application-status")
             compose.onNodeWithTag("partner-application-message").assertTextContains("being reviewed", substring = true)
         }
     }
@@ -273,8 +262,8 @@ class PartnerWiredFlowTest {
         launch("stub_partner_signed_in").use {
             openOrganization()
             compose.tapSafely("partner-sign-out")
-            waitFor("role-partner")
-            assertTrue(absent("partner-portal"))
+            compose.waitForTag("role-partner")
+            assertTrue(compose.tagAbsent("partner-portal"))
         }
     }
 }

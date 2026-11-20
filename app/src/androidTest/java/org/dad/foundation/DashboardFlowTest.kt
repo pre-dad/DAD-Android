@@ -35,9 +35,6 @@ class DashboardFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(tag: String, timeout: Long = 15_000) = compose.waitUntil(timeout) { exists(tag) }
-
     /** Scroll the history list until [tag] is composed, retrying while a page is still loading. */
     private fun scrollHistoryTo(tag: String) {
         compose.waitUntil(15_000) {
@@ -46,23 +43,23 @@ class DashboardFlowTest {
     }
 
     private fun openHistory() {
-        waitFor("open-history")
+        compose.waitForTag("open-history")
         // The button is composed immediately, but both loading indicators above it are replaced by taller
         // cards when the data lands, moving it. Click only once the layout has settled.
-        compose.waitUntil(15_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+        compose.waitUntil(15_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
         compose.waitForIdle()
         compose.waitUntil(15_000) {
             runCatching { compose.onNodeWithTag("open-history").assertIsEnabled() }.isSuccess
         }
         compose.onNodeWithTag("open-history").performScrollTo().performClick()
-        waitFor("history-screen")
+        compose.waitForTag("history-screen")
     }
 
     @Test fun restoringASessionLoadsTheDashboardExactlyOnce() {
         DebugBackend.resetRequestLog()
         launch().use {
-            waitFor("streak-count")
-            waitFor("initiative-title")
+            compose.waitForTag("streak-count")
+            compose.waitForTag("initiative-title")
             compose.waitForIdle()
             val log = DebugBackend.requestLog.toList()
             listOf("GET /donor/me/profile", "GET /donor/me/dashboard", "GET /donor/me/today-initiative").forEach { call ->
@@ -73,7 +70,7 @@ class DashboardFlowTest {
 
     @Test fun signedInDashboardRendersStubbedServerData() {
         launch().use {
-            waitFor("streak-count")
+            compose.waitForTag("streak-count")
             compose.onNodeWithTag("streak-count").assertTextEquals("18-day streak")
             compose.onNodeWithTag("streak-next").assertTextEquals("12 days to your 30-day milestone")
             // national_percentile 2 is the top bucket: "Top 2%", never "Top 98%".
@@ -82,7 +79,7 @@ class DashboardFlowTest {
             compose.onNodeWithTag("dash-given").assertTextEquals("$1,240")
             compose.onNodeWithTag("network-annualized").assertTextContains("$4,745", substring = true)
             compose.onNodeWithTag("founding-donor").assertTextContains("Founding donor", substring = true)
-            waitFor("initiative-title")
+            compose.waitForTag("initiative-title")
             compose.onNodeWithTag("initiative-title").assertTextEquals("Meals on Wheels")
             compose.onNodeWithTag("initiative-note").assertTextContains("not designated giving", substring = true)
         }
@@ -91,7 +88,7 @@ class DashboardFlowTest {
     @Test fun giftHistoryPagesToTheEndAndShowsAGiftRecord() {
         launch().use {
             openHistory()
-            waitFor("gift-row-0")
+            compose.waitForTag("gift-row-0")
             compose.onNodeWithTag("history-year-total").assertTextEquals("$3,515")
             scrollHistoryTo("history-more")
             compose.onNodeWithTag("history-more").performClick()
@@ -99,61 +96,61 @@ class DashboardFlowTest {
             scrollHistoryTo("history-more")
             compose.onNodeWithTag("history-more").performClick()
             scrollHistoryTo("gift-row-119")
-            assertTrue("every page was loaded", !exists("gift-row-120"))
+            assertTrue("every page was loaded", !compose.tagExists("gift-row-120"))
         }
     }
 
     @Test fun theLastPageEndsPaginationAndAGiftOpensItsRecord() {
         launch().use {
             openHistory()
-            waitFor("gift-row-0")
+            compose.waitForTag("gift-row-0")
             repeat(2) {
                 scrollHistoryTo("history-more")
                 compose.onNodeWithTag("history-more").performClick()
                 compose.waitForIdle()
             }
             scrollHistoryTo("gift-row-119")
-            assertTrue("the last page ends pagination", !exists("history-more"))
+            assertTrue("the last page ends pagination", !compose.tagExists("history-more"))
             scrollHistoryTo("gift-row-0")
             compose.onNodeWithTag("gift-row-0").performClick()
-            waitFor("receipt-detail")
+            compose.waitForTag("receipt-detail")
             compose.onNodeWithTag("receipt-detail").assertIsDisplayed()
             // history-close now lives in the always-visible TopAppBar (not the scrollable list), so tap it directly.
             compose.onNodeWithTag("history-close").performClick()
-            waitFor("open-history")
+            compose.waitForTag("open-history")
         }
     }
 
     @Test fun emptyStatesAreExplained() {
         launch("stub_dashboard_empty").use {
-            waitFor("dashboard-preparing")
-            waitFor("initiative-none")
-            assertTrue(!exists("streak-count"))
+            compose.waitForTag("dashboard-preparing")
+            compose.waitForTag("initiative-none")
+            assertTrue(!compose.tagExists("streak-count"))
             openHistory()
-            waitFor("history-empty")
+            compose.waitForTag("history-empty")
         }
     }
 
     @Test fun errorsOfferRetryAndRecover() {
         launch("stub_dashboard_fail_first").use {
-            waitFor("dashboard-error")
+            compose.waitForTag("dashboard-error")
             compose.onNodeWithTag("dashboard-retry").performScrollTo().performClick()
-            waitFor("streak-count")
+            compose.waitForTag("streak-count")
             openHistory()
-            waitFor("history-error")
+            compose.waitForTag("history-error")
             compose.onNodeWithTag("history-retry").performClick()
-            waitFor("gift-row-0")
+            compose.waitForTag("gift-row-0")
         }
     }
 
     @Test fun optedOutAndUnknownFiguresAreNeverShownAsZero() {
         launch("stub_dashboard_unranked").use {
-            waitFor("streak-unknown")
-            assertTrue(!exists("rank-national"))
-            assertTrue("an opted-out donor sees no rank line", !exists("rank-unranked"))
+            compose.waitForTag("streak-unknown")
+            assertTrue(!compose.tagExists("rank-national"))
+            assertTrue("an opted-out donor sees no rank line", !compose.tagExists("rank-unranked"))
             compose.onNodeWithTag("dash-given").assertTextEquals("--")
-            assertTrue(!exists("network-card"))
-            assertTrue(!exists("founding-donor"))
+            assertTrue(!compose.tagExists("network-card"))
+            assertTrue(!compose.tagExists("founding-donor"))
         }
     }
 }
