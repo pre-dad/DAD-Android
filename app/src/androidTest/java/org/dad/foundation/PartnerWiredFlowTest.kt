@@ -95,8 +95,8 @@ class PartnerWiredFlowTest {
             assertTrue(absent("partner-invite"))
             assertTrue(absent("partner-export"))
             assertTrue(absent("partner-profile-save"))
-            assertTrue(absent("partner-remove-u1"))
-            assertTrue(absent("partner-remove-u2"))
+            assertTrue(absent("partner-remove-$STUB_PARTNER_ADMIN_ID"))
+            assertTrue(absent("partner-remove-$STUB_PARTNER_VIEWER_ID"))
         }
     }
 
@@ -125,13 +125,13 @@ class PartnerWiredFlowTest {
     @Test fun removingAUserNeedsConfirmationAndTheAdminCannotRemoveThemselves() {
         launch("stub_partner_signed_in").use {
             openOrganization()
-            waitFor("partner-remove-u2")
-            assertTrue(absent("partner-remove-u1"))
-            compose.tapSafely("partner-remove-u2")
-            compose.tapSafely("partner-remove-confirm-u2")
+            waitFor("partner-remove-$STUB_PARTNER_VIEWER_ID")
+            assertTrue(absent("partner-remove-$STUB_PARTNER_ADMIN_ID"))
+            compose.tapSafely("partner-remove-$STUB_PARTNER_VIEWER_ID")
+            compose.tapSafely("partner-remove-confirm-$STUB_PARTNER_VIEWER_ID")
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("Val Viewer · Viewer")).fetchSemanticsNodes().isEmpty() }
             // Ada is now the only user and the last admin: nothing is left to remove.
-            assertTrue(absent("partner-remove-u1"))
+            assertTrue(absent("partner-remove-$STUB_PARTNER_ADMIN_ID"))
         }
     }
 

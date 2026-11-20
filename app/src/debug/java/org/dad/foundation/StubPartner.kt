@@ -1,5 +1,9 @@
 package org.dad.foundation
 
+internal const val STUB_PARTNER_ADMIN_ID = "00000000-0000-4000-8000-0000000000a1"
+internal const val STUB_PARTNER_VIEWER_ID = "00000000-0000-4000-8000-0000000000a2"
+internal const val STUB_PARTNER_EXPORT_ID = "00000000-0000-4000-8000-0000000000b1"
+
 /**
  * The DEBUG stub backend's partner routes. Partner sign-in links are accepted for tokens starting `goodpartner`
  * (anything else is the server's 422 "invalid or expired"); the portal is an ADMIN at Acme with two users, one
@@ -26,11 +30,11 @@ internal class StubPartner(
     private var workforce = 240
     private var logo: ByteArray? = null
     private val users = mutableListOf(
-        """{"id":"u1","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN"}""",
-        """{"id":"u2","email":"val@acme.com","name":"Val Viewer","role":"VIEWER"}""",
+        """{"id":"$STUB_PARTNER_ADMIN_ID","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN"}""",
+        """{"id":"$STUB_PARTNER_VIEWER_ID","email":"val@acme.com","name":"Val Viewer","role":"VIEWER"}""",
     )
     private val exports = mutableListOf(
-        """{"id":"r1","committed_minor":4000000,"deployed_minor":2000000,"people_reached":9000,"exported_by":"Ada Admin","created_at":"2026-09-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""",
+        """{"id":"$STUB_PARTNER_EXPORT_ID","committed_minor":4000000,"deployed_minor":2000000,"people_reached":9000,"exported_by":"Ada Admin","created_at":"2026-09-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""",
     )
 
     fun handles(path: String) = path.startsWith("/donor/partner/")
@@ -73,7 +77,7 @@ internal class StubPartner(
             path == "/donor/partner/exports" || path.endsWith("report.pdf")
         if (viewer && adminOnly) return Reply(403, "{}")
         return when (method to path) {
-            "GET" to "/donor/partner/overview" -> Reply(200, """{"user_id":"${if (viewer) "u2" else "u1"}","organization":${quoted(organization)},"description":${quoted(about)},""" +
+            "GET" to "/donor/partner/overview" -> Reply(200, """{"user_id":"${if (viewer) STUB_PARTNER_VIEWER_ID else STUB_PARTNER_ADMIN_ID}","organization":${quoted(organization)},"description":${quoted(about)},""" +
                 """"role":"${if (viewer) "VIEWER" else "ADMIN"}","company_code":"ACME","committed_minor":5000000,"deployed_minor":3000000,"deployed_percent":60,""" +
                 """"people_reached":12400,"employees_enrolled":86,"workforce_size":$workforce,"enrolled_percent":35,""" +
                 """"updated_at":"2026-10-28T10:00:00Z","has_logo":${logo != null},"committed_verified":true,"deployed_verified":false,"people_reached_verified":true}""")
@@ -96,7 +100,7 @@ internal class StubPartner(
                     !email.contains("@") || name.isEmpty() || role.isEmpty() -> Reply(422, "{}")
                     email.startsWith("taken") -> Reply(409, "{}")
                     else -> {
-                        users.add("""{"id":"u${users.size + 1}","email":${quoted(email)},"name":${quoted(name)},"role":"$role"}""")
+                        users.add("""{"id":"${java.util.UUID.randomUUID()}","email":${quoted(email)},"name":${quoted(name)},"role":"$role"}""")
                         Reply(200, """{"invited":true}""")
                     }
                 }
@@ -118,7 +122,7 @@ internal class StubPartner(
             }
             "GET" to "/donor/partner/exports" -> Reply(200, """{"exports":[${exports.joinToString(",")}]}""")
             "GET" to "/donor/partner/report.pdf" -> {
-                exports.add(0, """{"id":"r${exports.size + 1}","committed_minor":5000000,"deployed_minor":3000000,"people_reached":12400,""" +
+                exports.add(0, """{"id":"${java.util.UUID.randomUUID()}","committed_minor":5000000,"deployed_minor":3000000,"people_reached":12400,""" +
                     """"exported_by":"Ada Admin","created_at":"2026-11-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""")
                 Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
             }
@@ -130,12 +134,12 @@ internal class StubPartner(
                     val id = path.removePrefix("/donor/partner/users/").removeSuffix("/remove")
                     val admins = users.count { it.contains("\"role\":\"ADMIN\"") }
                     val target = users.firstOrNull { it.contains("\"id\":\"$id\"") }
-                    if (id == "u1" || (target?.contains("\"role\":\"ADMIN\"") == true && admins <= 1)) return Reply(409, "{}")
+                    if (id == STUB_PARTNER_ADMIN_ID || (target?.contains("\"role\":\"ADMIN\"") == true && admins <= 1)) return Reply(409, "{}")
                     users.removeAll { it.contains("\"id\":\"$id\"") }
                     Reply(200, """{"removed":true}""")
                 }
                 method == "GET" && path.startsWith("/donor/partner/reports/") ->
-                    if (path.contains("/r1/")) Reply(404, "{}") else Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
+                    if (path.contains("/$STUB_PARTNER_EXPORT_ID/")) Reply(404, "{}") else Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
                 else -> Reply(404, "{}")
             }
         }
