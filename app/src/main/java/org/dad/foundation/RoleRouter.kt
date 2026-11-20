@@ -8,7 +8,7 @@ package org.dad.foundation
 enum class AppRole { DONOR, PARTNER }
 
 /** A session keeps its product shell while account data loads or fails; only sign-out returns to the splash. */
-class RoleRouter(root: Root = Root.Restoring) {
+object RoleRouter {
     sealed interface Root {
         /** Session state is being restored on launch. */
         data object Restoring : Root
@@ -18,26 +18,10 @@ class RoleRouter(root: Root = Root.Restoring) {
         data class Authenticated(val role: AppRole) : Root
     }
 
-    var root: Root = root
-        private set
-
-    fun resolve(booted: Boolean, donorSignedIn: Boolean, partnerSignedIn: Boolean): Root {
-        when {
-            !booted -> root = Root.Restoring
-            donorSignedIn -> signedIn(AppRole.DONOR)
-            partnerSignedIn -> signedIn(AppRole.PARTNER)
-            else -> signedOut()
-        }
-        return root
-    }
-
-    /** A session was established for [role] (sign-in, claim link, or restored on launch). */
-    fun signedIn(role: AppRole) {
-        root = Root.Authenticated(role)
-    }
-
-    /** The session ended; return to the splash. */
-    fun signedOut() {
-        root = Root.Unauthenticated
+    fun resolve(booted: Boolean, donorSignedIn: Boolean, partnerSignedIn: Boolean): Root = when {
+        !booted -> Root.Restoring
+        donorSignedIn -> Root.Authenticated(AppRole.DONOR)
+        partnerSignedIn -> Root.Authenticated(AppRole.PARTNER)
+        else -> Root.Unauthenticated
     }
 }

@@ -598,11 +598,10 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    val router = remember { RoleRouter() }
                     // A session-backed shell is the donor journey — the donor landing owns every
                     // account sub-state (loading / ready / unavailable / signed-out) and its own
                     // recovery, so stay on it. Only a genuinely session-less app goes to role-select.
-                    val root = router.resolve(model.booted, model.hasSession, model.partnerSignedIn)
+                    val root = RoleRouter.resolve(model.booted, model.hasSession, model.partnerSignedIn)
                     val partnerKit = model.partner
                     SessionModelScope("${model.generation}:$root") {
                         when (val current = root) {

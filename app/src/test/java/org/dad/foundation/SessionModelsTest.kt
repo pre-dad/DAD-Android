@@ -40,10 +40,21 @@ class SessionModelsTest {
         assertFalse(request.isCancelled)
         val next = stores.owner("auth:2")
         assertNotSame(owner, next)
+        assertFalse("swapping owners during composition clears nothing", old.cleared)
+        stores.releaseRetired()
         assertTrue(old.cleared)
         assertTrue("old requests cannot continue after sign-out", request.isCancelled)
         val replacement = ViewModelProvider.create(next, viewModelFactory { initializer { Probe() } })[Probe::class.java]
         assertNotSame(old, replacement)
+    }
+
+    @Test fun activityDestructionAlsoClearsAnOwnerNotYetReleased() {
+        val activityStore = ViewModelStore()
+        val stores = ViewModelProvider.create(activityStore, viewModelFactory { initializer { SessionModelStores() } })[SessionModelStores::class.java]
+        val model = ViewModelProvider.create(stores.owner("donor:1"), viewModelFactory { initializer { Probe() } })[Probe::class.java]
+        stores.owner("auth:2")
+        activityStore.clear()
+        assertTrue(model.cleared)
     }
 
     @Test fun activityDestructionClearsTheActiveSessionToo() {

@@ -91,9 +91,6 @@ class AccountSession(
         return result
     }
 
-    /** Whether stored credentials existed when the session was created (decides restore vs sign-in). */
-    val restoredCredentials: Boolean = credentials != null
-
     /** True while this session holds credentials (the server may still reject them later). */
     suspend fun isSignedIn(): Boolean = mutex.withLock { credentials != null }
 
