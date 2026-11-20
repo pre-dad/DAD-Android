@@ -5,7 +5,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
@@ -63,8 +62,8 @@ class EventsFlowTest {
             waitFor("waitlisted-e2")
             compose.onNodeWithTag("cancel-e2").performScrollTo().performClick()
             waitFor("cancel-confirm-e2")
-            compose.onNodeWithText("Keep it").performScrollTo().assertIsDisplayed()
-            compose.onNodeWithText("Leave the waitlist").performScrollTo().performClick()
+            compose.onNodeWithTag("cancel-keep").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithTag("cancel-confirm-go").performScrollTo().performClick()
             // The place is released, so the event has a spot again and offers Reserve.
             waitFor("reserve-e2")
         }

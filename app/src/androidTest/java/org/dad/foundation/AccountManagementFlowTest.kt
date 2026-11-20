@@ -53,6 +53,8 @@ class AccountManagementFlowTest {
             compose.enterText("email-change-input", "taken@example.org", replace = true)
             compose.tapSafely("email-change-submit")
             waitFor("email-change-error")
+            val conflict = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.acct_that_address_cant_replace_your)
+            compose.onNodeWithTag("email-change-error").assertTextContains(conflict)
             compose.enterText("email-change-input", "new@example.org", replace = true)
             compose.tapSafely("email-change-submit")
             waitFor("email-change-sent")

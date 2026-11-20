@@ -2,12 +2,11 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
@@ -58,7 +57,7 @@ class CredentialAuthFlowTest {
 
     private fun passwordSignIn(email: String, password: String) {
         openMethods()
-        // Password sign-in lives under "More options" in the redesigned methods screen.
+        // Password sign-in is behind "More options".
         compose.tapSafely("more-options")
         compose.tapSafely("method-password")
         waitFor("password-sign-in")
@@ -143,6 +142,8 @@ class CredentialAuthFlowTest {
             passwordSignIn("throttle@example.org", "whatever-password")
             waitFor("password-error")
             assertTrue(absent("open-settings"))
+            val wait = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.common_too_many_attempts_please_wait_a)
+            compose.onNodeWithTag("password-error").assertTextContains(wait)
         }
     }
 

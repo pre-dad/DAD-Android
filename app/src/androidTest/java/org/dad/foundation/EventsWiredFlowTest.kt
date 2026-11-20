@@ -3,6 +3,7 @@ package org.dad.foundation
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -42,6 +43,12 @@ class EventsWiredFlowTest {
         runCatching { compose.onNodeWithTag(tag).assertTextContains(text, substring = true) }.isSuccess
     }
 
+    private fun textMatches(tag: String, pattern: Regex) = compose.waitUntil(20_000) {
+        runCatching {
+            compose.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }.contains(pattern)
+        }.getOrDefault(false)
+    }
+
     private fun openEvents() {
         waitFor("open-events")
         compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
@@ -72,7 +79,7 @@ class EventsWiredFlowTest {
                     runCatching { compose.onNodeWithTag("event-start-${StubEvents.PARK}").assertTextContains("CDT", substring = true) }.isSuccess
             }
             openEvent(StubEvents.PARK)
-            textOf("event-time", "C")
+            textMatches("event-time", Regex("\\bC[SD]T\\b"))
             textOf("event-spots", "5 spots left")
             tap("reserve-${StubEvents.PARK}")
             waitFor("reserve-confirm")
@@ -139,7 +146,7 @@ class EventsWiredFlowTest {
             compose.enterText("checkin-code", "short", replace = true)
             tap("checkin-submit")
             textOf("checkin-error", "66 characters")
-            assertTrue(before == DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" })
+            assertEquals(before, DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" })
             // The real code checks in.
             compose.enterText("checkin-code", StubEvents.TOKEN, replace = true)
             tap("checkin-submit")
@@ -162,7 +169,7 @@ class EventsWiredFlowTest {
             textOf("checkin-closed", "opens when the event starts")
             assertTrue(!exists("checkin-code"))
             // New York venue: the zone is the venue's.
-            textOf("event-time", "E")
+            textMatches("event-time", Regex("\\bE[SD]T\\b"))
         }
     }
 
