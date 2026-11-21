@@ -332,6 +332,20 @@ class AccountModel(
     fun partnerTokenConsumed() { pendingPartnerToken = null }
 
     fun configurationUnavailable() { hasSession = false; notice = PhoneSignInModel.NOT_CONFIGURED; state = AccountState.Unavailable }
+
+    /**
+     * An arrived link, or nothing: with no link the session is left untouched. A link that cannot be routed because the
+     * build has a public origin but no router is a configuration failure; a build without an origin simply has no links.
+     */
+    fun onLaunchLink(link: String?, router: LinkRouter?, publicOriginConfigured: Boolean): String? {
+        if (link == null) return null
+        if (router == null) {
+            if (publicOriginConfigured) configurationUnavailable()
+            return null
+        }
+        return receive(link, router)
+    }
+
     fun receive(value: String, router: LinkRouter): String? {
         return when (val intent = router.route(value)) {
             is LinkIntent.Account -> if (!partnerSignedIn) {
@@ -544,16 +558,9 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(Unit) { model.start(launch) }
             LaunchedEffect(linkEvent) {
-                incomingLink?.let { link ->
-                    val router = linkRouter
-                    if (router == null) {
-                        if (BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank()) model.configurationUnavailable()
-                        return@let
-                    }
-                    model.receive(link, router)?.let {
-                        try { CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, it.toUri()) }
-                        catch (_: android.content.ActivityNotFoundException) { model.configurationUnavailable() }
-                    }
+                model.onLaunchLink(incomingLink, linkRouter, BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank())?.let {
+                    try { CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, it.toUri()) }
+                    catch (_: android.content.ActivityNotFoundException) { model.configurationUnavailable() }
                 }
             }
             LaunchedEffect(tapEvent) {
@@ -598,11 +605,10 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    val router = remember { RoleRouter() }
                     // A session-backed shell is the donor journey — the donor landing owns every
                     // account sub-state (loading / ready / unavailable / signed-out) and its own
                     // recovery, so stay on it. Only a genuinely session-less app goes to role-select.
-                    val root = router.resolve(model.booted, model.hasSession, model.partnerSignedIn)
+                    val root = RoleRouter.resolve(model.booted, model.hasSession, model.partnerSignedIn)
                     val partnerKit = model.partner
                     SessionModelScope("${model.generation}:$root") {
                         when (val current = root) {

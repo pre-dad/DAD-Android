@@ -6,6 +6,7 @@ import android.view.Choreographer
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
@@ -121,11 +122,22 @@ private fun SemanticsNodeInteraction.assertNotUnderKeyboard(description: String)
     check(nodeBottom <= limit + 1f) { "$description is covered by the keyboard (bottom=$nodeBottom, keyboard top=$limit)" }
 }
 
-private fun ComposeTestRule.exists(tag: String) = onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+fun ComposeTestRule.tagExists(tag: String) = onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+
+fun ComposeTestRule.tagAbsent(tag: String) = !tagExists(tag)
+
+fun ComposeTestRule.waitForTag(tag: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) { tagExists(tag) }
+
+fun ComposeTestRule.waitForTagGone(tag: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) { tagAbsent(tag) }
+
+/** Waits until the node tagged [tag] contains [text]. */
+fun ComposeTestRule.waitForTagText(tag: String, text: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) {
+    runCatching { onNodeWithTag(tag).assertTextContains(text, substring = true) }.isSuccess
+}
 
 /** Waits for [tag] to exist and be enabled, scrolls it into view, checks it is visible and clear of the keyboard, clicks. */
 fun ComposeTestRule.tapSafely(tag: String, timeoutMs: Long = 15_000) {
-    waitUntil(timeoutMs) { exists(tag) }
+    waitUntil(timeoutMs) { tagExists(tag) }
     waitUntil(timeoutMs) { runCatching { onNodeWithTag(tag).assertIsEnabled() }.isSuccess }
     tapNode(onNodeWithTag(tag), tag)
 }
@@ -149,7 +161,7 @@ fun ComposeTestRule.tapNode(node: SemanticsNodeInteraction, description: String)
 fun ComposeTestRule.enterText(
     tag: String, text: String, replace: Boolean = false, timeoutMs: Long = 15_000, settleAfter: Boolean = true,
 ) {
-    waitUntil(timeoutMs) { exists(tag) }
+    waitUntil(timeoutMs) { tagExists(tag) }
     val field = onNodeWithTag(tag).performScrollTo()
     // A semantics-only insertion can request the IME before Android has served the editor.
     // Focus it through the same touch path as a user, then wait for the input connection and layout.

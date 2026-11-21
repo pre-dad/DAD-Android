@@ -262,8 +262,20 @@ internal fun SessionsSection(model: DeviceSessionsModel, onSignedOut: () -> Unit
         }
         model.notice?.let { StatusLine(it, "sessions-notice") }
         model.actionError?.let { ErrorLine(it, "sessions-error") }
-        OutlinedButton(onClick = model::signOutEverywhere, enabled = !model.busy,
+        var confirmEverywhere by rememberSaveable { mutableStateOf(false) }
+        OutlinedButton(onClick = { confirmEverywhere = true }, enabled = !model.busy,
             modifier = Modifier.heightIn(min = 48.dp).testTag("sessions-sign-out-everywhere")) { Text(stringResource(R.string.acct_sign_out_on_every_device)) }
+        if (confirmEverywhere) AlertDialog(
+            onDismissRequest = { confirmEverywhere = false },
+            title = { Text(stringResource(R.string.acct_sign_out_everywhere_title)) },
+            text = { Text(stringResource(R.string.acct_sign_out_everywhere_body)) },
+            confirmButton = {
+                TextButton(onClick = { confirmEverywhere = false; model.signOutEverywhere() }, modifier = Modifier.testTag("sessions-sign-out-everywhere-confirm")) {
+                    Text(stringResource(R.string.acct_sign_out_on_every_device))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmEverywhere = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 

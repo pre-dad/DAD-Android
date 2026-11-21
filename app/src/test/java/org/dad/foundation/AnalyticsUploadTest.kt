@@ -120,6 +120,17 @@ class AnalyticsUploadTest {
         assertEquals(0, analytics.pending)
     }
 
+    @Test fun aFlushThatFindsConsentWithdrawnSendsNothingAndDropsTheBuffer() = runTest(StandardTestDispatcher()) {
+        val sink = Sink()
+        val consent = MemoryAnalyticsConsent(true)
+        val analytics = uploader(this, consent, sink)
+        analytics.emit(AnalyticsEvent.IrlCodeShown)
+        consent.choice = false
+        advanceUntilIdle()
+        assertTrue(sink.batches.isEmpty())
+        assertEquals(0, analytics.pending)
+    }
+
     @Test fun aBurstOfEventsIsOneUploadAndRepeatedFailuresBackOffExponentially() = runTest(StandardTestDispatcher()) {
         val sink = Sink()
         val analytics = uploader(this, MemoryAnalyticsConsent(true), sink)

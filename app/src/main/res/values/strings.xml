@@ -161,6 +161,8 @@
     <string name="acct_youre_not_signed_in_anywhere_else">You’re not signed in anywhere else.</string>
     <string name="acct_sign_out_of_every_other_device">Sign out of every other device</string>
     <string name="acct_sign_out_on_every_device">Sign out on every device</string>
+    <string name="acct_sign_out_everywhere_title">Sign out on every device?</string>
+    <string name="acct_sign_out_everywhere_body">You’ll be signed out here and on every other device, and will need to sign in again.</string>
     <string name="acct_preparing_your_wallet_pass">Preparing your Wallet pass…</string>
     <string name="acct_add_to_google_wallet">Add to Google Wallet</string>
     <string name="acct_wallet_availability_couldnt_be">Wallet availability couldn’t be checked. Your on-screen code still works.</string>
@@ -348,6 +350,7 @@
     <string name="network_invite_only_milestone_events">Invite-only milestone events</string>
     <string name="network_invite_only_events_a_dad_merch">Invite-only events, a DAD merch item, 48-hour early event booking and opt-in name listing on initiative pages</string>
     <string name="network_unlocks_a_member_perk">Unlocks a member perk</string>
+    <string name="network_conversion_gift">Gift</string>
     <string name="network_in_person">In person</string>
     <string name="network_join_me_on_dollar_a_day_give_1_a">Join me on Dollar A Day — give $1 a day to local causes.</string>
     <string name="network_status_giving">giving</string>
@@ -519,6 +522,7 @@
     <string name="give_your_gift_changed_while_you_were">Your gift changed while you were looking at it. We’ve refreshed it; please review and try again.</string>
     <string name="give_payments_arent_available_right_now">Payments aren’t available right now. Please try again later.</string>
     <string name="give_your_gift_is_set_up">Your gift is set up.</string>
+    <string name="give_we_couldnt_check_your_gift_status">We couldn’t check your gift status just now. Please check again in a moment.</string>
     <string name="give_we_havent_seen_a_new_gift_yet_if">We haven’t seen a new gift yet. If you finished checkout, it can take a moment to appear.</string>
     <string name="give_were_still_waiting_for_the_payment">We’re still waiting for the payment provider to confirm. Check back in a moment.</string>
     <string name="give_your_payment_method_was_updated">Your payment method was updated.</string>

@@ -19,11 +19,13 @@ class KeystoreCredentialStore(
     context: Context,
     name: String = "donor-session",
     private val refreshable: Boolean = true,
+    private val keySource: ((alias: String) -> SecretKey)? = null,
 ) : CredentialStore {
     private val file = AtomicFile(File(context.noBackupFilesDir, "$name.enc"))
     private val alias = context.packageName + ".$name"
     private val gson = Gson()
     private fun key(): SecretKey {
+        keySource?.let { return it(alias) }
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {

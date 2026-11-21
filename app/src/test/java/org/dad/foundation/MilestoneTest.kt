@@ -14,9 +14,13 @@ class MilestoneTest {
     private fun streak(current: Int, last: Long) =
         HomeStreak(current, false, null, HomeLadder(current.toLong(), last, null, null, emptyList()))
 
-    @Test fun theFirstCallSeedsTheBaselineSilently() {
+    @Test fun seedingRecordsTheBaselineOnceAndNothingPendsBeforeIt() {
         val store = MemoryMilestoneStore()
         assertNull(pendingMilestone(streak(18, 7), store))
+        assertNull(store.seen())
+        seedMilestoneBaseline(streak(18, 7), store)
+        assertEquals(7L, store.seen())
+        seedMilestoneBaseline(streak(40, 30), store)
         assertEquals(7L, store.seen())
         assertNull(pendingMilestone(streak(18, 7), store))
     }
@@ -37,6 +41,8 @@ class MilestoneTest {
         val store = MemoryMilestoneStore()
         assertNull(pendingMilestone(null, store))
         assertNull(pendingMilestone(HomeStreak(5, false, null, null), store))
+        seedMilestoneBaseline(null, store)
+        seedMilestoneBaseline(HomeStreak(5, false, null, null), store)
         assertNull(store.seen())
     }
 

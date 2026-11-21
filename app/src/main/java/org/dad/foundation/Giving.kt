@@ -63,10 +63,7 @@ value class GiftAmount private constructor(val dailyDollars: Int) : Comparable<G
  * Format an integer-cents USD figure as "$12.34" / "$150". Whole-dollar amounts drop the
  * decimals; display-only, never used for arithmetic.
  */
-fun formatUsdMinor(minor: Int): String {
-    if (minor % 100 == 0) return String.format(Locale.US, "$%,d", minor / 100)
-    return String.format(Locale.US, "$%,.2f", minor / 100.0)
-}
+fun formatUsdMinor(minor: Int): String = formatMinorUsd(minor.toLong())
 
 /**
  * Stripe's subscription status as the app uses it. The contract documents six values, but Stripe

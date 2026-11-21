@@ -49,16 +49,6 @@ data class NetworkView(
     /** Combined annualized giving across the network, e.g. "$3,480/yr" (N-1). */
     val annualizedLabel: UiText get() = UiText.res(R.string.network_annualized, formatMinorUsd(annualizedMinor))
 
-    /** Only the opted-in invitees are listable (N-3); anonymous referrals are never named. */
-    val namedInvitees: List<NetworkInvitee> get() = invitees
-
-    /**
-     * How many active referrals are represented only as a count, never a name. This is the gap
-     * between the active total and the opted-in active names — so the UI can show
-     * "and N more giving anonymously" without ever inventing a name.
-     */
-    val anonymousActiveCount: Long get() = anonymousActive
-
     /** The "and N more giving anonymously" line, or null when everyone active opted in. */
     val anonymousLabel: UiText?
         get() = if (anonymousActive <= 0L) null
@@ -68,9 +58,6 @@ data class NetworkView(
     val anonymousStayingLabel: UiText?
         get() = if (anonymousActive <= 0L) null
         else UiText.plural(R.plurals.network_anonymous_staying, anonymousActive.toQuantity(), anonymousActive)
-
-    /** True once every referral tier is reached (no next milestone). */
-    val allTiersReached: Boolean get() = nextMilestone == null
 }
 
 /**
@@ -144,9 +131,6 @@ data class BadgeGrid(
 
     /** True when the donor holds any perk-gating badge (F, 1K, TC), i.e. invite-only events are open to them. */
     val hasInviteOnlyAccess: Boolean get() = badges.any { it.unlocksInviteOnlyEvents }
-
-    /** The active perks the donor has unlocked (B-4), for the perk display. */
-    val activePerks: List<UiText> get() = earned.filter { it.perkActive }.mapNotNull { it.perk }
 }
 
 /** Longest public name the server accepts (`saveSharing`: 1..80). */
@@ -158,7 +142,7 @@ data class Conversion(val convertedAt: OffsetDateTime, val kind: String) {
     val kindLabel: UiText get() = when (kind) {
         "LINK" -> UiText.res(R.string.home_link)
         "IRL" -> UiText.res(R.string.network_in_person)
-        else -> UiText.res(R.string.main_invite)
+        else -> UiText.res(R.string.network_conversion_gift)
     }
 }
 

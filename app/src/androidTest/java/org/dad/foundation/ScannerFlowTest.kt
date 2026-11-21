@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
@@ -76,19 +75,17 @@ class ScannerFlowTest {
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         DebugBackend.resetRequestLog()
         val scenario = compose.launchReady(intent)
-        waitFor("open-events")
-        compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+        compose.waitForTag("open-events")
+        compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
         compose.waitForIdle()
         compose.tapSafely("open-events")
-        waitFor("events-home")
-        waitFor("open-event-${StubEvents.LIVE}")
+        compose.waitForTag("events-home")
+        compose.waitForTag("open-event-${StubEvents.LIVE}")
         compose.tapSafely("open-event-${StubEvents.LIVE}")
-        waitFor("checkin-scan")
+        compose.waitForTag("checkin-scan")
         return scenario
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { exists(tag) }
     private fun checkIns() = DebugBackend.requestLog.count { it == "POST /donor/me/events/check-in" }
 
     private fun granted() = ScannerEnvironment(source = fake, isGranted = { true })
@@ -96,12 +93,12 @@ class ScannerFlowTest {
     @Test fun aValidScanChecksInExactlyOnceEvenWhenFramesRepeat() {
         launchLiveEvent(granted()).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scanner-viewfinder")
+            compose.waitForTag("scanner-viewfinder")
             compose.waitUntil(10_000) { fake.sink != null }
             repeat(5) { fake.emit(StubEvents.TOKEN) }
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
             assertEquals(1, checkIns())
-            assertTrue("the camera is released once a code is read", !exists("scanner-panel"))
+            assertTrue("the camera is released once a code is read", !compose.tagExists("scanner-panel"))
             assertTrue(!fake.composed)
         }
     }
@@ -111,12 +108,12 @@ class ScannerFlowTest {
             compose.tapSafely("checkin-scan")
             compose.waitUntil(10_000) { fake.sink != null }
             fake.emit("https://example.org/not-a-checkin")
-            waitFor("scan-hint")
+            compose.waitForTag("scan-hint")
             compose.onNodeWithTag("scan-hint").assertTextContains("isn’t an event check-in code", substring = true)
             assertEquals(0, checkIns())
-            assertTrue(exists("scanner-panel"))
+            assertTrue(compose.tagExists("scanner-panel"))
             fake.emit(StubEvents.TOKEN)
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
             assertEquals(1, checkIns())
         }
     }
@@ -124,14 +121,14 @@ class ScannerFlowTest {
     @Test fun typeTheCodeInsteadClosesTheScannerAndTypedEntryStillWorks() {
         launchLiveEvent(granted()).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scan-type-instead")
+            compose.waitForTag("scan-type-instead")
             compose.onNodeWithTag("scan-type-instead").assertIsDisplayed()
             compose.tapSafely("scan-type-instead")
-            compose.waitUntil(10_000) { !exists("scanner-panel") }
+            compose.waitUntil(10_000) { !compose.tagExists("scanner-panel") }
             assertTrue(!fake.composed)
             compose.enterText("checkin-code", StubEvents.TOKEN)
             compose.tapSafely("checkin-submit")
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
             assertEquals(1, checkIns())
         }
     }
@@ -140,12 +137,12 @@ class ScannerFlowTest {
         val answer = ImmediateAnswer(granted = false)
         launchLiveEvent(ScannerEnvironment(source = fake, isGranted = { false }, permissionContract = answer, canAskAgain = { true })).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scan-denied")
+            compose.waitForTag("scan-denied")
             assertEquals(1, answer.requests)
-            assertTrue(!exists("scanner-panel") && !exists("scan-open-settings"))
+            assertTrue(!compose.tagExists("scanner-panel") && !compose.tagExists("scan-open-settings"))
             compose.enterText("checkin-code", StubEvents.TOKEN)
             compose.tapSafely("checkin-submit")
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
             assertEquals(1, checkIns())
         }
     }
@@ -154,14 +151,14 @@ class ScannerFlowTest {
         val answer = ImmediateAnswer(granted = false)
         launchLiveEvent(ScannerEnvironment(source = fake, isGranted = { false }, permissionContract = answer, canAskAgain = { false })).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scan-denied-permanent")
-            waitFor("scan-open-settings")
+            compose.waitForTag("scan-denied-permanent")
+            compose.waitForTag("scan-open-settings")
             // The app-shell Scaffold (top app bar + bottom NavigationBar) shortened the content
             // viewport, so this button can sit just below the fold; scroll it in before asserting.
             compose.onNodeWithTag("scan-open-settings").performScrollTo().assertIsDisplayed()
             compose.enterText("checkin-code", StubEvents.TOKEN)
             compose.tapSafely("checkin-submit")
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
         }
     }
 
@@ -169,7 +166,7 @@ class ScannerFlowTest {
         val answer = ImmediateAnswer(granted = true)
         launchLiveEvent(ScannerEnvironment(source = fake, isGranted = { false }, permissionContract = answer)).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scanner-viewfinder")
+            compose.waitForTag("scanner-viewfinder")
             assertEquals(1, answer.requests)
         }
     }
@@ -182,12 +179,12 @@ class ScannerFlowTest {
         }
         launchLiveEvent(ScannerEnvironment(source = broken, isGranted = { true })).use {
             compose.tapSafely("checkin-scan")
-            waitFor("scan-unavailable")
-            waitFor("scan-type-instead")
+            compose.waitForTag("scan-unavailable")
+            compose.waitForTag("scan-type-instead")
             compose.tapSafely("scan-type-instead")
             compose.enterText("checkin-code", StubEvents.TOKEN)
             compose.tapSafely("checkin-submit")
-            waitFor("checkedin-${StubEvents.LIVE}")
+            compose.waitForTag("checkedin-${StubEvents.LIVE}")
         }
     }
 }

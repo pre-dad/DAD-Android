@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -75,7 +76,7 @@ class NetworkBadgesTest {
         assertEquals(1, grid.locked.size)
         assertEquals("3 of 4 earned", grid.summaryLabel.text())
         // Only earned badges with a non-blank perk count as active perks.
-        assertEquals(listOf("Perk A", "Perk B"), grid.activePerks.map { it.text() })
+        assertEquals(listOf("Perk A", "Perk B"), grid.earned.filter { it.perkActive }.mapNotNull { it.perk }.map { it.text() })
     }
 
     @Test fun fullCatalogueRendersBothStatesAccessibly() {
@@ -134,10 +135,10 @@ class NetworkBadgesTest {
         assertEquals("5 people giving", net.activeLabel.text())
         assertEquals("$3,480/yr", net.annualizedLabel.textOrNull())
         // Only opted-in invitees are listable; the count never leaks an anonymous name.
-        assertEquals(3, net.namedInvitees.size)
-        assertEquals(2, net.anonymousActiveCount)
+        assertEquals(3, net.invitees.size)
+        assertEquals(2, net.anonymousActive)
         assertEquals("and 2 more giving anonymously", net.anonymousLabel!!.text())
-        assertFalse(net.allTiersReached)
+        assertNotNull(net.nextMilestone)
         assertEquals("5 more to Circle of 10", net.nextMilestone!!.progressLabel.text())
     }
 
@@ -149,7 +150,7 @@ class NetworkBadgesTest {
         )
         assertEquals("1 person giving", net.activeLabel.text())
         assertNull(net.anonymousLabel)
-        assertTrue(net.allTiersReached)
+        assertNull(net.nextMilestone)
     }
 
     @Test fun inviteLinksAreBuiltFromTheConfiguredOriginAndServerRoute() {
@@ -171,7 +172,7 @@ class NetworkBadgesTest {
         val at = OffsetDateTime.parse("2026-10-20T12:00:00Z")
         assertEquals("Link", Conversion(at, "LINK").kindLabel.textOrNull())
         assertEquals("In person", Conversion(at, "IRL").kindLabel.textOrNull())
-        assertEquals("Invite", Conversion(at, "SOMETHING_NEW").kindLabel.textOrNull())
+        assertEquals("Gift", Conversion(at, "SOMETHING_NEW").kindLabel.textOrNull())
     }
 
     @Test fun perkKeysMapToCopyAndUnknownKeysStillSayThereIsAPerk() {

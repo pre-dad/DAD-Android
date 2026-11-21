@@ -53,7 +53,7 @@ class SessionWiringTest {
     @Test fun establishInstallsTheCredentialsTheSessionAwaited() = runTest {
         val store = RecordingStore()
         val session = AccountSession(Api(), store, backgroundScope)
-        assertFalse(session.restoredCredentials)
+        assertFalse(session.isSignedIn())
         val installed = session.establish { Credentials("in", "in-refresh", Long.MAX_VALUE) }
         assertEquals("in", installed.access)
         assertEquals("in", store.value?.access)
@@ -176,8 +176,8 @@ class SessionWiringTest {
         assertTrue(session.isSignedIn())
     }
 
-    @Test fun restoredCredentialsReflectsTheStoreAtCreation() = runTest {
-        assertTrue(AccountSession(Api(), RecordingStore(validCredentials()), backgroundScope).restoredCredentials)
-        assertFalse(AccountSession(Api(), RecordingStore(), backgroundScope).restoredCredentials)
+    @Test fun storedCredentialsMakeTheSessionSignedInAtCreation() = runTest {
+        assertTrue(AccountSession(Api(), RecordingStore(validCredentials()), backgroundScope).isSignedIn())
+        assertFalse(AccountSession(Api(), RecordingStore(), backgroundScope).isSignedIn())
     }
 }
