@@ -44,7 +44,7 @@ test("comments and string templates are skipped", () => {
 });
 
 test("a unicode character literal does not swallow the text after it", () => {
-  assert.deepEqual(literals("val c = '\\u0041'; Text(\"Welcome back\")"), ["Welcome back"]);
+  assert.deepEqual(literals("val c = '\\u0041'+\"Welcome back\""), ["Welcome back"]);
 });
 
 test("app/src/main has no hardcoded user-visible text", () => {
