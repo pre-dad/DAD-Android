@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { crc32 } from "node:zlib";
 
 function zipEntry(name, contents) {
@@ -33,7 +34,7 @@ function check(bytes) {
   try {
     const apk = join(directory, "release.apk");
     writeFileSync(apk, bytes);
-    return spawnSync("bash", [resolve("scripts/check-release-apk.sh"), apk], { encoding: "utf8" });
+    return spawnSync("bash", [fileURLToPath(new URL("./check-release-apk.sh", import.meta.url)), apk], { encoding: "utf8" });
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 

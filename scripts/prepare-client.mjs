@@ -7,12 +7,12 @@ const document = JSON.parse(await readFile("contracts/foundation/mobile.openapi.
 // The operations the app consumes; everything else in the vendored contract is dropped so the
 // generated client stays limited to what the app calls.
 const allowed = new Set([
-  // session foundation (unchanged base)
+  // session foundation
   "profile", "refresh", "logout", "claim",
   // auth / session management
   "login", "logoutAll", "sessions", "revokeSession", "revokeOtherSessions",
   "beginPhoneSignIn", "finishPhoneSignIn", "oidcSignIn",
-  // email signup + password sign-in + set/change password (contract 2.4.0)
+  // email signup + password sign-in + set/change password
   "postDonorSignup", "postDonorPasswordSignIn", "postDonorMePassword",
   "beginDonorPasskeyRegister", "finishDonorPasskeyRegister",
   "beginDonorPasskeySignIn", "finishDonorPasskeySignIn", "donorPasskeys", "deleteDonorPasskey",
@@ -35,7 +35,7 @@ const allowed = new Set([
   // employee giving & matching (display surface)
   "employeeEnroll", "employeeJoinTeam", "employeeTeam", "employeeTeams",
   "employeeOurPeople", "employeeWorkforce",
-  // partner portal; partner push is the v2.2 addition
+  // partner portal and partner push
   "partnerRequestSignIn", "partnerAcceptInvite", "partnerSignOut",
   "partnerOverview", "partnerInitiatives", "partnerSpend",
   "partnerUsers", "partnerInviteUser", "partnerRemoveUser",
@@ -44,12 +44,18 @@ const allowed = new Set([
   "partnerCompanyCode", "applicationStatus", "applyWithReceipt",
   "partnerRegisterPushDevice", "partnerUnregisterPushDevice",
 ]);
+const methods = ["get", "post", "put", "patch", "delete"];
+const seen = new Set();
 for (const [path, item] of Object.entries(document.paths)) {
-  for (const [method, operation] of Object.entries(item)) {
-    if (!allowed.has(operation.operationId)) delete item[method];
+  for (const method of methods) {
+    if (!item[method]) continue;
+    if (allowed.has(item[method].operationId)) seen.add(item[method].operationId);
+    else delete item[method];
   }
-  if (!Object.keys(item).length) delete document.paths[path];
+  if (!methods.some((method) => item[method])) delete document.paths[path];
 }
+const missing = [...allowed].filter((id) => !seen.has(id));
+if (missing.length) throw new Error(`Allow-listed operations missing from the contract: ${missing.join(", ")}`);
 // This client always sends X-DAD-Client: native, whose documented claim variant is NativeSession.
 const claim = document.paths["/donor/claim"].post.responses["200"].content["application/json"].schema;
 if (!claim.oneOf.some((variant) => variant.$ref === "#/components/schemas/NativeSession")) throw new Error("Native claim contract changed");

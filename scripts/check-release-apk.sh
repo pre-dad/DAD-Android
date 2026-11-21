@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fails when a release APK carries debug-only code: the scripted stub backend or the preview doubles.
 # R8 renames classes, so this matches the literals those classes cannot do without (launch extras, stub origin)
-# alongside their unobfuscated names.
+# alongside their unobfuscated names. Only classes*.dex is scanned: those markers are code literals, so they
+# cannot appear in resources or the manifest.
 set -euo pipefail
 
 apk="${1:-app/build/outputs/apk/release/app-release-unsigned.apk}"

@@ -22,9 +22,9 @@ jobs:
       - run: node scripts/check-foundation.mjs
       - name: User-visible text lives in string resources
         run: node scripts/check-hardcoded-strings.mjs
-      - name: Foundation drift (advisory)
-        run: node scripts/check-foundation-drift.mjs
       - run: node --test scripts/*.test.mjs
+      - name: Foundation drift
+        run: node scripts/check-foundation-drift.mjs
   secret-scan:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

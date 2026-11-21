@@ -20,13 +20,14 @@ server=$!
 ready=false
 for _ in $(seq 1 120); do
   if [ -f "$work/ready" ]; then ready=true; break; fi
-  if ! kill -0 "$server" 2>/dev/null; then cat "$work/server.log"; exit 1; fi
+  if ! kill -0 "$server" 2>/dev/null; then exit 1; fi
   sleep 1
 done
-if [ "$ready" != true ]; then echo "Native test API did not start" >&2; cat "$work/server.log"; exit 1; fi
+if [ "$ready" != true ]; then echo "Native test API did not start" >&2; exit 1; fi
 ./gradlew :app:testDebugUnitTest -PdadIntegrationFixture="$work/android.json" \
   --tests org.dad.foundation.LiveAPIIntegrationTest --warning-mode all
 touch "$work/done"
-wait "$server"
+pid="$server"
 server=""
+wait "$pid" || { cat "$work/server.log"; exit 1; }
 echo "Android passed the real HTTPS API session lifecycle."

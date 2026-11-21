@@ -43,6 +43,10 @@ test("comments and string templates are skipped", () => {
   assert.deepEqual(literals('Text("${a.b("x")} ok")').length, 1);
 });
 
+test("a unicode character literal does not swallow the text after it", () => {
+  assert.deepEqual(literals("val c = '\\u0041'; Text(\"Welcome back\")"), ["Welcome back"]);
+});
+
 test("app/src/main has no hardcoded user-visible text", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
   assert.deepEqual(scanTree(root), []);
