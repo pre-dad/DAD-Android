@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import com.android.installreferrer.api.InstallReferrerClient.InstallReferrerResponse
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -120,8 +121,6 @@ class InstallReferrerIntakeTest {
         assertEquals("Alex R", Rig(FakeReferrer { "invite=ALEX42" }, rig.ledger).intake.run())
     }
 
-    // --- The Play client's response handling ---
-
     private class FakeConnection(
         private val response: Int?, private val referrer: String? = "invite=ALEX42",
         private val readFails: Boolean = false, private val startFails: Boolean = false,
@@ -138,7 +137,7 @@ class InstallReferrerIntakeTest {
 
     @Test fun anOkConnectionReturnsTheReferrerAndAlwaysEnds() = runTest {
         val connection = FakeConnection(InstallReferrerResponse.OK)
-        val client = PlayInstallReferrer({ connection }, kotlinx.coroutines.Dispatchers.Unconfined)
+        val client = PlayInstallReferrer({ connection }, Dispatchers.Unconfined)
         assertEquals("invite=ALEX42", client.fetch())
         assertEquals(1, connection.ended)
     }
@@ -150,7 +149,7 @@ class InstallReferrerIntakeTest {
         )
         for (code in codes) {
             val connection = FakeConnection(code)
-            assertNull("code $code", PlayInstallReferrer({ connection }, kotlinx.coroutines.Dispatchers.Unconfined).fetch())
+            assertNull("code $code", PlayInstallReferrer({ connection }, Dispatchers.Unconfined).fetch())
             assertEquals(0, connection.read)
             assertEquals(1, connection.ended)
         }
@@ -158,17 +157,17 @@ class InstallReferrerIntakeTest {
 
     @Test fun aRefusedBindOrAFailedReadMapsToNone() = runTest {
         val refused = FakeConnection(null, startFails = true)
-        assertNull(PlayInstallReferrer({ refused }, kotlinx.coroutines.Dispatchers.Unconfined).fetch())
+        assertNull(PlayInstallReferrer({ refused }, Dispatchers.Unconfined).fetch())
         assertEquals(1, refused.ended)
         val unreadable = FakeConnection(InstallReferrerResponse.OK, readFails = true)
-        assertNull(PlayInstallReferrer({ unreadable }, kotlinx.coroutines.Dispatchers.Unconfined).fetch())
+        assertNull(PlayInstallReferrer({ unreadable }, Dispatchers.Unconfined).fetch())
         assertEquals(1, unreadable.ended)
-        assertNull(PlayInstallReferrer({ throw IllegalStateException("no client") }, kotlinx.coroutines.Dispatchers.Unconfined).fetch())
+        assertNull(PlayInstallReferrer({ throw IllegalStateException("no client") }, Dispatchers.Unconfined).fetch())
     }
 
     @Test fun aConnectionThatNeverFinishesTimesOutAndEnds() = runTest {
         val connection = FakeConnection(null)
-        val result = async { PlayInstallReferrer({ connection }, kotlinx.coroutines.Dispatchers.Unconfined, timeoutMs = 3_000).fetch() }
+        val result = async { PlayInstallReferrer({ connection }, Dispatchers.Unconfined, timeoutMs = 3_000).fetch() }
         advanceTimeBy(3_001); runCurrent()
         assertNull(result.await())
         assertEquals(0, connection.read)
@@ -177,7 +176,7 @@ class InstallReferrerIntakeTest {
 
     @Test fun cancellingTheFetchEndsTheConnection() = runTest {
         val connection = FakeConnection(null)
-        val job = async { PlayInstallReferrer({ connection }, kotlinx.coroutines.Dispatchers.Unconfined).fetch() }
+        val job = async { PlayInstallReferrer({ connection }, Dispatchers.Unconfined).fetch() }
         runCurrent()
         job.cancel()
         runCurrent()

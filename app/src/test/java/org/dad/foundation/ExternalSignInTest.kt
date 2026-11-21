@@ -23,8 +23,6 @@ class ExternalSignInTest {
 
     private val goodClient = "1234567890-abc.apps.googleusercontent.com"
 
-    // MARK: gating
-
     @Test fun methodsAreOffByDefaultAndAClientIdAloneNeverSwitchesOneOn() {
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig(null, null)))
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig("", "")))
@@ -57,8 +55,6 @@ class ExternalSignInTest {
         assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.signIn("t", "n") }.exceptionOrNull())
         assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.begin() }.exceptionOrNull())
     }
-
-    // MARK: wire
 
     private fun wire(status: Int, json: String = "{}"): Pair<WireExternalSignIn, ScriptedHttp> {
         val http = ScriptedHttp { status to json }
@@ -146,8 +142,6 @@ class ExternalSignInTest {
         assertNull("!!!".fromBase64Url())
     }
 
-    // MARK: models
-
     private class FakeOidc(var failure: Exception? = null) : OidcSignInService {
         val tokens = mutableListOf<String>()
         val nonces = mutableListOf<String>()
@@ -222,8 +216,6 @@ class ExternalSignInTest {
         m.start()
         assertEquals(ExternalSignInPhase.Working, m.phase)
     }
-
-    // MARK: nonce
 
     @Test fun nonceIsBase64UrlOf32BytesAndUniqueOverManyDraws() {
         val draws = List(1000) { SignInNonce.generate() }

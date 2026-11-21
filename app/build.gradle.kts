@@ -139,6 +139,7 @@ val generateLinks = tasks.register<Copy>("generateLinks") {
 tasks.named("preBuild") { dependsOn(generateClient, generateTokens, generateLinks) }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("dad.strings.path", layout.projectDirectory.file("src/main/res/values/strings.xml").asFile.path)
     providers.gradleProperty("dadSoakSeconds").orNull?.let { systemProperty("dad.load.soakSeconds", it) }
     providers.gradleProperty("dadIntegrationFixture").orNull?.let {
         systemProperty("dad.integration.fixture", it)

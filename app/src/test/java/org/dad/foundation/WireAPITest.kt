@@ -7,7 +7,9 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.buffer
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WireAPITest {
@@ -43,6 +45,7 @@ class WireAPITest {
         }.build()
         assertEquals(AccountProfile("donor@example.org", null), WireAPI("https://api.test", http).profile("synthetic-access"))
     }
+
     @Test fun oversizedResponsesAreRejected() = runTest {
         val http = OkHttpClient.Builder().addInterceptor { chain ->
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
@@ -50,11 +53,13 @@ class WireAPITest {
         }.build()
         assertEquals(AccountFailure.InvalidResponse, runCatching { WireAPI("https://api.test", http).profile("synthetic-access") }.exceptionOrNull())
     }
+
     @Test fun insecureOrNonOriginConfigurationIsRejected() {
         listOf("http://api.test", "https://user:pass@api.test", "https://api.test/path", "https://api.test?query=x").forEach {
             assertTrue(it, runCatching { WireAPI(it) }.isFailure)
         }
     }
+
     @Test fun logoutAcknowledgementRequiresTrue() = runTest {
         val http = OkHttpClient.Builder().addInterceptor { chain ->
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")

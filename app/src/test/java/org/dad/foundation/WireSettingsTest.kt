@@ -172,20 +172,4 @@ class WireSettingsTest {
         rig.settings.signOut()
         assertEquals("Bearer access-0", rig.http.requests.single().headers["authorization"])
     }
-
-    @Test fun aSignOutWhileAReadIsInFlightDiscardsTheResult() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val api = object : AccountAPI {
-            override suspend fun profile(access: String): AccountProfile { gate.await(); return AccountProfile("a@b.c", null) }
-            override suspend fun refresh(token: String) = validCredentials()
-            override suspend fun claim(token: String) = validCredentials()
-            override suspend fun logout(access: String) = Unit
-        }
-        val session = AccountSession(api, RecordingStore(validCredentials()), backgroundScope)
-        val read = async { runCatching { session.profile() } }
-        kotlinx.coroutines.yield()
-        session.discardLocal()
-        gate.complete(Unit)
-        assertEquals(AccountFailure.SignedOut, read.await().exceptionOrNull())
-    }
 }

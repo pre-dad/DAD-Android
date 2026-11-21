@@ -1,7 +1,9 @@
 package org.dad.foundation
 
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -28,7 +30,8 @@ class DiagnosticsTest {
         val reporter = DedupingErrorReporter(object : ErrorReporter { override fun report(error: ClientError) { received += error } })
         val pool = Executors.newFixedThreadPool(8)
         try {
-            repeat(1000) { pool.submit { reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE)) } }
+            val tasks = List(1000) { pool.submit { reporter.report(ClientError("api", "profile", ClientError.Kind.UNAVAILABLE)) } }
+            tasks.forEach { it.get(10, TimeUnit.SECONDS) }
             pool.shutdown()
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS))
             assertEquals(1, received.size)

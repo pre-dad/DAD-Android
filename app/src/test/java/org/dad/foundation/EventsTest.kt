@@ -35,49 +35,57 @@ class EventsTest {
         invitationNote = invitationNote, cancelled = cancelled, bookingOpensAt = bookingOpensAt, earlyBooking = earlyBooking,
         timeZone = timeZone, checkedInAt = checkedInAt)
 
-    // --- Availability (E-2/E-3/E-4/E-9) ---
     @Test fun reservableWhenSpotsRemain() {
         assertEquals(EventAvailability.Reservable(5), event(spotsLeft = 5).availability(now))
     }
+
     @Test fun waitlistableWhenFull() {
         assertEquals(EventAvailability.Waitlistable, event(spotsLeft = 0).availability(now))
     }
+
     @Test fun anUncappedEventIsAlwaysReservableAndSaysSo() {
         val uncapped = event(capacity = 0, spotsLeft = 0)
         assertTrue(uncapped.availability(now) is EventAvailability.Reservable)
         assertEquals("Open to everyone", uncapped.spotsLabel.textOrNull())
     }
+
     @Test fun notYetOpenBeforeBookingWindow() {
         val opens = Date(now.time + 3_600_000)
         assertEquals(EventAvailability.NotYetOpen(opens), event(bookingOpensAt = opens).availability(now))
     }
+
     @Test fun earlyBookingDonorsMayReserveBeforeBookingOpens() {
         val opens = Date(now.time + 3_600_000)
         assertEquals(EventAvailability.Reservable(5), event(bookingOpensAt = opens, earlyBooking = true).availability(now))
     }
+
     @Test fun anEventThatHasStartedCannotBeBookedButAHeldSeatStillShows() {
         val started = event(startsAt = Date(now.time - 60_000))
         assertEquals(EventAvailability.Started, started.availability(now))
         assertEquals(EventAvailability.Reserved, started.copy(status = ReservationStatus.RESERVED).availability(now))
     }
+
     @Test fun reservedCancelledCheckedInAreTerminalOrAction() {
         assertEquals(EventAvailability.Reserved, event(status = ReservationStatus.RESERVED).availability(now))
         assertEquals(EventAvailability.Waitlisted, event(status = ReservationStatus.WAITLISTED).availability(now))
         assertEquals(EventAvailability.CheckedIn, event(status = ReservationStatus.CHECKED_IN).availability(now))
         assertEquals(EventAvailability.Cancelled, event(cancelled = true).availability(now))
     }
+
     @Test fun aReservedSeatWithACheckInTimeIsCheckedIn() {
         val checkedIn = event(status = ReservationStatus.RESERVED, checkedInAt = now)
         assertEquals(EventAvailability.CheckedIn, checkedIn.availability(now))
         assertTrue(checkedIn.isCheckedIn)
         assertFalse(checkedIn.canCancel(now))
     }
+
     @Test fun spotsLabel() {
         assertEquals("5 spots left", event(spotsLeft = 5).spotsLabel.textOrNull())
         assertEquals("1 spot left", event(spotsLeft = 1).spotsLabel.textOrNull())
         assertEquals("Full", event(spotsLeft = 0).spotsLabel.textOrNull())
         assertEquals("Cancelled", event(cancelled = true).spotsLabel.textOrNull())
     }
+
     @Test fun cancelIsOfferedUntilStartAndNeverForCancelledOrUnheld() {
         assertTrue(event(status = ReservationStatus.RESERVED).canCancel(now))
         assertTrue(event(status = ReservationStatus.WAITLISTED).canCancel(now))
@@ -86,12 +94,12 @@ class EventsTest {
         assertFalse(event(status = ReservationStatus.RESERVED, startsAt = Date(now.time - 1)).canCancel(now))
     }
 
-    // --- Invite-only (E-5) and types ---
     @Test fun inviteOnlyByNoteOrType() {
         assertFalse(event().isInviteOnly)
         assertTrue(event(invitationNote = "Founding donors only").isInviteOnly)
         assertTrue(event(type = "invite_only").isInviteOnly)
     }
+
     @Test fun typeLabelsKnownAndUnknownKinds() {
         assertEquals("Volunteer", event(type = "volunteer").typeLabel.textOrNull())
         assertEquals("Community", event(type = "community").typeLabel.textOrNull())
@@ -100,7 +108,6 @@ class EventsTest {
         assertEquals("Event", event(type = "").typeLabel.textOrNull())
     }
 
-    // --- Check-in window (E-8): between start and end, no early grace ---
     @Test fun checkInWindowOpensAtStartAndClosesAtEnd() {
         val starts = Date(now.time)
         val ends = Date(now.time + 7_200_000)
@@ -111,6 +118,7 @@ class EventsTest {
         assertTrue(window.isOpen(ends))
         assertTrue(window.state(Date(ends.time + 1)) is CheckInWindow.State.TooLate)
     }
+
     @Test fun checkInIsOfferedOnlyForAHeldSeatInsideTheWindowAndOnlyOnce() {
         val live = event(status = ReservationStatus.RESERVED, startsAt = Date(now.time - 60_000), endsAt = Date(now.time + 3_600_000))
         assertTrue(live.canCheckIn(now))
@@ -121,6 +129,7 @@ class EventsTest {
         assertFalse(live.copy(startsAt = Date(now.time + 1_000)).canCheckIn(now))
         assertFalse(live.copy(endsAt = Date(now.time - 1)).canCheckIn(now))
     }
+
     @Test fun checkInCodeShapeIsExactlyTheContractsToken() {
         assertTrue(CheckInCode.isWellFormed(code))
         assertTrue(CheckInCode.isWellFormed("A_-0123456789abcdefghi.${"Z-_".repeat(13)}abcd"))
@@ -133,23 +142,23 @@ class EventsTest {
         assertFalse(CheckInCode.isWellFormed("a".repeat(21) + "." + "b".repeat(44)))
     }
 
-    // --- Reservation outcome (E-4) ---
     @Test fun reservationOutcomeCopy() {
         assertEquals("You’re on the waitlist", ReservationOutcome.WAITLISTED.confirmationTitle.textOrNull())
         assertEquals("You’re going", ReservationOutcome.RESERVED.confirmationTitle.textOrNull())
     }
+
     @Test fun anUnknownResultStatusIsNotGuessed() {
         assertEquals(ReservationOutcome.RESERVED, ReservationOutcome.parse("RESERVED"))
         assertEquals(ReservationOutcome.WAITLISTED, ReservationOutcome.parse("waitlisted"))
         assertNull(ReservationOutcome.parse("CANCELLED"))
         assertNull(ReservationOutcome.parse("SOMETHING_NEW"))
     }
+
     @Test fun reservationStatusDecodesDefensively() {
         assertEquals(ReservationStatus.NONE, ReservationStatus.from("SOMETHING_NEW"))
         assertEquals(ReservationStatus.CHECKED_IN, ReservationStatus.from("checked_in"))
     }
 
-    // --- Time display (E-3): the venue's zone, with the zone shown ---
     @Test fun timesShowInTheVenueZoneNotTheDevices() {
         // 2026-11-07T15:00:00Z is 9:00 AM in Chicago (CST) and 10:00 AM in New York (EST).
         val start = Date.from(java.time.Instant.parse("2026-11-07T15:00:00Z"))
@@ -160,6 +169,7 @@ class EventsTest {
         assertEquals("Nov 7, 2026, 10:00 AM EST", EventTime.start(newYork, Locale.US))
         assertEquals("Nov 7, 2026, 9:00 AM \u2013 11:00 AM CST", EventTime.range(chicago, Locale.US))
     }
+
     @Test fun anEventOverMidnightCarriesTheEndDate() {
         val start = Date.from(java.time.Instant.parse("2026-11-07T23:00:00Z"))
         val end = Date.from(java.time.Instant.parse("2026-11-08T07:00:00Z"))
@@ -168,16 +178,17 @@ class EventsTest {
         val crossing = EventTime.range(event(startsAt = start, endsAt = Date.from(java.time.Instant.parse("2026-11-08T13:00:00Z")), timeZone = "America/Chicago"), Locale.US)
         assertEquals("Nov 7, 2026, 5:00 PM \u2013 Nov 8, 2026, 7:00 AM CST", crossing)
     }
+
     @Test fun daylightSavingShowsTheDaylightZoneName() {
         val summer = event(startsAt = Date.from(java.time.Instant.parse("2026-07-04T16:00:00Z")), timeZone = "America/Chicago")
         assertEquals("Jul 4, 2026, 11:00 AM CDT", EventTime.start(summer, Locale.US))
     }
+
     @Test fun anUnknownZoneFallsBackToUtcAndSaysSo() {
         val odd = event(startsAt = Date.from(java.time.Instant.parse("2026-11-07T15:00:00Z")), timeZone = "Mars/Olympus")
         assertEquals("Nov 7, 2026, 3:00 PM UTC", EventTime.start(odd, Locale.US))
     }
 
-    // --- EventsModel state machine ---
     private class FakeService(
         var failLoad: Throwable? = null,
         var reserveOutcome: ReservationOutcome? = ReservationOutcome.RESERVED,
@@ -224,7 +235,7 @@ class EventsTest {
         assertEquals(2, service.listCalls)
     }
 
-    @Test fun loadReadySortsEvents() = runTest {
+    @Test fun loadReadyShowsTheEvent() = runTest {
         val model = modelOf(FakeService())
         assertEquals(EventsPhase.Ready, model.phase)
         assertEquals(1, model.events.size)
@@ -308,7 +319,7 @@ class EventsTest {
         }
     }
 
-    @Test fun aConflictOrAGoneEventReloadsTheList() = runTest {
+    @Test fun aConflictReloadsTheListButAForbiddenReserveDoesNot() = runTest {
         val conflict = FakeService(reserveFailure = AccountFailure.Conflict)
         val model = modelOf(conflict)
         model.reserve("e1"); dispatcher.scheduler.advanceUntilIdle()
@@ -373,7 +384,6 @@ class EventsTest {
         assertTrue(model.busy.isEmpty())
     }
 
-    // --- Check-in (E-8) ---
     private val live = event(
         id = "e1", status = ReservationStatus.RESERVED, startsAt = Date(now.time - 60_000), endsAt = Date(now.time + 3_600_000),
     )
@@ -464,7 +474,6 @@ class EventsTest {
         assertEquals(1, service.checkInCalls)
     }
 
-    // --- Calendar (E-6) ---
     @Test fun addToCalendarFetchesThenHandsTheFileOverOnce() = runTest {
         val model = modelOf(FakeService())
         model.addToCalendar(live)

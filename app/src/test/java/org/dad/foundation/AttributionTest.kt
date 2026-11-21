@@ -11,7 +11,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AttributionTest {
-    // --- sanitization ---
     @Test fun sanitizeRejectsNonCodeInput() {
         assertNull(Attribution.sanitized(null))
         assertNull(Attribution.sanitized(" "))
@@ -31,7 +30,6 @@ class AttributionTest {
         assertNull(Referral.companyLink("", "ACME"))
     }
 
-    // --- Play Install Referrer parsing (D-3) ---
     @Test fun installReferrerParsesAndSanitizes() {
         val a = InstallReferrerParser.parse("invite=FRIEND123&utm_source=instagram&company=ACME")
         assertEquals("FRIEND123", a.inviteCode)
@@ -43,6 +41,10 @@ class AttributionTest {
         val a = InstallReferrerParser.parse("ref=CODE_9&source=print")
         assertEquals("CODE_9", a.inviteCode)
         assertEquals("print", a.source)
+        val decoded = InstallReferrerParser.parse("invite=CODE%5F9&utm_source=a%2Db")
+        assertEquals("CODE_9", decoded.inviteCode)
+        assertEquals("a-b", decoded.source)
+        assertNull(InstallReferrerParser.parse("invite=A%20B").inviteCode)
     }
 
     @Test fun installReferrerEmptyOrGarbageYieldsEmpty() {
@@ -51,18 +53,16 @@ class AttributionTest {
         assertTrue(InstallReferrerParser.parse("not a referrer string").isEmpty)
     }
 
-    // --- invite link + QR round-trip (R-1/R-2) ---
     @Test fun inviteLinkBuildsAndRejectsBadInput() {
         assertEquals("https://dad.org/r/ABC123", Referral.inviteLink("https://dad.org/", "ABC123"))
         assertEquals("https://dad.org/r/ABC123?via=irl", Referral.inviteLink("https://dad.org", "ABC123", inPerson = true))
-        assertNull(Referral.inviteLink("http://dad.org", "ABC123")) // non-https rejected
-        assertNull(Referral.inviteLink("https://dad.org", "bad code")) // unsanitary code rejected
+        assertNull(Referral.inviteLink("http://dad.org", "ABC123"))
+        assertNull(Referral.inviteLink("https://dad.org", "bad code"))
     }
 
     @Test fun qrMatrixRoundTripsThroughDecoder() {
         val link = "https://dad.org/r/ROUNDTRIP9"
         val matrix = Referral.qrMatrix(link, size = 256)
-        // Render the boolean matrix into an ARGB pixel buffer and decode it back.
         val h = matrix.size; val w = matrix[0].size
         val pixels = IntArray(w * h) { i -> if (matrix[i / w][i % w]) 0xFF000000.toInt() else 0xFFFFFFFF.toInt() }
         val source = RGBLuminanceSource(w, h, pixels)

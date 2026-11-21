@@ -115,33 +115,36 @@ class WirePartnerStatusTest {
         assertEquals(PartnerRole.VIEWER, partner.users().single().role)
     }
 
-    @Test fun partnerRequestsNeverCarryTheDonorTokenAndSignOutUsesThePartnerBearer() = runTest {
+    @Test fun partnerAndDonorRequestsEachCarryOnlyTheirOwnBearerAndPartnerSignOutLeavesTheDonor() = runTest {
         val http = ScriptedHttp {
             when (it.path) {
                 "/donor/partner/overview" -> 200 to """{}"""
                 "/donor/partner/sign-out" -> 200 to """{"signed_out":true}"""
-                else -> 404 to "{}"
+                else -> 200 to """{"email":"donor@example.org","public_name":"Alex"}"""
             }
         }
-        val donor = RecordingStore(validCredentials("DONOR-ACCESS", "DONOR-REFRESH"))
+        val donorStore = RecordingStore(validCredentials("DONOR-ACCESS", "DONOR-REFRESH"))
+        val donor = AccountSession(WireAPI(TEST_ORIGIN, http.client()), donorStore, backgroundScope)
         val partnerStore = RecordingStore()
-        val session = PartnerSession(partnerStore).also { it.install("PB") }
-        val partner = WirePartner(TEST_ORIGIN, session, http.client())
+        val partner = WirePartner(TEST_ORIGIN, PartnerSession(partnerStore).also { it.install("PB") }, http.client())
+        donor.profile()
         runCatching { partner.overview() }
         partner.signOut()
-        assertTrue(http.requests.isNotEmpty())
-        assertTrue(http.requests.all { it.headers["authorization"] == "Bearer PB" })
-        assertTrue(http.requests.none { it.headers.values.any { value -> value.contains("DONOR") } || it.body.contains("DONOR") })
-        assertTrue(http.requests.all { it.headers["origin"] == null && it.headers["cookie"] == null && it.path.startsWith("/donor/partner/") })
-        // Signing out of the partner side leaves the donor's credentials alone.
+        val donorCalls = http.requests.filter { !it.path.startsWith("/donor/partner/") }
+        val partnerCalls = http.requests.filter { it.path.startsWith("/donor/partner/") }
+        assertEquals(1, donorCalls.size)
+        assertEquals("Bearer DONOR-ACCESS", donorCalls.single().headers["authorization"])
+        assertEquals(2, partnerCalls.size)
+        assertTrue(partnerCalls.all { it.headers["authorization"] == "Bearer PB" })
+        assertTrue(partnerCalls.none { it.headers.values.any { value -> value.contains("DONOR") } || it.body.contains("DONOR") })
+        assertTrue(partnerCalls.all { it.headers["origin"] == null && it.headers["cookie"] == null })
         assertNull(partnerStore.value)
-        assertEquals("DONOR-ACCESS", donor.value?.access)
-        assertEquals(0, donor.clears)
+        assertEquals("DONOR-ACCESS", donorStore.value?.access)
+        assertEquals(0, donorStore.clears)
     }
 
-    @Test fun theSessionLastsTwelveHoursThenIsForgottenWithoutTouchingTheDonor() {
+    @Test fun theSessionLastsTwelveHoursThenIsForgotten() {
         var now = 1_000_000L
-        val donor = RecordingStore(validCredentials())
         val store = RecordingStore()
         val session = PartnerSession(store, now = { now })
         session.install("PB")
@@ -150,8 +153,6 @@ class WirePartnerStatusTest {
         now += 1
         assertFalse(session.isSignedIn)
         assertNull(store.value)
-        assertNotNull(donor.value)
-        assertEquals(0, donor.clears)
     }
 
     @Test fun cancellingAPartnerReadRethrowsCancellationAndKeepsTheSession() = runTest {
@@ -170,8 +171,6 @@ class WirePartnerStatusTest {
         assertTrue("expected CancellationException, got ${thrown.get()}", thrown.get() is CancellationException)
         assertNotNull(store.value)
     }
-
-    // --- application status (the receipt is the bearer, kept apart from both sessions) ---
 
     private fun receiptStore() = RecordingStore(Credentials("RECEIPT", "", Long.MAX_VALUE))
 

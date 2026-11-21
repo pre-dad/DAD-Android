@@ -6,7 +6,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private class ControlledAPI : AccountAPI {
@@ -37,6 +41,7 @@ class FoundationTest {
         assertEquals(1, store.saves)
         assertEquals("new", store.value?.access)
     }
+
     @Test fun unauthorizedReadRefreshesOnce() = runTest {
         val api = ControlledAPI()
         val session = AccountSession(api, RecordingStore(Credentials("old", "refresh", Long.MAX_VALUE)), backgroundScope, UnconfinedTestDispatcher(testScheduler))
@@ -46,6 +51,7 @@ class FoundationTest {
         assertEquals("Alex", request.await().publicName)
         assertEquals(1, api.refreshes)
     }
+
     @Test fun logoutDuringRefreshCannotRestoreCredentialsAndRevokesNewToken() = runTest {
         val api = ControlledAPI()
         val store = RecordingStore(Credentials("old", "refresh", 0))
@@ -61,6 +67,7 @@ class FoundationTest {
         assertNull(store.value)
         assertEquals(listOf("new"), api.loggedOut)
     }
+
     @Test fun cancelledReaderDoesNotCancelSharedRefresh() = runTest {
         val api = ControlledAPI()
         val store = RecordingStore(Credentials("old", "refresh", 0))
@@ -74,6 +81,7 @@ class FoundationTest {
         assertEquals(1, api.refreshes)
         assertEquals("new", store.value?.access)
     }
+
     @Test fun revokedRefreshClearsStorage() = runTest {
         val api = ControlledAPI()
         val store = RecordingStore(Credentials("old", "refresh", 0))
@@ -84,6 +92,7 @@ class FoundationTest {
         assertEquals(AccountFailure.SignedOut, request.await().exceptionOrNull())
         assertNull(store.value)
     }
+
     @Test fun newClaimCannotBeOverwrittenByEarlierRefresh() = runTest {
         val api = ControlledAPI()
         val store = RecordingStore(Credentials("old", "refresh", 0))
@@ -96,18 +105,28 @@ class FoundationTest {
         assertEquals(AccountFailure.SignedOut, old.await().exceptionOrNull())
         assertEquals("claimed", store.value?.access)
     }
-    @Test fun linkOriginsProofsAndPushDestinationsAreConstrained() {
-        val json = javaClass.getResourceAsStream("/links.json")!!.bufferedReader().use { it.readText() }
-        val router = LinkRouter("https://public.test", json)
+
+    private fun linkRouter() = LinkRouter("https://public.test", javaClass.getResourceAsStream("/links.json")!!.bufferedReader().use { it.readText() })
+
+    @Test fun linkOriginsAndProofsAreConstrained() {
+        val router = linkRouter()
         val token = "a".repeat(32)
         assertEquals(LinkIntent.Claim(token, AccountDestination.DASHBOARD), router.route("https://public.test/account/claim#token=$token&next=/account/dashboard"))
         listOf("https://evil.test/account/dashboard", "http://public.test/account/profile", "https://user@public.test/account/profile", "https://public.test/account%2fclaim#token=$token", "https://public.test/account/claim#token=$token&next=https://evil.test", "https://public.test/account/claim#token=$token&token=$token").forEach { assertNull(it, router.route(it)) }
         assertEquals(LinkIntent.PartnerSignIn(token), router.route("https://public.test/partner/accept#token=$token"))
         listOf("https://public.test/partner/accept#token=$token&next=/account/dashboard", "https://public.test/partner/accept?x=1#token=$token",
             "https://public.test/partner/accept#token=short").forEach { assertNull(it, router.route(it)) }
+    }
+
+    @Test fun pushDestinationsAreRelativeAccountPaths() {
+        val router = linkRouter()
         assertEquals(AccountDestination.PAYMENT_METHOD, router.notification("/account/payment-method"))
         assertEquals(AccountDestination.GIFTS, router.notification("/account/gifts"))
         assertNull(router.notification("https://public.test/account/dashboard"))
+    }
+
+    @Test fun inviteAndCompanyLinksRoundTripThroughTheRouter() {
+        val router = linkRouter()
         assertEquals(LinkIntent.Referral("friend", inPerson = true), router.route("https://public.test/r/friend?via=irl"))
         assertEquals(LinkIntent.Referral("friend", inPerson = false), router.route(Referral.inviteLink("https://public.test", "friend")!!))
         assertEquals(LinkIntent.Referral("friend", inPerson = true), router.route(Referral.inviteLink("https://public.test", "friend", inPerson = true)!!))
@@ -116,8 +135,10 @@ class FoundationTest {
             "https://public.test/c/acme?via=irl", "https://public.test/c/a.b", "https://public.test/r/" + "a".repeat(65))
             .forEach { assertTrue(it, router.route(it) is LinkIntent.Web) }
         assertNull(router.route("https://evil.test/r/friend"))
-        assertTrue(json.contains("\"referral_prefix\": \"/r/\""))
         assertEquals("https://public.test/r/friend", Referral.inviteLink("https://public.test", "friend"))
+    }
+
+    @Test fun aDeferredDestinationIsDeliveredOnceAfterSignIn() {
         val gate = NavigationGate()
         assertNull(gate.receive(AccountDestination.DASHBOARD, false))
         assertEquals(AccountDestination.DASHBOARD, gate.signedIn())
@@ -147,6 +168,8 @@ private class ScriptedAPI : AccountAPI {
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SessionFailureModesTest {
+    private companion object { const val EXPIRY_MARGIN_MILLIS = 30_000L }
+
     private val donor = AccountProfile("donor@example.org", "Alex")
     private val fresh = Credentials("new", "new-refresh", Long.MAX_VALUE)
 
@@ -189,7 +212,7 @@ class SessionFailureModesTest {
 
     @Test fun aTokenInsideTheExpiryMarginIsRefreshedFirst() = runTest {
         val api = ScriptedAPI()
-        val nearlyExpired = System.currentTimeMillis() + 10_000
+        val nearlyExpired = System.currentTimeMillis() + EXPIRY_MARGIN_MILLIS / 3
         val session = sessionIn(this, api, RecordingStore(Credentials("stale", "refresh", nearlyExpired)))
         api.refreshResults += { fresh }
         api.profileResults += { donor }

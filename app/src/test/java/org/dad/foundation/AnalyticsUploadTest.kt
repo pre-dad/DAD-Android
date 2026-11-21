@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -174,7 +175,7 @@ class AnalyticsUploadTest {
         assertEquals("ANDROID", signedIn.headers["x-dad-platform"])
         assertEquals("native", signedIn.headers["x-dad-client"])
         assertNull(anonymous.headers["authorization"])
-        assertTrue(!anonymous.body.contains("properties"))
+        assertFalse(anonymous.body.contains("properties"))
     }
 
     @Test fun aRejectedWireBatchIsInvalidInput() = runTest {

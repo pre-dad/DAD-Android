@@ -12,6 +12,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -73,7 +75,7 @@ class GivingTest {
 
     @Test fun cancelCopyNamesThePeriodEndAndStreakEnd() {
         val utc = TimeZone.getTimeZone("UTC")
-        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
         val periodEnd = parser.parse("2026-12-15")!!
         val copy = CancelCopy.confirmation(periodEnd, utc, Locale.US)
         assertTrue(copy.text().contains("Dec 15, 2026"))
@@ -197,7 +199,7 @@ class GivingTest {
     }
 
     @Test fun longUsDateSpellsOutTheMonth() {
-        val cal = java.util.Calendar.getInstance().apply { clear(); set(2027, java.util.Calendar.APRIL, 22, 12, 0) }
+        val cal = Calendar.getInstance().apply { clear(); set(2027, Calendar.APRIL, 22, 12, 0) }
         assertEquals("April 22, 2027", longUsDate(cal.time))
     }
 }

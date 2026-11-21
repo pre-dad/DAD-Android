@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -157,7 +158,7 @@ class PartnerTest {
         model.removeUser("u1"); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.invited.isEmpty()) // gated client-side, never hit service
         assertTrue(svc.removed.isEmpty())
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
     }
 
     @Test fun adminCanInvite() = runTest {
@@ -176,7 +177,7 @@ class PartnerTest {
         svc.actionError = AccountFailure.Unavailable
         model.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) { invitedCalls++ }; dispatcher.scheduler.advanceUntilIdle()
         assertEquals(0, invitedCalls)
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
         svc.actionError = null
         model.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) { invitedCalls++ }; dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, invitedCalls)
@@ -211,22 +212,22 @@ class PartnerTest {
         val svc = FakeService(pushError = AccountFailure.Unavailable)
         val model = PartnerModel(svc)
         model.registerPush("t"); dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(!svc.pushRegistered)
+        assertFalse(svc.pushRegistered)
         assertNull(model.actionError)
     }
 
     @Test fun emailShapeCheckAcceptsAddressesAndRejectsJunk() {
         assertTrue(isPlausibleEmail(" ada@acme.com "))
-        assertTrue(!isPlausibleEmail(""))
-        assertTrue(!isPlausibleEmail("ada@acme"))
-        assertTrue(!isPlausibleEmail("ada acme@x.com"))
-        assertTrue(!isPlausibleEmail("a@@b.com"))
-        assertTrue(!isPlausibleEmail("a@b..c"))
-        assertTrue(!isPlausibleEmail("a@.b.c"))
-        assertTrue(!isPlausibleEmail("a@b.c."))
-        assertTrue(!isPlausibleEmail("@b.com"))
+        assertFalse(isPlausibleEmail(""))
+        assertFalse(isPlausibleEmail("ada@acme"))
+        assertFalse(isPlausibleEmail("ada acme@x.com"))
+        assertFalse(isPlausibleEmail("a@@b.com"))
+        assertFalse(isPlausibleEmail("a@b..c"))
+        assertFalse(isPlausibleEmail("a@.b.c"))
+        assertFalse(isPlausibleEmail("a@b.c."))
+        assertFalse(isPlausibleEmail("@b.com"))
         assertTrue(isPlausibleEmail("a@b.co.uk"))
-        assertTrue(!isPlausibleEmail("a".repeat(250) + "@b.com")) // > 254 chars
+        assertFalse(isPlausibleEmail("a".repeat(250) + "@b.com")) // > 254 chars
     }
 
     @Test fun inviteWithAMalformedEmailNeverReachesTheService() = runTest {
@@ -235,7 +236,7 @@ class PartnerTest {
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.inviteUser("not-an-email", "Bea", PartnerRole.VIEWER); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.invited.isEmpty())
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
     }
 
     @Test fun countsAreThousandsGrouped() {
@@ -250,7 +251,7 @@ class PartnerTest {
         assertFalse(model.canRemove(svc.users.first { it.id == "u1" }))
         model.removeUser("u1"); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.removed.isEmpty())
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
     }
 
     @Test fun adminCanRemoveAnotherUser() = runTest {

@@ -1,28 +1,15 @@
 package org.dad.foundation
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import java.time.OffsetDateTime
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class NetworkBadgesTest {
-    private val dispatcher = StandardTestDispatcher()
-
-    @Before fun setUp() = Dispatchers.setMain(dispatcher)
-    @After fun tearDown() = Dispatchers.resetMain()
-
     @Test fun earnedBadgeConveysStateInTextAndShowsPerk() {
         val b = Badge(
             code = "FOUNDING_DONOR", title = "Founding Donor",
@@ -82,7 +69,7 @@ class NetworkBadgesTest {
     @Test fun fullCatalogueRendersBothStatesAccessibly() {
         // DoD: every badge renders both states accessibly — i.e. a non-blank a11y label and
         // detail line regardless of earned state.
-        val grid = kotlinx.coroutines.runBlocking { PreviewEngagementService().snapshot().badges!! }
+        val grid = runBlocking { PreviewEngagementService().snapshot().badges!! }
         assertEquals(24, grid.badges.size)
         assertEquals(7, grid.earned.size)
         grid.badges.forEach { badge ->
@@ -94,7 +81,7 @@ class NetworkBadgesTest {
     }
 
     @Test fun previewCatalogueMatchesPrdAppendixA() {
-        val badges = kotlinx.coroutines.runBlocking { PreviewEngagementService().snapshot().badges!!.badges }
+        val badges = runBlocking { PreviewEngagementService().snapshot().badges!!.badges }
         assertEquals(
             listOf(
                 "Founding Donor", "First Day", "One Week", "One Month", "Hundred", "One Year", "1,000 Days",

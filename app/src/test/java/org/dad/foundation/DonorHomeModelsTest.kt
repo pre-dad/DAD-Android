@@ -48,8 +48,6 @@ class DonorHomeModelsTest {
 
     private fun idle() = dispatcher.scheduler.advanceUntilIdle()
 
-    // --- DashboardModel ---
-
     @Test fun loadShowsTheDashboardAndTheInitiative() = runTest {
         val service = FakeService().apply { dashboardResult = { readyDash() }; initiativeResult = { initiative() } }
         val model = DashboardModel(service)
@@ -179,8 +177,6 @@ class DonorHomeModelsTest {
         assertTrue(model.phase is DashboardModel.Phase.Ready)
         assertEquals(DashboardModel.InitiativePhase.Failed, model.initiative)
     }
-
-    // --- GiftHistoryModel ---
 
     private fun pageOf(range: IntRange, next: Int?) = GiftHistoryPage(range.map(::gift), next)
 

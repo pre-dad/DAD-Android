@@ -1,8 +1,10 @@
 package org.dad.foundation
 
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -10,6 +12,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -19,7 +22,13 @@ import org.junit.Test
 class PushFcmTest {
     private val dispatcher = UnconfinedTestDispatcher()
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
-    @After fun tearDown() = Dispatchers.resetMain()
+    private val models = mutableListOf<AccountModel>()
+
+    @After fun tearDown() {
+        // PushTokenRelay is process-global; stop each model's collector so later tests start from a clean relay.
+        models.forEach { it.viewModelScope.cancel() }
+        Dispatchers.resetMain()
+    }
 
     private class Api : AccountAPI {
         override suspend fun profile(access: String) = AccountProfile("a@b.c", "Alex")
@@ -36,11 +45,10 @@ class PushFcmTest {
     private fun model(push: RecordingPush, tokens: PushTokenProvider?, store: RecordingStore = RecordingStore(validCredentials())) =
         AccountModel({ scope, _ ->
             AppServices(AccountSession(Api(), store, scope, dispatcher), UnconfiguredSignIn, null, push = push, pushTokens = tokens)
-        }, dispatcher)
+        }, dispatcher).also { models += it }
 
     private fun optOuts(vararg off: PushCategory) = object : PushOptOuts { override fun allows(category: PushCategory) = category !in off }
 
-    // --- provider ---
     @Test fun anUnavailableProviderAnswersNullAndNeverFetches() = runTest {
         val provider = GuardedPushTokenProvider(available = { false }, fetch = { error("must not be called") })
         assertNull(provider.token())
@@ -61,7 +69,6 @@ class PushFcmTest {
         assertEquals("fcm-1", GuardedPushTokenProvider(available = { true }, fetch = { "fcm-1" }).token())
     }
 
-    // --- registration and refresh ---
     @Test fun aSignedInLaunchRegistersTheProvidersToken() = runTest {
         val push = RecordingPush()
         model(push, PushTokenProvider { "fcm-1" }).start()
@@ -98,7 +105,6 @@ class PushFcmTest {
         assertTrue(m.hasSession)
     }
 
-    // --- routing and opt-out ---
     private fun data(category: String?, path: String? = "/account/gifts", body: String? = "Your gift was processed.", title: String? = null) =
         listOfNotNull(category?.let { "category" to it }, path?.let { "path" to it }, body?.let { "body" to it }, title?.let { "title" to it }).toMap()
 
@@ -115,7 +121,7 @@ class PushFcmTest {
 
     @Test fun anOptedOutCategoryIsDropped() {
         assertNull(PushNotices.from(data("STREAK_AT_RISK"), optOuts(PushCategory.STREAK_AT_RISK)))
-        assertTrue(PushNotices.from(data("STREAK_MILESTONE"), optOuts(PushCategory.STREAK_AT_RISK)) != null)
+        assertNotNull(PushNotices.from(data("STREAK_MILESTONE"), optOuts(PushCategory.STREAK_AT_RISK)))
     }
 
     @Test fun anUnknownCategoryStillShowsOnTheGeneralChannel() {
@@ -203,7 +209,6 @@ class PushFcmTest {
         assertEquals(PushCategory.entries.size, PushCategory.entries.map { it.channelId }.toSet().size)
     }
 
-    // --- permission ---
     @Test fun thePermissionIsAskedOnceAfterSignInWhereItIsNeeded() {
         assertTrue(PushPermissionPolicy.shouldAsk(33, granted = false, alreadyAsked = false, pushAvailable = true, signedIn = true))
         assertFalse(PushPermissionPolicy.shouldAsk(32, granted = false, alreadyAsked = false, pushAvailable = true, signedIn = true))
@@ -213,7 +218,6 @@ class PushFcmTest {
         assertFalse(PushPermissionPolicy.shouldAsk(34, granted = false, alreadyAsked = false, pushAvailable = true, signedIn = false))
     }
 
-    // --- settings mirroring ---
     @Test fun settingsMirrorThePushTogglesAndSignOutForgetsThem() = runTest {
         val recorded = mutableListOf<Preferences>()
         var cleared = 0

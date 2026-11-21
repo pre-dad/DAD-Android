@@ -30,8 +30,6 @@ class WireEngagementTest {
         else -> 404 to "{}"
     }
 
-    // --- snapshot ---
-
     @Test fun snapshotAssemblesEverySection() = runTest {
         val rig = Rig(backgroundScope, handler = ::happy)
         val snapshot = rig.wire.snapshot()
@@ -151,8 +149,6 @@ class WireEngagementTest {
         assertNull(partly.badges)
     }
 
-    // --- rankings choice ---
-
     private fun prefsHandler(saveStatus: () -> Int, onSave: (Recorded) -> Unit = {}): (Recorded) -> Pair<Int, String> = { r ->
         when {
             r.path == "/donor/me/profile" -> 200 to profileJson(version = 3)
@@ -209,8 +205,6 @@ class WireEngagementTest {
         assertEquals(AccountFailure.Unavailable, failure { Rig(backgroundScope, handler = prefsHandler({ 503 })).wire.setRankingOptIn(false) })
     }
 
-    // --- public name ---
-
     @Test fun choosingANameSendsItTrimmedWithoutReplacingTheCode() = runTest {
         val rig = Rig(backgroundScope) { 200 to sharingJson }
         rig.wire.choosePublicName("  Alex C.  ")
@@ -234,8 +228,6 @@ class WireEngagementTest {
         assertEquals(AccountFailure.RateLimited, failure { Rig(backgroundScope) { 429 to "" }.wire.choosePublicName("Alex") })
         assertEquals(AccountFailure.SignedOut, failure { Rig(backgroundScope) { 401 to "{}" }.wire.choosePublicName("Alex") })
     }
-
-    // --- spend ---
 
     @Test fun spendIsTotalsByCategory() = runTest {
         val rig = Rig(backgroundScope) { 200 to """{"initiative_id":"$spendId","total_minor":500000,"categories":[{"category":"Food","amount_minor":300000},{"category":"Transport","amount_minor":200000}]}""" }

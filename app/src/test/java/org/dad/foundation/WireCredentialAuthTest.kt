@@ -26,8 +26,6 @@ class WireCredentialAuthTest {
     }
     private val form = SignupForm("Alex Doe", "alex@example.org", "78701", "Austin")
 
-    // MARK: sign-in link
-
     @Test fun signInLinkPostsOnlyTheEmailWithoutCredentials() = runTest {
         val (wire, http) = auth(202, """{"message":"If this email matches a donor account, a sign-in link will arrive shortly."}""")
         wire.requestSignInLink("alex@example.org")
@@ -43,8 +41,6 @@ class WireCredentialAuthTest {
         mapOf(422 to AccountFailure.InvalidInput, 429 to AccountFailure.RateLimited, 503 to AccountFailure.Unavailable, 403 to AccountFailure.Unavailable)
             .forEach { (status, expected) -> assertEquals("$status", expected, failure { auth(status).first.requestSignInLink("alex@example.org") }) }
     }
-
-    // MARK: signup
 
     @Test fun signupSendsTheFormWithNativeHeadersAndNoCredentials() = runTest {
         val (wire, http) = auth(200, """{"sent":true}""")
@@ -77,8 +73,6 @@ class WireCredentialAuthTest {
     @Test fun signupIngressRateLimitWithAnEmptyBodyAndNoRetryAfterIsRateLimited() = runTest {
         assertEquals(AccountFailure.RateLimited, failure { auth(429, "").first.requestSignup(form) })
     }
-
-    // MARK: password sign-in
 
     @Test fun passwordSignInSendsDeviceNameAndAndroidPlatformAndReturnsCredentials() = runTest {
         val (wire, http) = auth(200, """{"signed_in":true,"access_token":"a","expires_in":900,"refresh_token":"r","refresh_expires_in":5184000}""")
@@ -120,6 +114,7 @@ class WireCredentialAuthTest {
 
     @Test fun anErrorNeverCarriesThePassword() = runTest {
         val error = failure { auth(401).first.signIn("a@b.co", "s3cret-pass-phrase") }
+        assertEquals(AccountFailure.SignedOut, error)
         assertFalse(error.toString().contains("s3cret"))
         assertFalse(error?.message.orEmpty().contains("s3cret"))
     }
@@ -136,8 +131,6 @@ class WireCredentialAuthTest {
         assertEquals("acc", store.value?.access)
         assertEquals(1, store.saves)
     }
-
-    // MARK: set / change password
 
     private class Rig(scope: kotlinx.coroutines.CoroutineScope, creds: Credentials? = validCredentials(), handler: (Recorded) -> Pair<Int, String>) {
         val http = ScriptedHttp(handler)

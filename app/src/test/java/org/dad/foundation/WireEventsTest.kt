@@ -36,8 +36,6 @@ class WireEventsTest {
     private fun list(vararg events: String) = """{"events":[${events.joinToString(",")}]}"""
     private fun at(iso: String) = Date.from(Instant.parse(iso))
 
-    // --- list (E-1, E-2, E-5) ---
-
     @Test fun listMergesPublicAndInviteOnlyDedupesAndSortsSoonestFirst() = runTest {
         val rig = Rig(backgroundScope) { request ->
             when (request.path) {
@@ -169,8 +167,6 @@ class WireEventsTest {
         assertEquals(WireEvents.ROW_LIMIT, rig.wire.events().size)
     }
 
-    // --- detail (E-3) ---
-
     @Test fun detailReadsOneEventByIdAndRejectsAMalformedId() = runTest {
         val rig = Rig(backgroundScope) { 200 to view(status = "\"WAITLISTED\"") }
         assertEquals(ReservationStatus.WAITLISTED, rig.wire.event(id1).status)
@@ -178,8 +174,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidInput, failure { rig.wire.event("../../profile") })
         assertEquals(1, rig.http.requests.size)
     }
-
-    // --- reserve / waitlist (E-4) ---
 
     @Test fun reserveAndWaitlistOutcomes() = runTest {
         val reserved = Rig(backgroundScope) { 200 to """{"status":"RESERVED"}""" }
@@ -197,8 +191,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to "{}" }.wire.reserve(id1) })
     }
 
-    // --- cancel (E-9) ---
-
     @Test fun cancelNeedsACancelledResult() = runTest {
         val ok = Rig(backgroundScope) { 200 to """{"status":"CANCELLED"}""" }
         ok.wire.cancel(id1)
@@ -206,8 +198,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to """{"status":"RESERVED"}""" }.wire.cancel(id1) })
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to """{"status":"SOMETHING"}""" }.wire.cancel(id1) })
     }
-
-    // --- check-in (E-8) ---
 
     @Test fun checkInSendsTheTokenUnchangedAndMapsTheResult() = runTest {
         val rig = Rig(backgroundScope) { 200 to """{"event_id":"$id1","checked_in":true,"already_checked_in":true}""" }
@@ -231,8 +221,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to """{"event_id":"$id1"}""" }.wire.checkIn(code) })
     }
 
-    // --- calendar (E-6) ---
-
     @Test fun calendarReturnsTheAuthenticatedIcsBytes() = runTest {
         val ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
         val rig = Rig(backgroundScope) { 200 to ics }
@@ -250,8 +238,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to big }.wire.calendar(id1) })
         assertEquals(AccountFailure.InvalidInput, failure { Rig(backgroundScope) { 200 to "x" }.wire.calendar("nope") })
     }
-
-    // --- statuses ---
 
     private fun statusCases(call: suspend (WireEvents) -> Any?, vararg expected: Pair<Int, AccountFailure>) = expected.forEach { (status, failureExpected) ->
         kotlinx.coroutines.test.runTest {
@@ -299,8 +285,6 @@ class WireEventsTest {
         assertEquals(AccountFailure.RateLimited, failure { bodyless.wire.reserve(id1) })
         assertEquals(AccountFailure.RateLimited, failure { bodied.wire.reserve(id1) })
     }
-
-    // --- sessions ---
 
     @Test fun aFirstUnauthorizedRefreshesOnceAndRetries() = runTest {
         var reads = 0

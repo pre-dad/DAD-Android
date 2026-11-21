@@ -95,8 +95,6 @@ class GivingModelTest {
 
     private fun TestScope.loaded(service: Fake, attempts: Int = 5): GivingModel = model(service, attempts).also { it.load(); advanceUntilIdle() }
 
-    // --- load ---
-
     @Test fun loadReadsTheGiftTheOfferAndThePaymentAndSyncsTheSelection() = runTest {
         val service = Fake(active).apply {
             offer = AmountOffer(sub, 30000, periodEnd, AmountOffer.Pending(60000, 30000, periodEnd, confirmed = true))
@@ -134,8 +132,6 @@ class GivingModelTest {
         val model = loaded(Fake().apply { recurringError = AccountFailure.SignedOut })
         assertTrue(model.signedOut)
     }
-
-    // --- start a gift ---
 
     @Test fun startingAGiftSendsTheSelectedAmountAndPresentsTheHostedPage() = runTest {
         val service = Fake()
@@ -371,8 +367,6 @@ class GivingModelTest {
         assertTrue((model.phase as GivingPhase.Failed).message.text().contains("couldn’t open the secure payment page"))
     }
 
-    // --- change amount ---
-
     @Test fun savingANewAmountChangesItAndSaysWhatTheNextRenewalWillBe() = runTest {
         val service = Fake(active)
         val model = loaded(service)
@@ -471,8 +465,6 @@ class GivingModelTest {
         assertNull(model.notice)
     }
 
-    // --- cancel ---
-
     @Test fun cancellingTheGiftMovesItToEndingAndKeepsTheAmount() = runTest {
         val service = Fake(active)
         val model = loaded(service)
@@ -517,8 +509,6 @@ class GivingModelTest {
         assertEquals(0, service.cancelCalls)
         assertEquals("There’s no active gift to cancel.", (model.phase as GivingPhase.Failed).message.textOrNull())
     }
-
-    // --- payment method ---
 
     @Test fun updatingThePaymentMethodOpensTheHostedPageThenConfirmsTheResult() = runTest {
         val service = Fake(active)
@@ -590,8 +580,6 @@ class GivingModelTest {
         assertEquals("Google Pay isn’t available in this build yet.", (model.phase as GivingPhase.Failed).message.textOrNull())
     }
 
-    // --- misc ---
-
     @Test fun tolerantStatusesFlowThroughToTheState() = runTest {
         val state = RecurringState.Active(sub, 15000, periodEnd, SubscriptionStatus.OTHER)
         val model = loaded(Fake(state))
@@ -609,6 +597,7 @@ class GivingModelTest {
         val service = Fake(RecurringState.Preparing)
         val model = loaded(service)
         model.startGift(); advanceUntilIdle()
+        assertTrue(model.phase is GivingPhase.Failed)
         model.applySelection(); advanceUntilIdle()
         assertEquals(0, service.startCalls)
         assertEquals(0, service.changeCalls)

@@ -32,7 +32,6 @@ class SettingsTest {
         rankingsOptedOut = false, networkVisible = true, volunteer = true,
     )
 
-    // --- Preferences value type ---
     @Test fun withFlipsTheRightToggle() {
         val p = prefs()
         assertTrue(p.with("marketing_emails", true).marketingEmails)
@@ -54,7 +53,6 @@ class SettingsTest {
         assertFalse(prefs().copy(rankingsOptedOut = true).showRanking)
     }
 
-    // --- Delete-account gate ---
     @Test fun deleteGateRequiresExactWord() {
         assertFalse(DeleteAccountGate("delete").isConfirmed) // case-sensitive
         assertFalse(DeleteAccountGate("").isConfirmed)
@@ -62,7 +60,6 @@ class SettingsTest {
         assertTrue(DeleteAccountGate("DELETE").isConfirmed)
     }
 
-    // --- Model ---
     private class FakeService(
         var failLoad: Boolean = false,
         var slowSave: Boolean = false,
@@ -162,7 +159,6 @@ class SettingsTest {
         assertTrue(model.snapshot!!.preferences.marketingEmails)
     }
 
-    // --- Volunteer interests ---
     private fun TestScope.loaded(svc: FakeService = FakeService()): SettingsModel =
         SettingsModel(svc).also { it.load(); dispatcher.scheduler.advanceUntilIdle() }
 
@@ -246,10 +242,11 @@ class SettingsTest {
         val svc = FakeService()
         val model = SettingsModel(svc)
         model.load(); dispatcher.scheduler.advanceUntilIdle()
-        // Unconfirmed gate: no-op with an error, nothing deleted.
+        // An unconfirmed gate sets an error and deletes nothing.
         model.deleteAccount(DeleteAccountGate("nope")); dispatcher.scheduler.advanceUntilIdle()
         assertFalse(svc.deleted)
         assertFalse(model.signedOut)
+        assertNotNull(model.actionError)
         // Confirmed: deletes server-side then wipes local.
         model.deleteAccount(DeleteAccountGate("DELETE")); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.deleted)
@@ -327,7 +324,7 @@ class SettingsTest {
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.signOut(); dispatcher.scheduler.advanceUntilIdle()
         assertFalse(model.signedOut)
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
         svc.signOutFails = false
         model.signOut(); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.signedOut)

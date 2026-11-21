@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -23,14 +24,12 @@ class EngagementTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    // --- Impact totals (I-1): unknown is "--", never $0 ---
     @Test fun impactUnknownRendersDashNotZero() {
         assertEquals("--", ImpactTotals(givenMinor = null, initiativesFunded = 0, eventsVolunteered = 0).givenLabel)
         assertEquals("$1,240", ImpactTotals(givenMinor = 124_000, initiativesFunded = 3, eventsVolunteered = 2).givenLabel)
         assertEquals("$12.34", ImpactTotals(givenMinor = 1234, initiativesFunded = 0, eventsVolunteered = 0).givenLabel)
     }
 
-    // --- Rankings (K-2): opt-out hides position ---
     @Test fun rankingOptedOutShowsNothing() {
         val out = RankingStanding.optedOut()
         assertTrue(out.optedOut)
@@ -80,7 +79,6 @@ class EngagementTest {
         assertEquals("Top 1% nationally", RankingStanding(-3, null, null).nationalLabel.textOrNull())
     }
 
-    // --- Spend-by-category (A-3): totals ---
     @Test fun spendTotalsFormat() {
         val spend = InitiativeSpend(totalMinor = 500_000, categories = listOf(SpendCategory("Food", 300_000), SpendCategory("Housing", 200_000)))
         assertEquals("$5,000", spend.totalLabel)
@@ -91,7 +89,6 @@ class EngagementTest {
         assertEquals("Top 100% nationally", RankingStanding(120, null, null).nationalLabel.textOrNull())
     }
 
-    // --- Model state machine ---
     private class FakeEngagementService(
         var optedIn: Boolean = true,
         var failLoad: Throwable? = null,
@@ -161,8 +158,8 @@ class EngagementTest {
         service.failLoad = AccountFailure.Unavailable
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(EngagementPhase.Ready, model.phase)
-        assertTrue(model.snapshot != null)
-        assertTrue(model.refreshNotice != null)
+        assertNotNull(model.snapshot)
+        assertNotNull(model.refreshNotice)
     }
 
     @Test fun aCancelledRefreshKeepsThePriorState() = runTest {
@@ -172,7 +169,7 @@ class EngagementTest {
         service.failLoad = CancellationException("cancelled")
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(EngagementPhase.Ready, model.phase)
-        assertTrue(model.snapshot != null)
+        assertNotNull(model.snapshot)
         assertNull(model.refreshNotice)
     }
 
@@ -222,7 +219,7 @@ class EngagementTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(EngagementPhase.Ready, model.phase)
         assertFalse(model.displayedRanking!!.optedOut)
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
     }
 
     @Test fun aCancelledToggleKeepsTheStandingWithoutAnError() = runTest {
@@ -251,9 +248,9 @@ class EngagementTest {
         val model = EngagementModel(service)
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.choosePublicName("   ")
-        assertTrue(model.nameError != null)
+        assertNotNull(model.nameError)
         model.choosePublicName("x".repeat(81))
-        assertTrue(model.nameError != null)
+        assertNotNull(model.nameError)
         assertEquals(1, service.loads)
     }
 
