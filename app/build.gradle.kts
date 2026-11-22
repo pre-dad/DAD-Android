@@ -133,7 +133,7 @@ val generateTokens = tasks.register<Copy>("generateTokens") {
     into(layout.buildDirectory.dir("generated/tokens"))
 }
 val generateLinks = tasks.register<Copy>("generateLinks") {
-    from(rootProject.file("contracts/foundation/links.json"))
+    from(rootProject.file("contracts/foundation/links.json"), rootProject.file("contracts/foundation/ui-catalog.json"))
     into(layout.buildDirectory.dir("generated/assets"))
 }
 tasks.named("preBuild") { dependsOn(generateClient, generateTokens, generateLinks) }

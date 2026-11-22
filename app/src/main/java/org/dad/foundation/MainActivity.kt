@@ -322,6 +322,9 @@ class AccountModel(
         gate.receive(target, hasSession)?.let { destination = it }
     }
 
+    /** A tapped in-app link (an insights button): opens the destination now, or after sign-in. */
+    fun navigate(target: AccountDestination) { gate.receive(target, hasSession)?.let { destination = it } }
+
     fun destinationOpened() { destination = null }
 
     fun onPartnerSignedOut() {
@@ -435,6 +438,7 @@ class MainActivity : ComponentActivity() {
                 intent.getBooleanExtra("stub_dashboard_fail_first", false) -> StubDashboard.FAIL_FIRST
                 intent.getBooleanExtra("stub_dashboard_unranked", false) -> StubDashboard.UNRANKED
                 intent.getBooleanExtra("stub_dashboard_slow", false) -> StubDashboard.SLOW
+                intent.getBooleanExtra("stub_dashboard_insights", false) -> StubDashboard.INSIGHTS
                 else -> StubDashboard.POPULATED
             },
             stubGift = when {
@@ -944,6 +948,7 @@ private fun DonorShellTab(
 ) {
     when (tab) {
         DonorTab.HOME -> holder.SaveableStateProvider("home") {
+            val insightsCatalog = remember { InsightsCatalog.load(context.assets) }
             DonorLanding(model) {
                 if (dash != null && model.state is AccountState.Ready) {
                     DonorHome(
@@ -957,6 +962,8 @@ private fun DonorShellTab(
                         onSignedOut = { model.onSignedOut() },
                         milestones = milestones,
                         onShareMilestone = onShareMilestone,
+                        insights = insightsCatalog,
+                        onNavigate = model::navigate,
                     )
                 }
             }

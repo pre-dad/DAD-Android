@@ -100,7 +100,7 @@ data class LaunchOptions(
 )
 
 /** What the DEBUG stub backend answers for the donor-home reads. */
-enum class StubDashboard { POPULATED, EMPTY, FAIL_FIRST, UNRANKED, SLOW }
+enum class StubDashboard { POPULATED, EMPTY, FAIL_FIRST, UNRANKED, SLOW, INSIGHTS }
 
 /** The monthly gift the DEBUG stub backend starts with. */
 enum class StubGift { NONE, ACTIVE, ACTIVE_FAIL_FIRST }

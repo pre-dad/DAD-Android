@@ -130,6 +130,7 @@ class WireDashboard(private val product: ProductClient) : DashboardService {
             ),
             network = json.optObj("network")?.let { HomeNetwork(it.long("active_count"), it.long("annualized_minor")) },
             referrals = json.optObj("referrals")?.let { HomeReferrals(it.long("link"), it.long("irl"), it.long("total_minor")) },
+            insights = parseInsightsPanel(json),
         ))
     }
 

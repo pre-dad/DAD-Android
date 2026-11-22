@@ -71,6 +71,19 @@ class WireDashboardTest {
         assertNull(sent.headers["cookie"])
     }
 
+    @Test fun insightsAreOptionalAndAMalformedPanelNeverFailsTheDashboard() = runTest {
+        val panel = """{"catalog_version":1,"spec_id":"s1","spec":[{"type":"Sparkline"},{"type":"Text","bind":"/rank/city"}]}"""
+        val withPanel = Rig(scope = backgroundScope) { 200 to ready().replaceFirst("\"state\":\"ready\"", "\"state\":\"ready\",\"insights\":$panel") }
+        val shown = (withPanel.wire.dashboard() as DashboardState.Ready).dashboard.insights
+        assertEquals("s1", shown?.specId)
+        assertEquals(2, shown?.spec?.size())
+        assertNull(((Rig(scope = backgroundScope) { 200 to ready() }).wire.dashboard() as DashboardState.Ready).dashboard.insights)
+        for (bad in listOf("null", "\"x\"", "[]", """{"catalog_version":"1","spec":[]}""", """{"catalog_version":1,"spec":"x"}""")) {
+            val rig = Rig(scope = backgroundScope) { 200 to ready().replaceFirst("\"state\":\"ready\"", "\"state\":\"ready\",\"insights\":$bad") }
+            assertNull(bad, (rig.wire.dashboard() as DashboardState.Ready).dashboard.insights)
+        }
+    }
+
     @Test fun preparingIsANormalAnswerNotAnError() = runTest {
         val rig = Rig(scope = backgroundScope) { 200 to """{"state":"preparing","mode":"test"}""" }
         assertEquals(DashboardState.Preparing, rig.wire.dashboard())
