@@ -110,6 +110,16 @@ class WirePartnerTest {
         assertFalse(session.isSignedIn)
     }
 
+    @Test fun usersCarryWhetherTheyAcceptedTheirInvitationAndAMissingFlagIsInvalid() = runTest {
+        val body = """{"users":[{"id":"u1","email":"a@x.com","name":"A","role":"ADMIN","accepted":true},{"id":"u2","email":"b@x.com","name":"B","role":"VIEWER","accepted":false}]}"""
+        val session = PartnerSession(RecordingStore()).also { it.install("PB") }
+        val users = WirePartner(TEST_ORIGIN, session, ScriptedHttp { 200 to body }.client()).users()
+        assertEquals(listOf(true, false), users.map { it.accepted })
+        val old = """{"users":[{"id":"u1","email":"a@x.com","name":"A","role":"ADMIN"}]}"""
+        val failure = runCatching { WirePartner(TEST_ORIGIN, session, ScriptedHttp { 200 to old }.client()).users() }.exceptionOrNull()
+        assertEquals(AccountFailure.InvalidResponse, failure)
+    }
+
     @Test fun inviteRemoveAndLogoBodies() = runTest {
         val http = ScriptedHttp {
             when (it.path) {

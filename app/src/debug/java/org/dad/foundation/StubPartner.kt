@@ -30,8 +30,8 @@ internal class StubPartner(
     private var workforce = 240
     private var logo: ByteArray? = null
     private val users = mutableListOf(
-        """{"id":"$STUB_PARTNER_ADMIN_ID","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN"}""",
-        """{"id":"$STUB_PARTNER_VIEWER_ID","email":"val@acme.com","name":"Val Viewer","role":"VIEWER"}""",
+        """{"id":"$STUB_PARTNER_ADMIN_ID","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN","accepted":true}""",
+        """{"id":"$STUB_PARTNER_VIEWER_ID","email":"val@acme.com","name":"Val Viewer","role":"VIEWER","accepted":true}""",
     )
     private val exports = mutableListOf(
         """{"id":"$STUB_PARTNER_EXPORT_ID","committed_minor":4000000,"deployed_minor":2000000,"people_reached":9000,"exported_by":"Ada Admin","created_at":"2026-09-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""",
@@ -100,7 +100,7 @@ internal class StubPartner(
                     !email.contains("@") || name.isEmpty() || role.isEmpty() -> Reply(422, "{}")
                     email.startsWith("taken") -> Reply(409, "{}")
                     else -> {
-                        users.add("""{"id":"${java.util.UUID.randomUUID()}","email":${quoted(email)},"name":${quoted(name)},"role":"$role"}""")
+                        users.add("""{"id":"${java.util.UUID.randomUUID()}","email":${quoted(email)},"name":${quoted(name)},"role":"$role","accepted":false}""")
                         Reply(200, """{"invited":true}""")
                     }
                 }

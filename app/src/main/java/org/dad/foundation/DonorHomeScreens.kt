@@ -84,6 +84,7 @@ fun DonorHome(
     onOpenEngagement: (() -> Unit)? = null, onOpenSpend: ((String, String) -> Unit)? = null,
     onOpenHistory: () -> Unit, onSignedOut: () -> Unit,
     milestones: MilestoneStore? = null, onShareMilestone: ((String) -> Unit)? = null,
+    insights: InsightsCatalog? = null, onNavigate: (AccountDestination) -> Unit = {},
 ) {
     LaunchedEffect(Unit) { model.load(); giving?.load() }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
@@ -108,7 +109,7 @@ fun DonorHome(
                 }
                 // PRD-C order: (1) at-risk banner, (2) streak hero, (3) Link|IRL tiles — rendered inside
                 // DashboardCards in that order, with the initiative and the monthly-gift item below.
-                is DashboardState.Ready -> DashboardCards(state.dashboard, onOpenGift = onOpenGift, milestones = milestones, onShareMilestone = onShareMilestone)
+                is DashboardState.Ready -> DashboardCards(state.dashboard, onOpenGift = onOpenGift, milestones = milestones, onShareMilestone = onShareMilestone, insights = insights, onNavigate = onNavigate)
             }
         }
         // (4) Today's initiative.
@@ -222,7 +223,10 @@ private fun InitiativeSkeleton() {
 }
 
 @Composable
-private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, milestones: MilestoneStore?, onShareMilestone: ((String) -> Unit)?) {
+private fun DashboardCards(
+    dashboard: HomeDashboard, onOpenGift: () -> Unit, milestones: MilestoneStore?, onShareMilestone: ((String) -> Unit)?,
+    insights: InsightsCatalog?, onNavigate: (AccountDestination) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // (1) At-risk banner — ONLY when the streak is at risk. Colour is never the only signal: a
         // warning glyph (with a contentDescription) + text + the warn-wash token background all carry it.
@@ -277,6 +281,8 @@ private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, mil
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+        val insightBlocks = remember(dashboard.insights, insights) { insights?.blocks(dashboard.insights).orEmpty() }
+        InsightsSection(insightBlocks, onNavigate)
         dashboard.network?.let { network ->
             HomeCard("network-card") {
                 Text(stringResource(R.string.common_your_network), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
