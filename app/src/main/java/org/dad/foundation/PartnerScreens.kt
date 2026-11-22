@@ -7,12 +7,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,15 +32,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -142,10 +149,14 @@ fun PartnerSignInFlow(
                     }
                     if (applyUrl != null) {
                         val context = LocalContext.current
+                        var browserMissing by rememberSaveable { mutableStateOf(false) }
                         TextButton(
-                            onClick = { try { CustomTabsIntent.Builder().build().launchUrl(context, applyUrl.toUri()) } catch (_: ActivityNotFoundException) { } },
+                            onClick = {
+                                try { CustomTabsIntent.Builder().build().launchUrl(context, applyUrl.toUri()) } catch (_: ActivityNotFoundException) { browserMissing = true }
+                            },
                             modifier = Modifier.fillMaxWidth().testTag("partner-apply"),
                         ) { Text(if (applicationSubmit == null) stringResource(R.string.partner_new_partner_apply_on_the_website) else stringResource(R.string.partner_prefer_the_website_apply_there)) }
+                        if (browserMissing) Text(stringResource(R.string.partner_no_app_for_that), modifier = Modifier.testTag("partner-apply-error").semantics { liveRegion = LiveRegionMode.Polite })
                     }
                 }
             }
@@ -156,16 +167,15 @@ fun PartnerSignInFlow(
 
 /**
  * The application form: the website's fields, submitted natively. After an unconfirmed attempt the form locks and
- * the button becomes "Retry", which resends exactly what was sent. A `.contain` container keeps each field's own
- * test tag (a bare container tag would flatten them).
+ * the button becomes "Retry", which resends exactly what was sent.
  */
 @Composable
 private fun PartnerApplicationForm(service: PartnerApplicationService, onCancel: () -> Unit, onSubmitted: () -> Unit) {
     val model: PartnerApplicationModel = viewModel(key = "partner-application-form", factory = PartnerApplicationModel.factory(service))
-    LaunchedEffect(model.phase) { if (model.phase == ApplicationSubmitPhase.Submitted) onSubmitted() }
+    LaunchedEffect(model.phase) { if (model.phase == ApplicationSubmitPhase.Submitted) { model.reset(); onSubmitted() } }
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().testTag("partner-application-form").semantics(mergeDescendants = false) {},
+        modifier = Modifier.fillMaxWidth().testTag("partner-application-form"),
     ) {
         Text(stringResource(R.string.partner_apply_as_a_partner), style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
         Text(stringResource(R.string.partner_tell_us_about_your_organization), style = MaterialTheme.typography.bodyMedium)
@@ -269,7 +279,7 @@ private fun PartnerCheckEmail(model: PartnerSignInModel, email: String) {
 }
 
 private enum class PartnerSection(@StringRes val label: Int) {
-    OVERVIEW(R.string.partner_overview), INITIATIVES(R.string.partner_initiatives), PEOPLE(R.string.partner_people), ORGANIZATION(R.string.partner_organization),
+    OVERVIEW(R.string.partner_overview), INITIATIVES(R.string.partner_initiatives), SPEND(R.string.partner_spend_title), PEOPLE(R.string.partner_people), ORGANIZATION(R.string.partner_organization),
 }
 
 /** The signed-in partner portal. [publicOrigin] builds the company sign-up link; blank hides it. */
@@ -289,14 +299,17 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
     PartnerReportShare(model)
     var section by rememberSaveable { mutableStateOf(PartnerSection.OVERVIEW) }
+    var initiativeId by rememberSaveable { mutableStateOf<String?>(null) }
+    BackHandler(enabled = initiativeId != null) { initiativeId = null }
     val snapshot = model.snapshot
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("partner-portal"),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val logo = remember(snapshot?.logo) { snapshot?.logo?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } }
-            if (logo != null) {
+            val logoBytes = snapshot?.logo
+            val logo by produceState<Bitmap?>(null, logoBytes) { value = logoBytes?.let { withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(it, 0, it.size) } } }
+            logo?.let { logo ->
                 Image(logo.asImageBitmap(), contentDescription = stringResource(R.string.partner_organization_logo), modifier = Modifier.size(44.dp).testTag("partner-logo"))
             }
             Column {
@@ -316,9 +329,17 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                 // Scrolls sideways so a long label ("Organization") or a large font keeps each tab on one line.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     PartnerSection.entries.forEach {
-                        FilterChip(selected = section == it, onClick = { section = it }, label = { Text(stringResource(it.label), maxLines = 1, softWrap = false) },
+                        FilterChip(selected = section == it, onClick = { section = it; initiativeId = null }, label = { Text(stringResource(it.label), maxLines = 1, softWrap = false) },
                             modifier = Modifier.testTag("partner-tab-${it.name.lowercase()}"))
                     }
+                }
+                if (phase is PartnerPhase.Failed) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("partner-refresh-failed")) {
+                        Text(phase.message.asString(), modifier = Modifier.testTag("partner-error").semantics { liveRegion = LiveRegionMode.Polite })
+                        OutlinedButton(onClick = model::load) { Text(stringResource(R.string.common_try_again)) }
+                    }
+                } else if (phase == PartnerPhase.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp).testTag("partner-refreshing"))
                 }
                 if (snapshot.sectionsUnavailable) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("partner-partial")) {
@@ -330,9 +351,17 @@ fun PartnerPortal(model: PartnerModel, publicOrigin: String, onSignedOut: () -> 
                     Text(it.asString(), modifier = Modifier.testTag("partner-notice").semantics { liveRegion = LiveRegionMode.Polite })
                 }
                 model.actionError?.let { ErrorLine(it, "partner-action-error") }
-                when (section) {
-                    PartnerSection.OVERVIEW -> PartnerOverviewSection(snapshot)
-                    PartnerSection.INITIATIVES -> PartnerInitiativesSection(snapshot.initiatives)
+                val selected = snapshot.initiatives.firstOrNull { it.id == initiativeId }
+                if (selected != null) {
+                    DadTextButton(stringResource(R.string.common_back), Modifier.testTag("partner-detail-back")) { initiativeId = null }
+                    PartnerInitiativeDetail(selected)
+                } else when (section) {
+                    PartnerSection.OVERVIEW -> {
+                        PartnerOverviewSection(snapshot)
+                        PartnerInitiativesSection(snapshot.initiatives) { initiativeId = it }
+                    }
+                    PartnerSection.INITIATIVES -> PartnerInitiativesSection(snapshot.initiatives) { initiativeId = it }
+                    PartnerSection.SPEND -> PartnerSpendSection(snapshot)
                     PartnerSection.PEOPLE -> PartnerPeopleSection(snapshot)
                     PartnerSection.ORGANIZATION -> PartnerOrganizationSection(model, snapshot, publicOrigin)
                 }
@@ -361,15 +390,89 @@ private fun PartnerOverviewSection(snapshot: PartnerSnapshot) {
 }
 
 @Composable
-private fun PartnerInitiativesSection(initiatives: List<PartnerInitiative>) {
+private fun PartnerInitiativesSection(initiatives: List<PartnerInitiative>, onOpen: (String) -> Unit) {
     if (initiatives.isEmpty()) Text(stringResource(R.string.partner_no_initiatives_yet), modifier = Modifier.testTag("partner-initiatives-empty"))
     initiatives.forEach { initiative ->
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag("partner-initiative-${initiative.id}")) {
-            Text(initiative.title, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.common_pair_dot, initiative.status.label.asString(), initiative.region), style = MaterialTheme.typography.bodySmall)
-            Text(initiative.summary)
-            Text(stringResource(R.string.partner_initiative_amounts, initiative.committedLabel, initiative.deployedLabel), style = MaterialTheme.typography.bodySmall)
-            initiative.headlineMetrics.forEach { Text(stringResource(R.string.partner_label_value, it.label, it.valueLabel), style = MaterialTheme.typography.bodySmall) }
+        OutlinedCard(onClick = { onOpen(initiative.id) }, modifier = Modifier.fillMaxWidth().testTag("partner-initiative-${initiative.id}")) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
+                PartnerInitiativeHeading(initiative)
+                initiative.headlineMetrics.forEach { PartnerMetricLine(it) }
+                PartnerUpdatedAt(initiative.updatedAt)
+                Text(stringResource(R.string.partner_view_details), color = DadTheme.brandAccent(isSystemInDarkTheme()))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartnerInitiativeHeading(initiative: PartnerInitiative) {
+    Text(initiative.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+    Text(stringResource(R.string.common_pair_dot, initiative.status.label.asString(), initiative.region), style = MaterialTheme.typography.bodySmall)
+    initiative.countyCount?.let { Text(pluralStringResource(R.plurals.partner_counties, it, it)) }
+    Text(initiative.summary)
+    Text(stringResource(R.string.partner_initiative_amounts, initiative.committedLabel, initiative.deployedLabel))
+    if (initiative.status == InitiativeStatus.COMPLETE) {
+        Text(stringResource(R.string.partner_final), modifier = Modifier.testTag("partner-progress-${initiative.id}"))
+    } else initiative.deployedFraction?.let { fraction ->
+        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().testTag("partner-progress-${initiative.id}"))
+    }
+}
+
+@Composable
+private fun PartnerMetricLine(metric: PartnerMetric) {
+    val locale = LocalConfiguration.current.locales[0]
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(stringResource(R.string.partner_label_value, metric.label, metric.valueLabel))
+        metric.verifiedOn?.let {
+            Text(stringResource(R.string.partner_verified_on, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(it)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PartnerUpdatedAt(time: java.time.OffsetDateTime?) {
+    val locale = LocalConfiguration.current.locales[0]
+    Text(if (time == null) stringResource(R.string.partner_update_unknown) else
+        stringResource(R.string.partner_updated_at, DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.LONG)
+            .withLocale(locale).format(time.atZoneSameInstant(java.time.ZoneId.systemDefault()))),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun PartnerInitiativeDetail(initiative: PartnerInitiative) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("partner-initiative-detail")) {
+        PartnerInitiativeHeading(initiative)
+        PartnerUpdatedAt(initiative.updatedAt)
+        Text(stringResource(R.string.partner_all_metrics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+        if (initiative.metrics.isEmpty()) Text(stringResource(R.string.partner_no_metrics))
+        initiative.metrics.forEach { PartnerMetricLine(it) }
+        PartnerSpendCategories(initiative.spend)
+    }
+}
+
+@Composable
+private fun PartnerSpendCategories(categories: List<PartnerSpendCategory>) {
+    Text(stringResource(R.string.partner_spend_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
+    if (categories.isEmpty()) Text(stringResource(R.string.partner_no_spend))
+    categories.forEach { Text(stringResource(R.string.partner_label_value, it.category, it.amountLabel)) }
+}
+
+@Composable
+private fun PartnerSpendSection(snapshot: PartnerSnapshot) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("partner-spend-section")) {
+        Text(stringResource(R.string.partner_all_initiatives), style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+        PartnerSpendCategories(snapshot.spend)
+        // The aggregate spend endpoint has no timestamp; never borrow another figure's update date.
+        PartnerUpdatedAt(null)
+        snapshot.initiatives.forEach { initiative ->
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
+                    Text(initiative.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.dadHeading())
+                    PartnerSpendCategories(initiative.spend)
+                    PartnerUpdatedAt(initiative.updatedAt)
+                }
+            }
         }
     }
 }
@@ -386,7 +489,8 @@ private fun PartnerPeopleSection(snapshot: PartnerSnapshot) {
                 Text(stringResource(R.string.partner_enrolled_of_total, people.enrolled, people.workforceSize))
                 people.givenLabel?.let { Text(stringResource(R.string.partner_given, it), modifier = Modifier.testTag("partner-given")) }
                 people.matchedLabel?.let { Text(stringResource(R.string.partner_matched, it)) }
-                Text(pluralStringResource(R.plurals.partner_average_streak_days, people.avgStreakDays.toQuantity(), people.avgStreakDays))
+                if (people.streakVerified) Text(pluralStringResource(R.plurals.partner_average_streak_days, people.avgStreakDays.toQuantity(), people.avgStreakDays))
+                else Text(stringResource(R.string.streak_awaiting))
                 Text(pluralStringResource(R.plurals.partner_volunteered_hours, (people.volunteerMinutes / 60).toQuantity(), people.volunteerMinutes / 60))
             }
         }
@@ -395,9 +499,14 @@ private fun PartnerPeopleSection(snapshot: PartnerSnapshot) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.partner_teams), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(stringResource(R.string.partner_teams_with_fewer_than_5_people_are), style = MaterialTheme.typography.bodySmall)
+            val ranksVerified = snapshot.teams.all { it.metricsVerified }
             snapshot.teams.forEachIndexed { index, team ->
-                Text(pluralStringResource(R.plurals.partner_team_line, team.activeGivers.toQuantity(), index + 1, team.name, team.activeGivers, formatMinorUsd(team.annualizedMinor)),
-                    modifier = Modifier.testTag("partner-team-${team.id}"))
+                Column(Modifier.testTag("partner-team-${team.id}")) {
+                    Text(if (ranksVerified) stringResource(R.string.acct_leaderboard_rank_name, index + 1, team.name) else team.name)
+                    if (team.metricsVerified) Text(pluralStringResource(R.plurals.team_verified_stats, team.activeGivers.toQuantity(), team.activeGivers, formatMinorUsd(team.annualizedMinor)))
+                    else Text(stringResource(R.string.metrics_awaiting))
+                    Text(pluralStringResource(R.plurals.partner_volunteered_hours, (team.volunteerMinutes / 60).toQuantity(), team.volunteerMinutes / 60))
+                }
             }
         }
     }
@@ -498,11 +607,11 @@ internal object LogoImage {
 private fun PartnerCompanyCode(code: String, publicOrigin: String) {
     val context = LocalContext.current
     val shareTitle = stringResource(R.string.partner_share_sign_up_link)
+    var shareMissing by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.common_company_code), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         Text(code, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace), modifier = Modifier.testTag("partner-company-code"))
-        if (publicOrigin.isBlank()) return@Column
-        val link = publicOrigin.trimEnd('/') + "/c/" + code
+        val link = Referral.companyLink(publicOrigin, code) ?: return@Column
         val qr = remember(link) { runCatching { qrBitmap(link) }.getOrNull() }
         if (qr != null) {
             Image(qr.asImageBitmap(), contentDescription = stringResource(R.string.partner_qr_code_for, link), filterQuality = FilterQuality.None,
@@ -511,10 +620,11 @@ private fun PartnerCompanyCode(code: String, publicOrigin: String) {
         OutlinedButton(
             onClick = {
                 val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, link) }
-                try { context.startActivity(Intent.createChooser(send, shareTitle)) } catch (_: ActivityNotFoundException) { }
+                try { context.startActivity(Intent.createChooser(send, shareTitle)) } catch (_: ActivityNotFoundException) { shareMissing = true }
             },
             modifier = Modifier.testTag("partner-company-share"),
         ) { Text(stringResource(R.string.partner_share_sign_up_link)) }
+        if (shareMissing) Text(stringResource(R.string.partner_no_app_for_that), modifier = Modifier.testTag("partner-company-share-error").semantics { liveRegion = LiveRegionMode.Polite })
     }
 }
 
@@ -601,16 +711,21 @@ private fun PartnerReportShare(model: PartnerModel) {
     val context = LocalContext.current
     val report = model.report
     val shareTitle = stringResource(R.string.partner_share_report)
+    // The exported PDF names the organization's giving; it must not outlive the screen that offered it.
+    DisposableEffect(Unit) { onDispose { clearShared(context, "reports") } }
     LaunchedEffect(report?.id) {
         if (report == null) return@LaunchedEffect
-        val file = withContext(Dispatchers.IO) { sharedFile(context, "reports", report.name).also { it.writeBytes(report.pdf) } }
+        val file = withContext(Dispatchers.IO) { freshSharedFile(context, "reports", report.name).also { it.writeBytes(report.pdf) } }
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/pdf"
             putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, fileAuthority(context), file))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        try { context.startActivity(Intent.createChooser(send, shareTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-        catch (_: ActivityNotFoundException) { }
-        model.reportShared()
+        try {
+            context.startActivity(Intent.createChooser(send, shareTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            model.reportShared()
+        } catch (_: ActivityNotFoundException) {
+            model.reportUnavailable()
+        }
     }
 }

@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -12,7 +13,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertTrue
@@ -25,7 +26,7 @@ class GiftAmountChipsTest {
 
     private fun show(initial: Int) {
         compose.setContent {
-            var dollars by androidx.compose.runtime.remember { mutableIntStateOf(initial) }
+            var dollars by remember { mutableIntStateOf(initial) }
             GiftAmountChips(dollars, enabled = true, onSelect = { dollars = it.coerceIn(GiftAmount.MIN_DAILY_DOLLARS, GiftAmount.MAX_DAILY_DOLLARS) })
         }
     }

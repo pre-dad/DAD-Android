@@ -24,7 +24,6 @@ class WireSettingsTest {
         var wiped = 0
         val settings = WireSettings(ProductClient(TEST_ORIGIN, session, client), onLocalWipe = { wiped++ })
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun loadMapsProfileAndSendsTheBearer() = runTest {
         val rig = Rig(scope = backgroundScope) { 200 to profileJson(version = 7) }
@@ -107,7 +106,7 @@ class WireSettingsTest {
 
     @Test fun saveMapsStaleThrottledInvalidAndOutageAnswers() = runTest {
         val p = Preferences(3, true, false, true, true, true, true, true, false, true, false, true, false, true, true)
-        assertEquals(AccountFailure.Unavailable, failure { Rig(scope = backgroundScope) { 409 to "{}" }.settings.savePreferences(p) })
+        assertEquals(AccountFailure.Conflict, failure { Rig(scope = backgroundScope) { 409 to "{}" }.settings.savePreferences(p) })
         assertEquals(AccountFailure.RateLimited, failure { Rig(scope = backgroundScope) { 429 to "{}" }.settings.savePreferences(p) })
         assertEquals(AccountFailure.InvalidInput, failure { Rig(scope = backgroundScope) { 422 to "{}" }.settings.savePreferences(p) })
         assertEquals(AccountFailure.Unavailable, failure { Rig(scope = backgroundScope) { 503 to "{}" }.settings.savePreferences(p) })
@@ -172,21 +171,5 @@ class WireSettingsTest {
         val rig = Rig(scope = backgroundScope) { 200 to """{"signed_out":true}""" }
         rig.settings.signOut()
         assertEquals("Bearer access-0", rig.http.requests.single().headers["authorization"])
-    }
-
-    @Test fun aSignOutWhileAReadIsInFlightDiscardsTheResult() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val api = object : AccountAPI {
-            override suspend fun profile(access: String): AccountProfile { gate.await(); return AccountProfile("a@b.c", null) }
-            override suspend fun refresh(token: String) = validCredentials()
-            override suspend fun claim(token: String) = validCredentials()
-            override suspend fun logout(access: String) = Unit
-        }
-        val session = AccountSession(api, RecordingStore(validCredentials()), backgroundScope)
-        val read = async { runCatching { session.profile() } }
-        kotlinx.coroutines.yield()
-        session.discardLocal()
-        gate.complete(Unit)
-        assertEquals(AccountFailure.SignedOut, read.await().exceptionOrNull())
     }
 }

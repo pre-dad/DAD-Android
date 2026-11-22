@@ -101,6 +101,10 @@ class AnalyticsUploader(
         while (true) {
             val batch = synchronized(buffer) { buffer.take(BATCH) }
             if (batch.isEmpty()) return@withLock
+            if (consent.choice != true) {
+                synchronized(buffer) { buffer.clear() }
+                return@withLock
+            }
             try {
                 sink.send(batch)
             } catch (_: AccountFailure.InvalidInput) {
@@ -156,12 +160,14 @@ class WireAnalytics(
                 })
             }
         }
-        val token = runCatching { access() }.getOrNull()
+        val token = try { access() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { null }
         decoding { nativeRetrofit(url, baseClient, token).create(AnalyticsApi::class.java).ingest(JsonObject().apply { add("events", events) }).requireBody() }
     }
 }
 
-private val EVENT_VIEW = Regex("^/(donor/me/)?events/[^/]+$")
+private val EVENT_VIEW = Regex("^/(donor/me/)?events/(?!invite-only$)[^/]+$")
 private val EVENT_RESERVE = Regex("^/donor/me/events/[^/]+/reserve$")
 
 /**
@@ -184,6 +190,7 @@ internal fun observedEvents(method: String, path: String, requestBody: () -> Str
         "/donor/me/recurring/cancel" -> return listOf(PlainEvent.GIFT_CANCELLED)
         "/donor/me/recurring/amount" -> return listOf(PlainEvent.AMOUNT_CHANGED)
         "/donor/me/team" -> return listOf(PlainEvent.TEAM_JOINED)
+        "/donor/partner/applications" -> return listOf(PlainEvent.PARTNER_SIGNUP_SUBMITTED)
         "/donor/me/events/check-in" -> return listOf(PlainEvent.EVENT_CHECKED_IN)
         "/donor/me/preferences" -> {
             val body = runCatching { JsonParser.parseString(requestBody()).asJsonObject }.getOrNull() ?: return emptyList()

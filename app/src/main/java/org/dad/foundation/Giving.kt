@@ -63,10 +63,7 @@ value class GiftAmount private constructor(val dailyDollars: Int) : Comparable<G
  * Format an integer-cents USD figure as "$12.34" / "$150". Whole-dollar amounts drop the
  * decimals; display-only, never used for arithmetic.
  */
-fun formatUsdMinor(minor: Int): String {
-    if (minor % 100 == 0) return String.format(Locale.US, "$%,d", minor / 100)
-    return String.format(Locale.US, "$%,.2f", minor / 100.0)
-}
+fun formatUsdMinor(minor: Int): String = formatMinorUsd(minor.toLong())
 
 /**
  * Stripe's subscription status as the app uses it. The contract documents six values, but Stripe
@@ -171,7 +168,7 @@ data class PaymentMethodState(val kind: Kind, val completedAt: Date? = null) {
 /**
  * Copy for the cancel confirmation (G-8/G-9): cancelling ends the recurring gift at the
  * current period end and the streak lapses after that — stated plainly. Kept inline and
- * testable (no OS dialog), the lesson the iOS side learned the hard way.
+ * testable (no OS dialog).
  */
 object CancelCopy {
     fun confirmation(periodEnd: Date, timeZone: TimeZone = TimeZone.getDefault(), locale: Locale = Locale.US): UiText {
@@ -196,18 +193,13 @@ fun giftHeading(hasLoaded: Boolean, recurring: RecurringState): UiText =
 
 /** The preset daily amounts offered as chips; every other whole-dollar amount goes through "Other". */
 object GiftPresets {
-    val DAILY = listOf(1, 3, 5)
+    enum class Chip(val dollars: Int?) { PRESET_1(1), PRESET_3(3), PRESET_5(5), OTHER(null) }
 
-    enum class Chip { PRESET_1, PRESET_3, PRESET_5, OTHER }
+    val presets: List<Chip> = Chip.entries.filter { it.dollars != null }
 
     /** Other stays selected once picked, and also covers any amount that is not a preset (e.g. an existing $4 gift). */
     fun selectedChip(dailyDollars: Int, otherPicked: Boolean): Chip {
         if (otherPicked) return Chip.OTHER
-        return when (dailyDollars) {
-            1 -> Chip.PRESET_1
-            3 -> Chip.PRESET_3
-            5 -> Chip.PRESET_5
-            else -> Chip.OTHER
-        }
+        return presets.firstOrNull { it.dollars == dailyDollars } ?: Chip.OTHER
     }
 }

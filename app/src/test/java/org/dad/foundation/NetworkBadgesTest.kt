@@ -1,28 +1,15 @@
 package org.dad.foundation
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import java.time.OffsetDateTime
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class NetworkBadgesTest {
-    private val dispatcher = StandardTestDispatcher()
-
-    @Before fun setUp() = Dispatchers.setMain(dispatcher)
-    @After fun tearDown() = Dispatchers.resetMain()
-
-    // --- Badges (B-1): earned renders perk; unearned renders the RULE text, a11y conveys state ---
     @Test fun earnedBadgeConveysStateInTextAndShowsPerk() {
         val b = Badge(
             code = "FOUNDING_DONOR", title = "Founding Donor",
@@ -76,13 +63,13 @@ class NetworkBadgesTest {
         assertEquals(1, grid.locked.size)
         assertEquals("3 of 4 earned", grid.summaryLabel.text())
         // Only earned badges with a non-blank perk count as active perks.
-        assertEquals(listOf("Perk A", "Perk B"), grid.activePerks.map { it.text() })
+        assertEquals(listOf("Perk A", "Perk B"), grid.earned.filter { it.perkActive }.mapNotNull { it.perk }.map { it.text() })
     }
 
     @Test fun fullCatalogueRendersBothStatesAccessibly() {
         // DoD: every badge renders both states accessibly — i.e. a non-blank a11y label and
         // detail line regardless of earned state.
-        val grid = kotlinx.coroutines.runBlocking { PreviewEngagementService().snapshot().badges!! }
+        val grid = runBlocking { PreviewEngagementService().snapshot().badges!! }
         assertEquals(24, grid.badges.size)
         assertEquals(7, grid.earned.size)
         grid.badges.forEach { badge ->
@@ -94,7 +81,7 @@ class NetworkBadgesTest {
     }
 
     @Test fun previewCatalogueMatchesPrdAppendixA() {
-        val badges = kotlinx.coroutines.runBlocking { PreviewEngagementService().snapshot().badges!!.badges }
+        val badges = runBlocking { PreviewEngagementService().snapshot().badges!!.badges }
         assertEquals(
             listOf(
                 "Founding Donor", "First Day", "One Week", "One Month", "Hundred", "One Year", "1,000 Days",
@@ -121,7 +108,6 @@ class NetworkBadgesTest {
         assertEquals("365-day streak", badges.first { it.title == "One Year" }.rule)
     }
 
-    // --- Network (N-1..N-3): anonymous referrals are counted, never named ---
     @Test fun networkCountsAnonymousButNeverNamesThem() {
         val net = NetworkView(
             activeCount = 5, annualizedMinor = 348_000,
@@ -136,10 +122,10 @@ class NetworkBadgesTest {
         assertEquals("5 people giving", net.activeLabel.text())
         assertEquals("$3,480/yr", net.annualizedLabel.textOrNull())
         // Only opted-in invitees are listable; the count never leaks an anonymous name.
-        assertEquals(3, net.namedInvitees.size)
-        assertEquals(2, net.anonymousActiveCount)
+        assertEquals(3, net.invitees.size)
+        assertEquals(2, net.anonymousActive)
         assertEquals("and 2 more giving anonymously", net.anonymousLabel!!.text())
-        assertFalse(net.allTiersReached)
+        assertNotNull(net.nextMilestone)
         assertEquals("5 more to Circle of 10", net.nextMilestone!!.progressLabel.text())
     }
 
@@ -151,10 +137,9 @@ class NetworkBadgesTest {
         )
         assertEquals("1 person giving", net.activeLabel.text())
         assertNull(net.anonymousLabel)
-        assertTrue(net.allTiersReached)
+        assertNull(net.nextMilestone)
     }
 
-    // --- Invite (R-1..R-4) ---
     @Test fun inviteLinksAreBuiltFromTheConfiguredOriginAndServerRoute() {
         val referral = ReferralInfo("ALEX", linkCount = 2, irlCount = 1, conversions = null)
         assertEquals("https://dad.org/r/ALEX", referral.link("https://dad.org"))
@@ -174,7 +159,7 @@ class NetworkBadgesTest {
         val at = OffsetDateTime.parse("2026-10-20T12:00:00Z")
         assertEquals("Link", Conversion(at, "LINK").kindLabel.textOrNull())
         assertEquals("In person", Conversion(at, "IRL").kindLabel.textOrNull())
-        assertEquals("Invite", Conversion(at, "SOMETHING_NEW").kindLabel.textOrNull())
+        assertEquals("Gift", Conversion(at, "SOMETHING_NEW").kindLabel.textOrNull())
     }
 
     @Test fun perkKeysMapToCopyAndUnknownKeysStillSayThereIsAPerk() {

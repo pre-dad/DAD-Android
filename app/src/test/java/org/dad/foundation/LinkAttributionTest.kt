@@ -1,6 +1,9 @@
 package org.dad.foundation
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -8,6 +11,34 @@ import org.junit.Test
 class LinkAttributionTest {
     private val kept = "k".repeat(43)
     private val fresh = "f".repeat(43)
+
+    @Test fun overlappingLinkVisitsKeepTheLastVisitForEachKind() = runTest {
+        for (referral in listOf(true, false)) {
+            val firstStarted = CompletableDeferred<Unit>()
+            val releaseFirst = CompletableDeferred<Unit>()
+            val service = object : LinkAttributionService {
+                private suspend fun capture(code: String): String {
+                    if (code == "FIRST") { firstStarted.complete(Unit); releaseFirst.await() }
+                    return code
+                }
+                override suspend fun captureReferral(code: String, inPerson: Boolean, token: String?) = ReferralCapture(capture(code), null)
+                override suspend fun captureCompany(code: String, token: String?) = capture(code)
+                override suspend fun bindCompanyTouch(token: String) = true
+            }
+            val store = MemoryLinkTokenStore()
+            val links = LinkAttribution(service, store)
+            suspend fun visit(code: String) {
+                if (referral) links.captureReferral(code, false) else links.captureCompany(code)
+            }
+            val first = async { visit("FIRST") }
+            firstStarted.await()
+            val second = async { visit("SECOND") }
+            yield()
+            releaseFirst.complete(Unit)
+            first.await(); second.await()
+            assertEquals("latest link must win", "SECOND", if (referral) store.load().referral else store.load().company)
+        }
+    }
 
     private class Rig(scope: kotlinx.coroutines.CoroutineScope, tokens: LinkTokens = LinkTokens(), handler: (Recorded) -> Pair<Int, String>) {
         val http = ScriptedHttp(handler)

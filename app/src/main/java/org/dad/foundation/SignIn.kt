@@ -88,7 +88,7 @@ class PhoneSignInModel(private val service: SignInService, private val establish
                 throw cancelled
             } catch (error: Exception) {
                 activeHandle = null
-                phase = PhoneSignInPhase.Failed(message(error))
+                phase = PhoneSignInPhase.Failed(message(error, requesting = true))
             }
         }
     }
@@ -117,8 +117,8 @@ class PhoneSignInModel(private val service: SignInService, private val establish
         phase = if (handle == null) PhoneSignInPhase.EnterPhone else PhoneSignInPhase.EnterCode(handle)
     }
 
-    private fun message(error: Exception): UiText = when (error) {
-        is AccountFailure.SignedOut -> UiText.res(R.string.auth_that_code_didnt_match_check_it_and)
+    private fun message(error: Exception, requesting: Boolean = false): UiText = when (error) {
+        is AccountFailure.SignedOut -> if (requesting) UiText.res(R.string.common_something_went_wrong_please_try) else UiText.res(R.string.auth_that_code_didnt_match_check_it_and)
         is AccountFailure.Unavailable -> UiText.res(R.string.common_we_couldnt_reach_dad_please_try)
         is AccountFailure.InvalidInput -> UiText.res(R.string.auth_that_phone_number_doesnt_look)
         is AccountFailure.RateLimited -> UiText.res(R.string.common_too_many_attempts_please_wait_a)

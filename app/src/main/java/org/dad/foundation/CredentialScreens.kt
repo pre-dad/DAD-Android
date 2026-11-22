@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -33,7 +33,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 
-private val SENSITIVE_TEXT = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
+private fun sensitiveText(imeAction: ImeAction) = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction)
 
 @Composable
 private fun FieldError(message: UiText, tag: String) = FieldError(message.asString(), tag)
@@ -46,12 +46,13 @@ private fun FieldError(message: String, tag: String) {
 
 /** A password field: masked, never spell-checked or suggested, with the matching autofill hint. */
 @Composable
-internal fun PasswordField(value: String, onChange: (String) -> Unit, label: String, tag: String, enabled: Boolean, newPassword: Boolean = false, support: UiText? = null, isError: Boolean = false) {
+internal fun PasswordField(value: String, onChange: (String) -> Unit, label: String, tag: String, enabled: Boolean, newPassword: Boolean = false, support: UiText? = null, isError: Boolean = false, onDone: (() -> Unit)? = null) {
     OutlinedTextField(
         value = value, onValueChange = { onChange(it.take(128)) }, label = { Text(label) }, singleLine = true, enabled = enabled,
         visualTransformation = PasswordVisualTransformation(), isError = isError,
         supportingText = support?.let { { Text(it.asString()) } },
-        keyboardOptions = SENSITIVE_TEXT,
+        keyboardOptions = sensitiveText(if (onDone != null) ImeAction.Done else ImeAction.Next),
+        keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
         modifier = Modifier.fillMaxWidth().testTag(tag).semantics { contentType = if (newPassword) ContentType.NewPassword else ContentType.Password },
     )
 }
@@ -89,6 +90,7 @@ internal fun SignupFlow(model: SignupModel, onPastedLink: (String) -> Boolean, n
             OutlinedTextField(
                 value = model.city, onValueChange = { model.city = it.take(100) }, label = { Text(stringResource(R.string.common_city)) }, singleLine = true, enabled = !busy,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (model.canSubmit) model.submit() }),
                 modifier = Modifier.fillMaxWidth().testTag("signup-city").semantics { contentType = ContentType.AddressLocality },
             )
         }
@@ -117,6 +119,7 @@ internal fun EmailLinkFlow(model: SignInLinkModel, onPastedLink: (String) -> Boo
         OutlinedTextField(
             value = model.email, onValueChange = { model.email = it.take(254) }, label = { Text(stringResource(R.string.cred_email)) }, singleLine = true, enabled = !busy,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (model.canSubmit) model.submit() }),
             modifier = Modifier.fillMaxWidth().testTag("email-link-email").semantics { contentType = ContentType.EmailAddress },
         )
         Spacer(Modifier.height(16.dp))
@@ -170,7 +173,7 @@ private fun CheckEmail(email: String, notice: UiText?, onPastedLink: (String) ->
             enabled = remaining == 0,
         ) { onResend() }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onChangeEmail, modifier = Modifier.testTag("check-email-change")) { Text(stringResource(R.string.common_use_a_different_email)) }
+        DadTextButton(stringResource(R.string.common_use_a_different_email), Modifier.testTag("check-email-change"), onClick = onChangeEmail)
     }
 }
 
@@ -190,7 +193,8 @@ internal fun PasswordSignInFlow(model: PasswordSignInModel, onSignedIn: () -> Un
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth().testTag("password-email").semantics { contentType = ContentType.Username + ContentType.EmailAddress },
             )
-            PasswordField(model.password, { model.password = it }, stringResource(R.string.cred_password), "password-input", enabled = !busy)
+            PasswordField(model.password, { model.password = it }, stringResource(R.string.cred_password), "password-input", enabled = !busy,
+                onDone = { if (model.canSubmit) model.submit() })
         }
         Spacer(Modifier.height(16.dp))
         DadPrimaryButton(stringResource(R.string.cred_sign_in), Modifier.testTag("password-submit")) { if (model.canSubmit) model.submit() }
@@ -233,10 +237,11 @@ internal fun PasswordSection(model: PasswordChangeModel) {
         Text(stringResource(R.string.cred_set_a_password_to_sign_in_with), style = MaterialTheme.typography.bodySmall)
         PasswordField(model.currentPassword, { model.currentPassword = it; model.edit() }, stringResource(R.string.cred_current_password), "pw-current", enabled = !busy)
         PasswordField(model.newPassword, { model.newPassword = it; model.edit() }, stringResource(R.string.cred_new_password), "pw-new", enabled = !busy, newPassword = true,
-            support = model.newPasswordHint ?: UiText.res(R.string.cred_12_to_72_characters), isError = model.newPasswordHint != null)
+            support = model.newPasswordHint ?: UiText.res(R.string.cred_12_to_72_bytes), isError = model.newPasswordHint != null)
         PasswordField(model.confirmPassword, { model.confirmPassword = it; model.edit() }, stringResource(R.string.cred_confirm_new_password), "pw-confirm", enabled = !busy, newPassword = true,
-            support = if (model.confirmMismatch) UiText.res(R.string.cred_passwords_dont_match) else null, isError = model.confirmMismatch)
-        Button(onClick = { model.save() }, enabled = model.canSave, modifier = Modifier.testTag("pw-save").padding(top = 4.dp)) { Text(stringResource(R.string.cred_save_password)) }
+            support = if (model.confirmMismatch) UiText.res(R.string.cred_passwords_dont_match) else null, isError = model.confirmMismatch,
+            onDone = { if (model.canSave) model.save() })
+        DadPrimaryButton(stringResource(R.string.cred_save_password), Modifier.testTag("pw-save").padding(top = 4.dp), enabled = model.canSave) { model.save() }
         if (busy) CircularProgressIndicator(modifier = Modifier.testTag("pw-working"))
         when (val phase = model.phase) {
             is PasswordChangePhase.Saved -> Text(stringResource(R.string.cred_password_saved), modifier = Modifier.testTag("pw-saved").semantics { liveRegion = LiveRegionMode.Polite })

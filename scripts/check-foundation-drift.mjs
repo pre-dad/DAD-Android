@@ -24,7 +24,7 @@ const parse = (v) => {
   return m ? { major: +m[1], minor: +m[2], patch: +m[3] } : null;
 };
 
-// -1 if a < b, 0 if equal, 1 if a > b.
+// Negative, zero, or positive as a is older than, equal to, or newer than b.
 const cmp = (a, b) =>
   a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 
@@ -41,13 +41,16 @@ export async function latestPublishedVersion(sourceRepository = SOURCE) {
   } catch {
     return null; // unreachable — treat as advisory-unavailable, never a hard failure
   }
-  const versions = stdout
+  return newestVersion(stdout);
+}
+
+// Newest mobile-foundation-vX.Y.Z tag in `git ls-remote --tags` output, or null when there is none.
+export function newestVersion(lsRemoteOutput) {
+  const versions = lsRemoteOutput
     .split("\n")
     .map((line) => /refs\/tags\/mobile-foundation-v(\d+\.\d+\.\d+)$/.exec(line.trim()))
     .filter(Boolean)
-    .map((m) => m[1])
-    .map(parse)
-    .filter(Boolean);
+    .map((m) => parse(m[1]));
   if (versions.length === 0) return null;
   return versions.reduce((best, v) => (cmp(v, best) > 0 ? v : best));
 }
@@ -71,7 +74,8 @@ export function assess(pinnedVersion, latest) {
 
 export async function checkDrift(root) {
   const lock = JSON.parse(await readFile(resolve(root, "foundation.lock.json"), "utf8"));
-  const latest = await latestPublishedVersion(lock.source_repository);
+  if (lock.source_repository !== SOURCE) throw new Error(`Unexpected source_repository: ${lock.source_repository}`);
+  const latest = await latestPublishedVersion(SOURCE);
   return assess(lock.version, latest);
 }
 

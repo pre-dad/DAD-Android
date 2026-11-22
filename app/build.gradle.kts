@@ -6,7 +6,10 @@ plugins {
 
 // Push is dormant until the owner adds app/google-services.json (see README "Enabling push"): the plugin is
 // applied only then, and without it Firebase never initialises, so every build and test still works.
-if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
 
 // Release signing credentials live in keystore.properties (gitignored); see
 // keystore.properties.example. Absent (CI, local debug builds) the release
@@ -31,7 +34,7 @@ android {
         applicationId = "org.dad.foundation"
         minSdk = 26
         targetSdk = 37
-        // Release builds pass -PdadVersionCode (strictly increasing; CI uses the run number) and -PdadVersionName.
+        // Release builds pass -PdadVersionCode (strictly increasing) and -PdadVersionName.
         versionCode = providers.gradleProperty("dadVersionCode").orNull?.toInt() ?: 1
         versionName = providers.gradleProperty("dadVersionName").orElse("1.0.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -44,8 +47,9 @@ android {
         buildConfigField("String", "DAD_PUBLIC_ORIGIN", groovy.json.JsonOutput.toJson(publicOrigin))
         // App Links are verified against the public origin's /.well-known/assetlinks.json, so without an origin the
         // filter stays disabled (an intent filter cannot be left without a host).
-        val linkHost = publicOrigin.takeIf { it.isNotBlank() }?.let { URI(it).host }
+        val linkHost = publicOrigin.takeIf { it.isNotBlank() }?.let { runCatching { URI(it).host }.getOrNull() }
         check(publicOrigin.isBlank() || (publicOrigin.startsWith("https://") && !linkHost.isNullOrBlank())) { "dadPublicOrigin must be an https origin" }
+        check(apiOrigin.isBlank() || apiOrigin.startsWith("https://")) { "dadApiOrigin must be an https origin" }
         manifestPlaceholders["dadLinkHost"] = linkHost ?: "links.invalid"
         manifestPlaceholders["dadAppLinks"] = (linkHost != null).toString()
     }
@@ -78,6 +82,9 @@ android {
     if (providers.gradleProperty("dadIntegrationFixture").isPresent) {
         sourceSets["test"].kotlin.directories.add("src/integrationTest/kotlin")
     }
+    if (providers.gradleProperty("dadLoadTests").isPresent) {
+        sourceSets["test"].kotlin.directories.add("src/loadTest/kotlin")
+    }
     sourceSets.named("main") {
         kotlin.directories.add(layout.buildDirectory.dir("generated/openapi/src/main/kotlin").get().asFile.path)
         kotlin.directories.add(layout.buildDirectory.dir("generated/tokens").get().asFile.path)
@@ -89,7 +96,7 @@ android {
         // defect, so with warningsAsErrors they break CI whenever any dependency
         // (or Gradle) ships a new version. Disable them; real lint warnings still
         // fail the build.
-        disable += setOf("NewerVersionAvailable", "AndroidGradlePluginVersion")
+        disable += setOf("NewerVersionAvailable", "AndroidGradlePluginVersion", "GradleDependency")
         // Text must come from resources. HardcodedText only reads XML layouts, so scripts/check-hardcoded-strings.mjs
         // covers Compose; these keep any view-based text from slipping in.
         error += setOf("HardcodedText", "SetTextI18n")
@@ -132,16 +139,27 @@ val generateLinks = tasks.register<Copy>("generateLinks") {
 tasks.named("preBuild") { dependsOn(generateClient, generateTokens, generateLinks) }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("dad.strings.path", layout.projectDirectory.file("src/main/res/values/strings.xml").asFile.path)
+    providers.gradleProperty("dadSoakSeconds").orNull?.let { systemProperty("dad.load.soakSeconds", it) }
     providers.gradleProperty("dadIntegrationFixture").orNull?.let {
         systemProperty("dad.integration.fixture", it)
     }
 }
 
 dependencies {
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-android") {
+            because("GHSA-xxph-c9ww-hj94 affects the version brought in by CameraX/Media3")
+        }
+    }
     add("codegenDependencies", "org.openapitools:openapi-generator-cli:7.20.0") { isTransitive = false }
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.browser:browser:1.10.0")
+    // Configured Google/passkey buttons need the platform ceremony, not just the server exchange.
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
@@ -165,6 +183,7 @@ dependencies {
     // Push (FCM). The BoM pins the matching firebase-messaging version.
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-crashlytics")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

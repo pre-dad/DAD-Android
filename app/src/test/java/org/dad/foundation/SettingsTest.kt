@@ -1,13 +1,13 @@
 package org.dad.foundation
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,7 +32,6 @@ class SettingsTest {
         rankingsOptedOut = false, networkVisible = true, volunteer = true,
     )
 
-    // --- Preferences value type ---
     @Test fun withFlipsTheRightToggle() {
         val p = prefs()
         assertTrue(p.with("marketing_emails", true).marketingEmails)
@@ -54,7 +53,6 @@ class SettingsTest {
         assertFalse(prefs().copy(rankingsOptedOut = true).showRanking)
     }
 
-    // --- Delete-account gate ---
     @Test fun deleteGateRequiresExactWord() {
         assertFalse(DeleteAccountGate("delete").isConfirmed) // case-sensitive
         assertFalse(DeleteAccountGate("").isConfirmed)
@@ -62,13 +60,13 @@ class SettingsTest {
         assertTrue(DeleteAccountGate("DELETE").isConfirmed)
     }
 
-    // --- Model ---
     private class FakeService(
         var failLoad: Boolean = false,
         var slowSave: Boolean = false,
         var signOutFails: Boolean = false,
         var deleteFailure: AccountFailure? = null,
         var saveFailure: AccountFailure? = null,
+        var conflictOnce: Boolean = false,
         interests: List<String> = emptyList(),
     ) : SettingsService {
         val saved = mutableListOf<Preferences>()
@@ -89,6 +87,11 @@ class SettingsTest {
         override suspend fun savePreferences(preferences: Preferences): SettingsSnapshot {
             if (slowSave) yield()
             saveFailure?.let { throw it }
+            if (conflictOnce) {
+                conflictOnce = false
+                prefs = prefs.copy(version = prefs.version + 1, marketingEmails = true)
+                throw AccountFailure.Conflict
+            }
             saved += preferences
             prefs = preferences.copy(version = preferences.version + 1)
             return SettingsSnapshot(ProfileSummary("d@x.com", "DONOR", "78701", "Austin", null), prefs)
@@ -111,6 +114,40 @@ class SettingsTest {
         val model = SettingsModel(FakeService(failLoad = true))
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.phase is SettingsPhase.Failed)
+        assertTrue("a refused session must leave Settings", model.signedOut)
+    }
+
+    @Test fun aStaleVersionRereadsAndTheNextSaveLands() = runTest {
+        val service = FakeService(conflictOnce = true)
+        val model = loaded(service)
+        model.toggle("referral_emails", false)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(model.actionError!!.text().contains("another device"))
+        assertEquals(4, model.snapshot!!.preferences.version)
+        assertTrue("the other device's change is adopted", model.snapshot!!.preferences.marketingEmails)
+        model.toggle("referral_emails", false)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(model.actionError)
+        assertEquals(5, model.snapshot!!.preferences.version)
+        assertFalse(model.snapshot!!.preferences.referralEmails)
+    }
+
+    @Test fun reloadingWithASnapshotOnScreenKeepsTheSettingsVisible() = runTest {
+        val model = loaded(FakeService())
+        model.load()
+        assertEquals(SettingsPhase.Ready, model.phase)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(SettingsPhase.Ready, model.phase)
+    }
+
+    @Test fun aRefusedSessionDuringASaveLeavesSettings() = runTest {
+        val service = FakeService()
+        val model = loaded(service)
+        service.saveFailure = AccountFailure.SignedOut
+        model.toggle("marketing_emails", true)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(model.signedOut)
+        assertFalse(model.snapshot!!.preferences.marketingEmails)
     }
 
     @Test fun toggleSavesAndBumpsVersion() = runTest {
@@ -122,7 +159,6 @@ class SettingsTest {
         assertTrue(model.snapshot!!.preferences.marketingEmails)
     }
 
-    // --- Volunteer interests ---
     private fun TestScope.loaded(svc: FakeService = FakeService()): SettingsModel =
         SettingsModel(svc).also { it.load(); dispatcher.scheduler.advanceUntilIdle() }
 
@@ -206,10 +242,11 @@ class SettingsTest {
         val svc = FakeService()
         val model = SettingsModel(svc)
         model.load(); dispatcher.scheduler.advanceUntilIdle()
-        // Unconfirmed gate: no-op with an error, nothing deleted.
+        // An unconfirmed gate sets an error and deletes nothing.
         model.deleteAccount(DeleteAccountGate("nope")); dispatcher.scheduler.advanceUntilIdle()
         assertFalse(svc.deleted)
         assertFalse(model.signedOut)
+        assertNotNull(model.actionError)
         // Confirmed: deletes server-side then wipes local.
         model.deleteAccount(DeleteAccountGate("DELETE")); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(svc.deleted)
@@ -287,7 +324,7 @@ class SettingsTest {
         model.load(); dispatcher.scheduler.advanceUntilIdle()
         model.signOut(); dispatcher.scheduler.advanceUntilIdle()
         assertFalse(model.signedOut)
-        assertTrue(model.actionError != null)
+        assertNotNull(model.actionError)
         svc.signOutFails = false
         model.signOut(); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(model.signedOut)

@@ -22,8 +22,6 @@ class CredentialAuthModelsTest {
 
     private val passThrough: Establish = { produce -> produce() }
 
-    // MARK: rules
-
     @Test fun emailRuleMatchesTheSharedPlatformRule() {
         listOf("a@b.co", "alex.doe+tag@example.org", "x@sub.example.co.uk", "  a@b.co  ").forEach { assertTrue(it, CredentialRules.isPlausibleEmail(it)) }
         listOf("", "a", "a@", "@b.co", "a@b", "a@b.", "a@.co", "a@b..co", "a b@c.co", "a@@b.co", "a@b@c.co", "a@b .co",
@@ -48,8 +46,6 @@ class CredentialAuthModelsTest {
         assertTrue(CredentialRules.isPlausibleZip(" 78701 "))
         listOf("7870", "787011", "7870a", "", "78 701").forEach { assertFalse(it, CredentialRules.isPlausibleZip(it)) }
     }
-
-    // MARK: sign-in link
 
     private class FakeLink(var failure: Exception? = null) : SignInLinkService {
         val emails = mutableListOf<String>()
@@ -82,8 +78,6 @@ class CredentialAuthModelsTest {
             assertEquals(message, (model.phase as SignInLinkPhase.Failed).message.text())
         }
     }
-
-    // MARK: signup
 
     private class FakeSignup(var failure: Exception? = null, var gate: CompletableDeferred<Unit>? = null) : SignupService {
         val forms = mutableListOf<SignupForm>()
@@ -145,8 +139,6 @@ class CredentialAuthModelsTest {
         gate.complete(Unit)
         assertTrue(m.phase is SignupPhase.Sent)
     }
-
-    // MARK: password sign-in
 
     private class FakePasswordSignIn(var failure: Exception? = null) : PasswordSignInService {
         val calls = mutableListOf<Pair<String, String>>()
@@ -231,8 +223,6 @@ class CredentialAuthModelsTest {
         assertEquals(PasswordSignInPhase.SignedIn, m.phase)
     }
 
-    // MARK: change password
-
     private class FakePasswords(var failure: Exception? = null) : PasswordSettingsService {
         val calls = mutableListOf<Pair<String?, String>>()
         override suspend fun setPassword(current: String?, new: String) { calls += current to new; failure?.let { throw it } }
@@ -246,7 +236,7 @@ class CredentialAuthModelsTest {
         val fake = FakePasswords()
         val m = PasswordChangeModel(fake)
         m.newPassword = "short"; m.confirmPassword = "short"
-        assertFalse(m.canSave); assertEquals("Use 12 to 72 characters.", m.newPasswordHint.textOrNull())
+        assertFalse(m.canSave); assertEquals("Use 12 to 72 bytes. Accented characters count more.", m.newPasswordHint.textOrNull())
         m.newPassword = "brand-new-password"
         assertNull(m.newPasswordHint)
         assertTrue(m.confirmMismatch); assertFalse(m.canSave)
@@ -286,7 +276,7 @@ class CredentialAuthModelsTest {
 
     @Test fun changePasswordFailureCopy() {
         mapOf(
-            AccountFailure.InvalidInput to "Use a password of 12 to 72 characters.",
+            AccountFailure.InvalidInput to "Use a password of 12 to 72 bytes. Accented characters count more.",
             AccountFailure.RateLimited to "Too many attempts. Please wait a moment and try again.",
             AccountFailure.Unavailable to "We couldn’t save your password right now. Please try again in a moment.",
         ).forEach { (failure, copy) ->
@@ -296,8 +286,6 @@ class CredentialAuthModelsTest {
             assertFalse(m.signedOut)
         }
     }
-
-    // MARK: pasted link
 
     private val router = LinkRouter("https://dad.example", """{"account_paths":["/account/dashboard"],"proof_paths":["/account/claim","/account/email-change"],"partner_proof_paths":["/partner/accept"],"claim_return_paths":["/account/dashboard"],"notification_paths":[],"referral_prefix":"/r/","company_prefix":"/c/"}""")
     private val token = "A".repeat(43)

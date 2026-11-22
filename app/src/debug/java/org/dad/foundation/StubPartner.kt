@@ -1,5 +1,9 @@
 package org.dad.foundation
 
+internal const val STUB_PARTNER_ADMIN_ID = "00000000-0000-4000-8000-0000000000a1"
+internal const val STUB_PARTNER_VIEWER_ID = "00000000-0000-4000-8000-0000000000a2"
+internal const val STUB_PARTNER_EXPORT_ID = "00000000-0000-4000-8000-0000000000b1"
+
 /**
  * The DEBUG stub backend's partner routes. Partner sign-in links are accepted for tokens starting `goodpartner`
  * (anything else is the server's 422 "invalid or expired"); the portal is an ADMIN at Acme with two users, one
@@ -26,11 +30,11 @@ internal class StubPartner(
     private var workforce = 240
     private var logo: ByteArray? = null
     private val users = mutableListOf(
-        """{"id":"u1","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN"}""",
-        """{"id":"u2","email":"val@acme.com","name":"Val Viewer","role":"VIEWER"}""",
+        """{"id":"$STUB_PARTNER_ADMIN_ID","email":"ada@acme.com","name":"Ada Admin","role":"ADMIN"}""",
+        """{"id":"$STUB_PARTNER_VIEWER_ID","email":"val@acme.com","name":"Val Viewer","role":"VIEWER"}""",
     )
     private val exports = mutableListOf(
-        """{"id":"r1","committed_minor":4000000,"deployed_minor":2000000,"people_reached":9000,"exported_by":"Ada Admin","created_at":"2026-09-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""",
+        """{"id":"$STUB_PARTNER_EXPORT_ID","committed_minor":4000000,"deployed_minor":2000000,"people_reached":9000,"exported_by":"Ada Admin","created_at":"2026-09-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""",
     )
 
     fun handles(path: String) = path.startsWith("/donor/partner/")
@@ -45,30 +49,22 @@ internal class StubPartner(
         if (method == "POST" && path == "/donor/partner/applications") {
             // Native only: no Authorization, an Idempotency-Key, a 43-char receipt and an organization.
             val receipt = field("receipt").orEmpty()
-            val organization = Regex("\"application\"\\s*:\\s*\\{[^}]*\"organization\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(payload)?.groupValues?.get(1).orEmpty()
-            if (authorization != null || idempotencyKey.isNullOrBlank() || receipt.length != 43 || organization.isEmpty()) return Reply(422, "{}")
-            val attempt = synchronized(this) { ++submitAttempts }
-            return when (applicationSubmit) {
-                StubApplicationSubmit.INVALID -> Reply(422, "{}")
-                StubApplicationSubmit.THROTTLED -> Reply(429, ByteArray(0), headers = mapOf("Retry-After" to "30")) // ingress 429: no JSON body
-                StubApplicationSubmit.FAILS_FIRST -> if (attempt == 1) {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(503, "{}")
-                } else {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(200, """{"received":true}""")
-                }
-                StubApplicationSubmit.ACCEPTS -> {
-                    synchronized(this) { submittedReceipts[receipt] = organization }
-                    Reply(200, """{"received":true}""")
-                }
+            val applicantOrganization = Regex("\"application\"\\s*:\\s*\\{[^}]*\"organization\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(payload)?.groupValues?.get(1).orEmpty()
+            if (authorization != null || idempotencyKey.isNullOrBlank() || receipt.length != 43 || applicantOrganization.isEmpty()) return Reply(422, "{}")
+            val attempt = ++submitAttempts
+            when (applicationSubmit) {
+                StubApplicationSubmit.INVALID -> return Reply(422, "{}")
+                StubApplicationSubmit.THROTTLED -> return Reply(429, ByteArray(0), headers = mapOf("Retry-After" to "30")) // ingress 429: no JSON body
+                StubApplicationSubmit.FAILS_FIRST, StubApplicationSubmit.ACCEPTS -> Unit
             }
+            submittedReceipts[receipt] = applicantOrganization
+            return if (applicationSubmit == StubApplicationSubmit.FAILS_FIRST && attempt == 1) Reply(503, "{}") else Reply(200, """{"received":true}""")
         }
         if (method == "GET" && path == "/donor/partner/application-status") {
             val bearer = authorization?.removePrefix("Bearer ")?.takeIf { authorization.startsWith("Bearer ") }
             // A receipt submitted this session reads back as PENDING with its organization; a launch-seeded receipt
             // reads back with the seeded status; anything else is unknown.
-            val submitted = bearer?.let { synchronized(this) { submittedReceipts[it] } }
+            val submitted = bearer?.let { submittedReceipts[it] }
             return when {
                 submitted != null -> Reply(200, """{"organization":${quoted(submitted)},"status":"PENDING"}""")
                 bearer?.startsWith("stub-receipt-") == true && application != null ->
@@ -77,23 +73,23 @@ internal class StubPartner(
             }
         }
         if (authorization?.startsWith("Bearer stub-partner-") != true) return Reply(401, "{}")
-        val adminOnly = method == "POST" && !path.endsWith("/sign-out") && !path.contains("/push-device") ||
+        val adminOnly = (method == "POST" && !path.endsWith("/sign-out") && !path.contains("/push-device")) ||
             path == "/donor/partner/exports" || path.endsWith("report.pdf")
         if (viewer && adminOnly) return Reply(403, "{}")
         return when (method to path) {
-            "GET" to "/donor/partner/overview" -> Reply(200, """{"user_id":"${if (viewer) "u2" else "u1"}","organization":${quoted(organization)},"description":${quoted(about)},""" +
+            "GET" to "/donor/partner/overview" -> Reply(200, """{"user_id":"${if (viewer) STUB_PARTNER_VIEWER_ID else STUB_PARTNER_ADMIN_ID}","organization":${quoted(organization)},"description":${quoted(about)},""" +
                 """"role":"${if (viewer) "VIEWER" else "ADMIN"}","company_code":"ACME","committed_minor":5000000,"deployed_minor":3000000,"deployed_percent":60,""" +
                 """"people_reached":12400,"employees_enrolled":86,"workforce_size":$workforce,"enrolled_percent":35,""" +
                 """"updated_at":"2026-10-28T10:00:00Z","has_logo":${logo != null},"committed_verified":true,"deployed_verified":false,"people_reached_verified":true}""")
             "GET" to "/donor/partner/initiatives" -> Reply(200, """{"initiatives":[{"id":"i1","title":"Clean Water West","summary":"Wells across 6 counties.",""" +
                 """"status":"ACTIVE","region":"West","county_count":6,"committed_minor":2000000,"deployed_minor":1200000,""" +
-                """"metrics":[{"label":"People reached","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"}],""" +
+                """"metrics":[{"label":"People reached","value":8400,"unit":"PEOPLE","verified_on":"2026-10-20"},{"label":"Wells","value":32,"unit":"INITIATIVES","verified_on":"2026-10-21"},{"label":"Partners","value":2,"unit":"PARTNERS","verified_on":"2026-10-22"},{"label":"Households","value":2100,"unit":"PEOPLE","verified_on":"2026-10-23"}],""" +
                 """"spend":[{"category":"Water","amount_minor":1200000}],"updated_at":"2026-10-28T10:00:00Z"}]}""")
             "GET" to "/donor/partner/spend" -> Reply(200, """{"categories":[{"category":"Water","amount_minor":1800000},{"category":"Housing","amount_minor":1200000}]}""")
-            "GET" to "/donor/partner/our-people" -> Reply(200, """{"enrolled":86,"workforce_size":$workforce,"given_minor":940000,"matched_minor":470000,""" +
+            "GET" to "/donor/partner/our-people" -> Reply(200, """{"enrolled":86,"workforce_size":$workforce,"streak_verified":true,"given_minor":940000,"matched_minor":470000,""" +
                 """"avg_streak_days":42,"volunteer_minutes":6300,"teams":2,"suppressed":false}""")
-            "GET" to "/donor/partner/teams" -> Reply(200, """{"teams":[{"team_id":"t1","name":"Engineering","active_givers":31,"annualized_minor":1200000,""" +
-                """"avg_streak_days":40,"volunteer_minutes":1200},{"team_id":"t2","name":"Sales","active_givers":12,"annualized_minor":600000,""" +
+            "GET" to "/donor/partner/teams" -> Reply(200, """{"teams":[{"team_id":"t1","name":"Engineering","metrics_verified":true,"active_givers":31,"annualized_minor":1200000,""" +
+                """"avg_streak_days":40,"volunteer_minutes":1200},{"team_id":"t2","name":"Sales","metrics_verified":true,"active_givers":12,"annualized_minor":600000,""" +
                 """"avg_streak_days":18,"volunteer_minutes":300}]}""")
             "GET" to "/donor/partner/users" -> Reply(200, """{"users":[${users.joinToString(",")}]}""")
             "POST" to "/donor/partner/users" -> {
@@ -104,7 +100,7 @@ internal class StubPartner(
                     !email.contains("@") || name.isEmpty() || role.isEmpty() -> Reply(422, "{}")
                     email.startsWith("taken") -> Reply(409, "{}")
                     else -> {
-                        users.add("""{"id":"u${users.size + 1}","email":${quoted(email)},"name":${quoted(name)},"role":"$role"}""")
+                        users.add("""{"id":"${java.util.UUID.randomUUID()}","email":${quoted(email)},"name":${quoted(name)},"role":"$role"}""")
                         Reply(200, """{"invited":true}""")
                     }
                 }
@@ -126,7 +122,7 @@ internal class StubPartner(
             }
             "GET" to "/donor/partner/exports" -> Reply(200, """{"exports":[${exports.joinToString(",")}]}""")
             "GET" to "/donor/partner/report.pdf" -> {
-                exports.add(0, """{"id":"r${exports.size + 1}","committed_minor":5000000,"deployed_minor":3000000,"people_reached":12400,""" +
+                exports.add(0, """{"id":"${java.util.UUID.randomUUID()}","committed_minor":5000000,"deployed_minor":3000000,"people_reached":12400,""" +
                     """"exported_by":"Ada Admin","created_at":"2026-11-01T10:00:00Z","downloadable":true,"people_reached_verified":true}""")
                 Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
             }
@@ -138,16 +134,20 @@ internal class StubPartner(
                     val id = path.removePrefix("/donor/partner/users/").removeSuffix("/remove")
                     val admins = users.count { it.contains("\"role\":\"ADMIN\"") }
                     val target = users.firstOrNull { it.contains("\"id\":\"$id\"") }
-                    if (id == "u1" || (target?.contains("\"role\":\"ADMIN\"") == true && admins <= 1)) return Reply(409, "{}")
+                    if (id == STUB_PARTNER_ADMIN_ID || (target?.contains("\"role\":\"ADMIN\"") == true && admins <= 1)) return Reply(409, "{}")
                     users.removeAll { it.contains("\"id\":\"$id\"") }
                     Reply(200, """{"removed":true}""")
                 }
                 method == "GET" && path.startsWith("/donor/partner/reports/") ->
-                    if (path.contains("/r1/")) Reply(404, "{}") else Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
+                    if (path.contains("/$STUB_PARTNER_EXPORT_ID/")) Reply(404, "{}") else Reply(200, "%PDF-1.4 stub".toByteArray(), "application/pdf")
                 else -> Reply(404, "{}")
             }
         }
     }
 
-    private fun quoted(text: String) = com.google.gson.Gson().toJson(text)
+    private fun quoted(text: String) = GSON.toJson(text)
+
+    private companion object {
+        val GSON = com.google.gson.Gson()
+    }
 }

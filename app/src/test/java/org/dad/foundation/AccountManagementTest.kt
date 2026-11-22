@@ -21,30 +21,6 @@ private const val SESSION_LIST = """{"sessions":[
  {"id":"22222222-2222-4222-8222-222222222222","client":"BROWSER","platform":null,"label":"Web browser","created_at":"2026-10-02T10:00:00Z","last_used_at":"2026-10-29T10:00:00Z","current":false}
 ]}"""
 
-class ProfileRulesTest {
-    @Test fun zipAcceptsFiveDigitsZipPlusFourOrEmpty() {
-        listOf("78701", "78701-1234", "", " 78701 ").forEach { assertTrue(it, ProfileRules.isAcceptableZip(it)) }
-        listOf("7870", "787011", "78701-12", "abcde").forEach { assertFalse(it, ProfileRules.isAcceptableZip(it)) }
-    }
-
-    @Test fun phoneNormalizesTheWaysPeopleTypeAUsNumber() {
-        assertEquals("+14155550123", ProfileRules.e164("(415) 555-0123"))
-        assertEquals("+14155550123", ProfileRules.e164("1 415 555 0123"))
-        assertEquals("+442079460958", ProfileRules.e164("+44 20 7946 0958"))
-        assertEquals("", ProfileRules.e164(""))
-        assertNull(ProfileRules.e164("555-0123"))
-        assertNull(ProfileRules.e164("+0123"))
-        assertNull(ProfileRules.e164("call me"))
-    }
-
-    @Test fun onlyAGoogleWalletSaveLinkIsOpened() {
-        assertTrue(ProfileRules.isGoogleWalletSaveUrl("https://pay.google.com/gp/v/save/eyJhbGciOi"))
-        listOf("http://pay.google.com/gp/v/save/x", "https://pay.google.com.evil.test/gp/v/save/x", "https://pay.google.com/other",
-            "https://user@pay.google.com/gp/v/save/x", "https://pay.google.com:8443/gp/v/save/x", "not a url")
-            .forEach { assertFalse(it, ProfileRules.isGoogleWalletSaveUrl(it)) }
-    }
-}
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountManagementModelTest {
     @Before fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -57,14 +33,15 @@ class AccountManagementModelTest {
         val saved = mutableListOf<Triple<String, String, String>>()
         val emailRequests = mutableListOf<String>()
         var list = listOf(
-            DeviceSessionSummary("this", "Pixel", true, OffsetDateTime.parse("2026-10-30T10:00:00Z"), true),
-            DeviceSessionSummary("web", "Web browser", false, OffsetDateTime.parse("2026-10-29T10:00:00Z"), false),
+            DeviceSessionSummary("this", "Pixel", OffsetDateTime.parse("2026-10-30T10:00:00Z"), true),
+            DeviceSessionSummary("web", "Web browser", OffsetDateTime.parse("2026-10-29T10:00:00Z"), false),
         )
         var team = EmployerTeam(null, null, emptyList())
+        var employerFailure: Exception? = null
         var everywhere = 0
         private fun check() { failure?.let { throw it } }
 
-        override suspend fun saveProfile(zip: String, city: String, phone: String): ProfileSummary {
+        override suspend fun saveProfile(zip: String, city: String, phone: String, timezoneOverride: String?): ProfileSummary {
             check(); saved += Triple(zip, city, phone)
             return ProfileSummary("alex@example.org", "DONOR", zip.ifEmpty { null }, city.ifEmpty { null }, phone.ifEmpty { null })
         }
@@ -78,7 +55,7 @@ class AccountManagementModelTest {
         }
         override suspend fun revokeOtherSessions(): List<DeviceSessionSummary> { check(); list = list.filter { it.current }; return list }
         override suspend fun signOutEverywhere() { check(); everywhere++ }
-        override suspend fun employer(): EmployerTeam { check(); return team }
+        override suspend fun employer(): EmployerTeam { check(); employerFailure?.let { throw it }; return team }
         override suspend fun enroll(companyCode: String): String {
             check()
             if (companyCode != "ACME42") throw AccountFailure.InvalidInput
@@ -175,6 +152,28 @@ class AccountManagementModelTest {
         assertEquals("Platform", model.team?.teamName)
     }
 
+    @Test fun employerRefreshFailureAfterASavedWriteShowsRetryNotAnActionError() {
+        val service = Fake()
+        val model = EmployerModel(service).apply { load() }
+        service.employerFailure = AccountFailure.Unavailable
+        model.companyCode = "ACME42"
+        model.enroll()
+        assertEquals("Acme", service.team.organization)
+        assertNull(model.actionError)
+        assertTrue(model.phase is LoadPhase.Failed)
+        service.employerFailure = null
+        model.load()
+        assertEquals(LoadPhase.Ready, model.phase)
+        assertEquals("Acme", model.team?.organization)
+    }
+
+    @Test fun rateLimitedSessionActionExplainsTheWait() {
+        val service = Fake().apply { failure = AccountFailure.RateLimited }
+        val model = DeviceSessionsModel(service)
+        model.revokeOthers()
+        assertEquals("Too many attempts. Please wait a moment and try again.", model.actionError.textOrNull())
+    }
+
     @Test fun employerAlreadyLinkedElsewhere() {
         val service = Fake()
         val model = EmployerModel(service).apply { load() }
@@ -217,6 +216,17 @@ class AccountManagementModelTest {
         failing.prepare()
         assertEquals(WalletPassModel.FAILURE, failing.error)
     }
+
+    @Test fun aThrottledPassSaysToWaitRatherThanRetry() {
+        val throttled = object : WalletPassService {
+            override suspend fun googleWalletAvailable() = true
+            override suspend fun googlePassUrl(): String = throw AccountFailure.RateLimited
+        }
+        val model = WalletPassModel(throttled).apply { check() }
+        model.prepare()
+        assertNull(model.saveUrl)
+        assertEquals("Too many attempts. Please wait a moment and try again. Your on-screen code still works.", model.error.textOrNull())
+    }
 }
 
 class WireAccountManagementTest {
@@ -228,7 +238,6 @@ class WireAccountManagementTest {
         val wire = WireAccountManagement(ProductClient(TEST_ORIGIN, session, client))
         val wallet = WireWalletPass(ProductClient(TEST_ORIGIN, session, client))
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun saveProfileSendsAllThreeFieldsAndMapsTheProfile() = runTest {
         val rig = Rig(backgroundScope) { 200 to profileJson() }
@@ -240,6 +249,18 @@ class WireAccountManagementTest {
         assertEquals("Bearer access-0", sent.headers["authorization"])
         assertEquals("""{"zip":"78701","city":"Austin","phone":""}""", sent.body)
         assertEquals(AccountFailure.InvalidInput, failure { Rig(backgroundScope) { 422 to "{}" }.wire.saveProfile("1", "", "") })
+    }
+
+    @Test fun timezoneCorrectionResetAndOmissionUseDistinctWireValues() = runTest {
+        val rig = Rig(backgroundScope) { 200 to profileJson().replace("\"timezone\":\"America/Chicago\"", "\"timezone\":\"America/Phoenix\",\"timezone_override\":\"America/Phoenix\"") }
+        val saved = rig.wire.saveProfile("78701", "Austin", "", "America/Phoenix")
+        assertEquals("America/Phoenix", saved.timezone)
+        assertEquals("America/Phoenix", saved.timezoneOverride)
+        assertTrue(rig.http.requests.last().body.contains("\"timezone_override\":\"America/Phoenix\""))
+        rig.wire.saveProfile("78701", "Austin", "", "")
+        assertTrue(rig.http.requests.last().body.contains("\"timezone_override\":\"\""))
+        assertEquals(AccountFailure.InvalidInput, failure { rig.wire.saveProfile("", "", "", "Invalid/Zone") })
+        assertEquals(2, rig.http.requests.size)
     }
 
     @Test fun emailChangeStatusMapping() = runTest {
@@ -256,10 +277,14 @@ class WireAccountManagementTest {
         val rig = Rig(backgroundScope) { 200 to SESSION_LIST }
         val list = rig.wire.sessions()
         assertEquals(listOf(true, false), list.map { it.current })
-        assertEquals(listOf(true, false), list.map { it.isApp })
         rig.wire.revokeSession("22222222-2222-4222-8222-222222222222")
         assertEquals("/donor/me/sessions/22222222-2222-4222-8222-222222222222/revoke", rig.http.requests.last().path)
-        assertEquals(AccountFailure.NotFound, failure { Rig(backgroundScope) { 404 to "{}" }.wire.revokeSession("x") })
+        assertEquals(AccountFailure.NotFound, failure { Rig(backgroundScope) { 404 to "{}" }.wire.revokeSession("22222222-2222-4222-8222-222222222222") })
+        val refused = Rig(backgroundScope) { 200 to SESSION_LIST }
+        listOf("x", "..", "../logout-all", "22222222-2222-4222-8222-22222222222/").forEach {
+            assertEquals(it, AccountFailure.InvalidInput, failure { refused.wire.revokeSession(it) })
+        }
+        assertEquals(0, refused.http.requests.size)
     }
 
     @Test fun signOutEverywhereClearsLocalOnlyAfterTheServerConfirms() = runTest {
@@ -273,11 +298,17 @@ class WireAccountManagementTest {
         assertEquals(1, rig.http.count("/donor/logout-all"))
     }
 
+    @Test fun signOutEverywhereStillClearsLocalWhenTheServerAlreadyRefusedTheSession() = runTest {
+        val rig = Rig(backgroundScope) { 401 to "{}" }
+        rig.wire.signOutEverywhere()
+        assertNull(rig.store.value)
+    }
+
     @Test fun employerMapsUnlinkedAndLinked() = runTest {
         assertEquals(EmployerTeam(null, null, emptyList()),
             Rig(backgroundScope) { 200 to """{"partner_id":"","organization":"","leaderboard":[]}""" }.wire.employer())
         val linked = Rig(backgroundScope) {
-            200 to """{"partner_id":"p","organization":"Acme","team_id":"t","team_name":"Platform","leaderboard":[{"team_id":"t","name":"Platform","active_givers":6,"annualized_minor":360000,"avg_streak_days":12,"volunteer_minutes":90}]}"""
+            200 to """{"partner_id":"p","organization":"Acme","team_id":"t","team_name":"Platform","leaderboard":[{"team_id":"t","name":"Platform","metrics_verified":true,"active_givers":6,"annualized_minor":360000,"avg_streak_days":12,"volunteer_minutes":90}]}"""
         }.wire.employer()
         assertEquals("Acme", linked.organization)
         assertEquals("Platform", linked.teamName)

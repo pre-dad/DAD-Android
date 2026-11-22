@@ -138,10 +138,9 @@ private fun BrandTile() {
  */
 internal fun foundingDaysRemaining(now: java.time.Instant = java.time.Instant.now()): Long? {
     val zone = java.time.ZoneId.of("America/New_York")
-    val deadline = java.time.LocalDate.of(2026, 12, 31).atTime(23, 59, 59).atZone(zone).toInstant()
-    if (!now.isBefore(deadline)) return null
-    val days = java.time.Duration.between(now, deadline).toDays()
-    return days + 1 // count the current partial day as a full day remaining
+    val lastDay = java.time.LocalDate.of(2026, 12, 31)
+    if (!now.isBefore(lastDay.plusDays(1).atStartOfDay(zone).toInstant())) return null
+    return java.time.temporal.ChronoUnit.DAYS.between(now.atZone(zone).toLocalDate(), lastDay) + 1 // the current day counts in full
 }
 
 /** Unauthenticated splash: pick a journey before signing in. Shows [notice] (a failed link, a revoked
@@ -187,9 +186,9 @@ fun RoleSelect(notice: UiText?, invitation: UiText? = null, onSelect: (AppRole) 
             // from there to the signup flow retitled "Step 1 of 2 · About you").
             DadPrimaryButton(stringResource(R.string.auth_give_1_a_day), Modifier.testTag("role-donor")) { onSelect(AppRole.DONOR) }
             Spacer(Modifier.height(12.dp))
-            DadSecondaryButton(stringResource(R.string.auth_i_already_give_sign_in), Modifier.fillMaxWidth()) { onSelect(AppRole.DONOR) }
+            DadSecondaryButton(stringResource(R.string.auth_i_already_give_sign_in), Modifier.fillMaxWidth(), contentColor = DadTheme.color("brand")) { onSelect(AppRole.DONOR) }
             Spacer(Modifier.height(8.dp))
-            DadTextButton(stringResource(R.string.auth_partner_organization_sign_in_here), Modifier.testTag("role-partner")) { onSelect(AppRole.PARTNER) }
+            DadTextButton(stringResource(R.string.auth_partner_organization_sign_in_here), Modifier.testTag("role-partner"), contentColor = DadTheme.color("brand")) { onSelect(AppRole.PARTNER) }
         }
     }
 }
@@ -217,7 +216,7 @@ private fun SignInMethods(
         Text(stringResource(R.string.common_welcome_back), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.dadHeading())
         Spacer(Modifier.height(20.dp))
         // The screen's single filled primary.
-        DadPrimaryButton(stringResource(R.string.auth_continue_with_phone), Modifier.testTag("method-phone"), onPhone)
+        DadPrimaryButton(stringResource(R.string.auth_continue_with_phone), Modifier.testTag("method-phone"), onClick = onPhone)
         Spacer(Modifier.height(12.dp))
         DadSecondaryButton(stringResource(R.string.common_email_me_a_sign_in_link), Modifier.fillMaxWidth().testTag("method-email-link"), onClick = onEmailLink)
         Spacer(Modifier.height(12.dp))
@@ -230,16 +229,16 @@ private fun SignInMethods(
             ExternalMethods(external, establish, generation, onSignedIn)
         }
         Spacer(Modifier.height(24.dp))
-        // "New to DAD?" is a small bottom card with a secondary "Get started".
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
             color = DadTheme.color("card"),
+            contentColor = DadTheme.color("ink"),
             border = androidx.compose.foundation.BorderStroke(1.dp, DadTheme.color("line")),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.auth_new_to_dad), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-                DadSecondaryButton(stringResource(R.string.auth_get_started), Modifier.fillMaxWidth().testTag("method-signup"), onClick = onSignup)
+                DadSecondaryButton(stringResource(R.string.auth_get_started), Modifier.fillMaxWidth().testTag("method-signup"), contentColor = DadTheme.color("brand-ink"), onClick = onSignup)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -283,7 +282,7 @@ private fun PhoneSignIn(model: PhoneSignInModel, onSignedIn: () -> Unit) {
         if (busy) { Spacer(Modifier.height(12.dp)); CircularProgressIndicator(modifier = Modifier.testTag("sign-in-working")) }
         (model.phase as? PhoneSignInPhase.Failed)?.let {
             Spacer(Modifier.height(12.dp))
-            Text(it.message.asString(), modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
+            Text(it.message.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("sign-in-error").semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
 }

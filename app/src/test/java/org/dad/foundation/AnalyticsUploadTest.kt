@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +18,15 @@ import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnalyticsUploadTest {
+    @Test fun cancellingTokenAcquisitionNeverSendsAnAnonymousBatch() = runTest {
+        val http = ScriptedHttp { 200 to """{"accepted":1}""" }
+        val wire = WireAnalytics(TEST_ORIGIN, access = { throw kotlinx.coroutines.CancellationException("cancelled") }, http.client())
+        val record = AnalyticsRecord("i", "j", "app_opened", Instant.EPOCH, emptyMap())
+        val failure = runCatching { wire.send(listOf(record)) }.exceptionOrNull()
+        assertTrue(failure is kotlinx.coroutines.CancellationException)
+        assertTrue("cancellation must stop the upload", http.requests.isEmpty())
+    }
+
     private fun observed(method: String, path: String, request: String? = null, response: String? = null) =
         observedEvents(method, path, { request }, { response })
 
@@ -28,9 +38,11 @@ class AnalyticsUploadTest {
         assertEquals(listOf(PlainEvent.GIFT_CANCELLED), observed("POST", "/donor/me/recurring/cancel"))
         assertEquals(listOf(PlainEvent.AMOUNT_CHANGED), observed("POST", "/donor/me/recurring/amount"))
         assertEquals(listOf(PlainEvent.TEAM_JOINED), observed("POST", "/donor/me/team"))
+        assertEquals(listOf(PlainEvent.PARTNER_SIGNUP_SUBMITTED), observed("POST", "/donor/partner/applications"))
         assertEquals(listOf(PlainEvent.EVENT_CHECKED_IN), observed("POST", "/donor/me/events/check-in"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/donor/me/events/e1"))
         assertEquals(listOf(PlainEvent.EVENT_VIEWED), observed("GET", "/events/e1"))
+        assertEquals(emptyList<PlainEvent>(), observed("GET", "/donor/me/events/invite-only"))
         assertEquals(listOf(PlainEvent.PARTNER_REPORT_EXPORTED), observed("GET", "/donor/partner/report.pdf"))
         assertEquals(listOf(PlainEvent.EVENT_RESERVED), observed("POST", "/donor/me/events/e1/reserve", response = """{"status":"RESERVED"}"""))
         assertEquals(listOf(PlainEvent.EVENT_WAITLISTED), observed("POST", "/donor/me/events/e1/reserve", response = """{"status":"WAITLISTED"}"""))
@@ -109,6 +121,17 @@ class AnalyticsUploadTest {
         assertEquals(0, analytics.pending)
     }
 
+    @Test fun aFlushThatFindsConsentWithdrawnSendsNothingAndDropsTheBuffer() = runTest(StandardTestDispatcher()) {
+        val sink = Sink()
+        val consent = MemoryAnalyticsConsent(true)
+        val analytics = uploader(this, consent, sink)
+        analytics.emit(AnalyticsEvent.IrlCodeShown)
+        consent.choice = false
+        advanceUntilIdle()
+        assertTrue(sink.batches.isEmpty())
+        assertEquals(0, analytics.pending)
+    }
+
     @Test fun aBurstOfEventsIsOneUploadAndRepeatedFailuresBackOffExponentially() = runTest(StandardTestDispatcher()) {
         val sink = Sink()
         val analytics = uploader(this, MemoryAnalyticsConsent(true), sink)
@@ -152,7 +175,7 @@ class AnalyticsUploadTest {
         assertEquals("ANDROID", signedIn.headers["x-dad-platform"])
         assertEquals("native", signedIn.headers["x-dad-client"])
         assertNull(anonymous.headers["authorization"])
-        assertTrue(!anonymous.body.contains("properties"))
+        assertFalse(anonymous.body.contains("properties"))
     }
 
     @Test fun aRejectedWireBatchIsInvalidInput() = runTest {
@@ -165,33 +188,5 @@ class AnalyticsUploadTest {
         assertEquals("push_opened", AnalyticsEvent.PushOpened("STREAK_AT_RISK").name)
         assertEquals(mapOf("type" to "STREAK_AT_RISK"), AnalyticsEvent.PushOpened("STREAK_AT_RISK").properties)
         PlainEvent.entries.forEach { assertTrue(AnalyticsEvent.Plain(it).properties.isEmpty()) }
-    }
-}
-
-class PushTest {
-    @Test fun theDonorRegistersAnAndroidTokenWithNoEnvironment() = runTest {
-        val http = ScriptedHttp {
-            when (it.path) {
-                "/donor/me/push-device", "/donor/me/push-device/unregister" -> 200 to """{"registered":true,"platform":"ANDROID","environment":null}"""
-                else -> 404 to "{}"
-            }
-        }
-        val session = AccountSession(WireAPI(TEST_ORIGIN, http.client()), InMemoryCredentialStore(Credentials("access-0", "refresh-0", Long.MAX_VALUE)), backgroundScope)
-        val push = WireDonorPush(ProductClient(TEST_ORIGIN, session, http.client()))
-        push.register("fcm-token-0123456789-0123456789-0123")
-        push.unregister()
-        assertEquals("""{"platform":"ANDROID","token":"fcm-token-0123456789-0123456789-0123"}""", http.requests[0].body)
-        assertEquals("Bearer access-0", http.requests[0].headers["authorization"])
-        assertEquals("/donor/me/push-device/unregister", http.requests[1].path)
-    }
-
-    @Test fun onlyAWellFormedCategoryIsATap() {
-        assertEquals(PushTap("STREAK_AT_RISK", "/account/dashboard"), PushTap.from("STREAK_AT_RISK", "/account/dashboard"))
-        assertEquals(PushTap("REFERRAL_CONVERTED", null), PushTap.from("REFERRAL_CONVERTED", null))
-        assertNull(PushTap.from(null, "/account/gifts"))
-        assertNull(PushTap.from("streak; drop", "/account/gifts"))
-        assertEquals(PushTap("STREAK_AT_RISK", null), PushTap.from("STREAK_AT_RISK", "/" + "a".repeat(300)))
-        assertEquals("/" + "a".repeat(255), PushTap.from("STREAK_AT_RISK", "/" + "a".repeat(255))?.path)
-        assertNull(PushTap.from("", null))
     }
 }

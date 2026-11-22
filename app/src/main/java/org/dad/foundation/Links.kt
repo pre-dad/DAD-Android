@@ -21,6 +21,9 @@ sealed interface LinkIntent {
     data class Company(val code: String) : LinkIntent
     data class Web(val uri: URI) : LinkIntent { override fun toString() = "WebLink([redacted])" }
 }
+private val ENCODED_SEPARATOR = Regex("%2f|%5c", RegexOption.IGNORE_CASE)
+private val CODE_SHAPE = Regex("[A-Za-z0-9_-]{1,64}")
+
 private data class LinkPolicy(
     val accountPaths: List<String>,
     val proofPaths: List<String>,
@@ -47,7 +50,7 @@ class LinkRouter(publicOrigin: String, policyJson: String) {
         if (value.length > 4096) return null
         val uri = try { URI(value) } catch (_: java.net.URISyntaxException) { return null }
         if (uri.scheme != "https" || !uri.host.equals(origin.host, ignoreCase = true) || port(uri) != port(origin) || uri.userInfo != null ||
-            uri.rawPath.orEmpty().contains(Regex("%2f|%5c", RegexOption.IGNORE_CASE))) return null
+            uri.rawPath.orEmpty().contains(ENCODED_SEPARATOR)) return null
         if (uri.path in policy.partnerProofPaths) {
             val items = proofFragment(uri, allowNext = false) ?: return null
             return LinkIntent.PartnerSignIn(items.first { it.first == "token" }.second)
@@ -77,7 +80,7 @@ class LinkRouter(publicOrigin: String, policyJson: String) {
     }
     /** The one path segment after [prefix], if it has the shape every referral and company code has. */
     private fun code(path: String?, prefix: String): String? =
-        path?.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}")) }
+        path?.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.takeIf { it.matches(CODE_SHAPE) }
     /** The fragment's pairs when it carries exactly one well-formed `token` (and, if allowed, at most one `next`); else null. */
     private fun proofFragment(uri: URI, allowNext: Boolean): List<Pair<String, String>>? {
         if (uri.query != null || uri.rawFragment == null || uri.rawFragment.length > 1024) return null
@@ -87,7 +90,7 @@ class LinkRouter(publicOrigin: String, policyJson: String) {
         } } catch (_: IllegalArgumentException) { return null }
         if (items.count { it.first == "token" } != 1 || items.count { it.first == "next" } > 1 ||
             items.any { it.first != "token" && !(allowNext && it.first == "next") }) return null
-        return items.takeIf { it.first { pair -> pair.first == "token" }.second.matches(Regex("[A-Za-z0-9_-]{32,128}")) }
+        return items.takeIf { it.first { pair -> pair.first == "token" }.second.matches(SIGN_IN_PROOF_SHAPE) }
     }
 
     fun notification(path: String): AccountDestination? = if (path in policy.notificationPaths) AccountDestination.from(path) else null
@@ -105,3 +108,6 @@ class NavigationGate {
     fun signedIn(): AccountDestination? = pending.also { pending = null }
     fun signedOut() { pending = null }
 }
+
+/** The shape of the single-use proof in a sign-in or claim link. */
+internal val SIGN_IN_PROOF_SHAPE = Regex("[A-Za-z0-9_-]{32,128}")

@@ -15,6 +15,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/**
+ * Every failure the account layer reports. The cases are singleton objects, so they share one stack trace (from
+ * class init) and any suppressed exceptions attached to them; they are matched by identity, never inspected.
+ */
 sealed class AccountFailure : java.io.IOException() {
     data object SignedOut : AccountFailure()
     data object Unavailable : AccountFailure()
@@ -90,9 +94,6 @@ class AccountSession(
         }
         return result
     }
-
-    /** Whether stored credentials existed when the session was created (decides restore vs sign-in). */
-    val restoredCredentials: Boolean = credentials != null
 
     /** True while this session holds credentials (the server may still reject them later). */
     suspend fun isSignedIn(): Boolean = mutex.withLock { credentials != null }

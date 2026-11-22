@@ -49,15 +49,10 @@ object DebugBackend {
 
     /** The invite link the app last asked [DebugReferralSharer] to copy, for tests (null = never copied). */
     @Volatile var copiedLink: String? = null
-    /** The invite link / channel the app last asked [DebugReferralSharer] to share, for tests. */
-    @Volatile var sharedLink: String? = null
-    @Volatile var sharedChannel: String? = null
 
     fun resetRequestLog() {
         requestLog.clear()
         copiedLink = null
-        sharedLink = null
-        sharedChannel = null
     }
 
     const val ORIGIN = "https://stub.invalid"
@@ -71,7 +66,7 @@ object DebugBackend {
 
     fun stub(context: Context, scope: CoroutineScope, options: LaunchOptions): AppServices? {
         if (!options.stubBackend) return null
-        val interceptor = StubInterceptor(options.stubDeleteBlocked, options.stubDashboard, options.stubGift, options.stubEvents, options.stubEngagement, options.stubPartnerViewer, options.stubApplication, options.stubApplicationSubmit)
+        val interceptor = StubInterceptor(options)
         val analytics = AnalyticsUploader(
             MemoryAnalyticsConsent(choice = if (options.stubAnalyticsUnset) null else false),
             WireAnalytics(ORIGIN, access = { null }, OkHttpClient.Builder().addInterceptor(interceptor).build()), scope,
@@ -81,24 +76,25 @@ object DebugBackend {
             if (options.stubSignedIn) Credentials("stub-access-0", "stub-refresh-0-xxxxxxxxxxxxxxxxxxxxxxxxxxxx", Long.MAX_VALUE) else null,
         )
         val session = AccountSession(WireAPI(ORIGIN, http), store, scope)
+        val product = ProductClient(ORIGIN, session, http)
         // Each stub launch starts as a fresh install: no link visit kept from an earlier run.
         val linkTokens = MemoryLinkTokenStore()
         val credentialAuth = WireCredentialAuth(ORIGIN, "Stub device", http)
         return AppServices(
             session = session,
             signIn = WireAuth(ORIGIN, "Stub device", http),
-            settings = WireSettings(ProductClient(ORIGIN, session, http), onLocalWipe = { LegacyAttribution.clear(context.applicationContext); linkTokens.clear() }),
+            settings = WireSettings(product, onLocalWipe = { LegacyAttribution.clear(context.applicationContext); linkTokens.clear() }),
             signup = credentialAuth,
             signInLink = credentialAuth,
             passwordSignIn = credentialAuth,
-            passwordSettings = WirePasswordSettings(ProductClient(ORIGIN, session, http)),
-            dashboard = WireDashboard(ProductClient(ORIGIN, session, http)),
-            giving = GivingKit(WireGiving(ProductClient(ORIGIN, session, http), referral = { linkTokens.load().referral }),
+            passwordSettings = WirePasswordSettings(product),
+            dashboard = WireDashboard(product),
+            giving = GivingKit(WireGiving(product, referral = { linkTokens.load().referral }),
                 stubComplete = interceptor::completeHandoff, pollDelayMs = 200),
-            events = WireEvents(ProductClient(ORIGIN, session, http)),
-            engagement = WireEngagement(ProductClient(ORIGIN, session, http)),
-            management = WireAccountManagement(ProductClient(ORIGIN, session, http)),
-            wallet = WireWalletPass(ProductClient(ORIGIN, session, http)),
+            events = WireEvents(product),
+            engagement = WireEngagement(product),
+            management = WireAccountManagement(product),
+            wallet = WireWalletPass(product),
             partner = PartnerSession(InMemoryCredentialStore(
                 if (options.stubPartnerSignedIn) Credentials("stub-partner-0", "", Long.MAX_VALUE) else null,
             )).let {
@@ -106,15 +102,15 @@ object DebugBackend {
                 // launch that seeded an application status starts with the stub receipt; otherwise a native submit
                 // writes it and the status read then recognizes it.
                 val receipt = InMemoryCredentialStore(
-                    options.stubApplication?.let { Credentials("stub-receipt-" + "r".repeat(31), "", Long.MAX_VALUE) },
+                    options.stubApplication?.let { Credentials("stub-receipt-rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr", "", Long.MAX_VALUE) },
                 )
                 PartnerKit(it, WirePartnerAuth(ORIGIN, it, http), WirePartner(ORIGIN, it, http),
                     WireApplicationStatus(ORIGIN, receipt, http), WirePartnerApplication(ORIGIN, receipt, http))
             },
             analytics = analytics,
-            push = WireDonorPush(ProductClient(ORIGIN, session, http)),
+            push = WireDonorPush(product),
             pushTokens = if (options.stubPush) PushTokenProvider { STUB_PUSH_TOKEN } else null,
-            links = LinkAttribution(WireLinkAttribution(ORIGIN, ProductClient(ORIGIN, session, http), http), linkTokens, analytics),
+            links = LinkAttribution(WireLinkAttribution(ORIGIN, product, http), linkTokens, analytics),
         )
     }
 }
@@ -125,13 +121,15 @@ class InMemoryCredentialStore(private var value: Credentials? = null) : Credenti
     @Synchronized override fun clear() { value = null }
 }
 
-private class StubInterceptor(private val deletionBlocked: Boolean, scenario: StubDashboard, gift: StubGift, eventsScenario: StubEventsScenario, engagementScenario: StubEngagementScenario, partnerViewer: Boolean, application: String?, applicationSubmit: StubApplicationSubmit) : Interceptor {
-    private val home = StubDonorHome(scenario)
-    private val giving = StubGiving(gift)
-    private val events = StubEvents(eventsScenario)
-    private val engagement = StubEngagement(engagementScenario)
+private class StubInterceptor(options: LaunchOptions) : Interceptor {
+    private val deletionBlocked = options.stubDeleteBlocked
+    private val home = StubDonorHome(options.stubDashboard)
+    private val giving = StubGiving(options.stubGift)
+    private val events = StubEvents(options.stubEvents)
+    private val engagement = StubEngagement(options.stubEngagement)
     private val account = StubAccount()
-    private val partner = StubPartner(partnerViewer, application, applicationSubmit)
+    private val partner = StubPartner(options.stubPartnerViewer, options.stubApplication, options.stubApplicationSubmit)
+    private val gson = com.google.gson.Gson()
     private var generation = 0
     private var deleted = false
     private var version = 3
@@ -153,9 +151,10 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
     }
 
     @Synchronized private fun profile(): String {
+        val correction = account.timezoneOverride?.let { ",\"timezone_override\":${gson.toJson(it)}" }.orEmpty()
         val flags = prefs.entries.joinToString(",") { "\"${it.key}\":${it.value}" }
-        return """{"email":"alex@example.org","public_name":"Alex","account_role":"DONOR","zip":"${account.zip}","city":"${account.city}",""" +
-            """"timezone":"America/Chicago","phone":"${account.phone}","volunteer_interests":${com.google.gson.Gson().toJson(interests)},"version":$version,"consent_version":"stub-v1",$flags}"""
+        return """{"email":"alex@example.org","public_name":"Alex","account_role":"DONOR","zip":${gson.toJson(account.zip)},"city":${gson.toJson(account.city)},""" +
+            """"timezone":${gson.toJson(account.timezoneOverride ?: "America/Chicago")}$correction,"phone":${gson.toJson(account.phone)},"volunteer_interests":${gson.toJson(interests)},"version":$version,"consent_version":"stub-v1",$flags}"""
     }
 
     @Synchronized override fun intercept(chain: Interceptor.Chain): Response {
@@ -180,14 +179,14 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
             if (!authorized) return reply(401)
             return reply(200, """{"bound":${payload.contains(DebugBackend.COMPANY_TOKEN)}}""")
         }
-        if (partner.handles(request.url.encodedPath)) {
-            val answer = partner.answer(request.method, request.url.encodedPath, payload, request.header("Authorization"), request.header("Idempotency-Key"))
+        if (partner.handles(path)) {
+            val answer = partner.answer(request.method, path, payload, request.header("Authorization"), request.header("Idempotency-Key"))
             val builder = Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(answer.code).message("stub")
                 .body(answer.body.toResponseBody(answer.type.toMediaType()))
             answer.headers.forEach { (name, value) -> builder.header(name, value) }
             return builder.build()
         }
-        return when (request.method to request.url.encodedPath) {
+        return when (request.method to path) {
             "POST" to "/donor/me/push-device" -> if (authorized) reply(200, """{"registered":true,"platform":"ANDROID","environment":null}""") else reply(401)
             "POST" to "/analytics/events" -> reply(200, """{"accepted":${Regex("\"name\"").findAll(payload).count()}}""")
             "POST" to "/donor/phone/sign-in/options" -> reply(200, """{"sent":true}""")
@@ -240,21 +239,21 @@ private class StubInterceptor(private val deletionBlocked: Boolean, scenario: St
                 else -> { deleted = true; reply(200, """{"deleted":true}""") }
             }
             "POST" to "/donor/logout" -> reply(200, """{"signed_out":true}""")
-            else -> if (account.handles(request.method, request.url.encodedPath)) {
+            else -> if (account.handles(request.method, path)) {
                 if (!authorized || deleted) reply(401)
-                else account.answer(request.method, request.url.encodedPath, payload, ::profile).let { (code, json) -> reply(code, json) }
-            } else if (request.url.encodedPath.startsWith("/donor/me/recurring") || request.url.encodedPath.startsWith("/donor/me/payment-method")) {
+                else account.answer(request.method, path, payload, ::profile).let { (code, json) -> reply(code, json) }
+            } else if (path.startsWith("/donor/me/recurring") || path.startsWith("/donor/me/payment-method")) {
                 if (!authorized || deleted) reply(401)
-                else giving.answer(request.method, request.url.encodedPath, payload, request.header("Idempotency-Key")).let { (code, json) -> reply(code, json) }
-            } else if (engagement.handles(request.url.encodedPath)) {
+                else giving.answer(request.method, path, payload, request.header("Idempotency-Key")).let { (code, json) -> reply(code, json) }
+            } else if (engagement.handles(path)) {
                 if (!authorized || deleted) reply(401)
-                else engagement.answer(request.method, request.url.encodedPath, payload).let { (code, json) -> reply(code, json) }
-            } else if (request.url.encodedPath.startsWith("/donor/me/events")) {
+                else engagement.answer(request.method, path, payload).let { (code, json) -> reply(code, json) }
+            } else if (path.startsWith("/donor/me/events")) {
                 if (!authorized || deleted) reply(401)
-                else events.answer(request.method, request.url.encodedPath, payload).let { (code, json) -> reply(code, json) }
-            } else if (request.method == "GET" && request.url.encodedPath.startsWith("/donor/me/")) {
+                else events.answer(request.method, path, payload).let { (code, json) -> reply(code, json) }
+            } else if (request.method == "GET" && path.startsWith("/donor/me/")) {
                 if (!authorized || deleted) reply(401)
-                else home.answer(request.url.encodedPath, request.url.queryParameter("offset")?.toIntOrNull()).let { (code, json) -> reply(code, json) }
+                else home.answer(path, request.url.queryParameter("offset")?.toIntOrNull()).let { (code, json) -> reply(code, json) }
             } else reply(404)
         }
     }

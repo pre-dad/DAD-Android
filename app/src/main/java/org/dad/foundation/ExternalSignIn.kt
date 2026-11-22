@@ -18,8 +18,8 @@ import org.dad.foundation.generated.model.OidcSignInRequest
 
 // Google sign-in (OIDC id_token exchange, `oidcSignIn`) and passkeys (WebAuthn,
 // `beginDonorPasskeySignIn` / `finishDonorPasskeySignIn`). The platform ceremonies sit behind the
-// [GoogleIdTokenProvider] / [PasskeyAuthenticator] seams, which need Android Credential Manager (a
-// dependency the project does not ship) plus owner-supplied configuration. Everything else here is
+// [GoogleIdTokenProvider] / [PasskeyAuthenticator] seams. Google uses Credential Manager plus
+// owner-supplied configuration; passkeys still need a platform adapter. Everything else here is
 // platform-free and tested against stub transports. Each method is switched on only by
 // [SignInCapabilities]; by default neither is shown. Sign in with Apple is not
 // offered on Android (iOS uses the native AuthenticationServices sheet, which has no Android twin).
@@ -37,20 +37,12 @@ data class SignInConfig(val googleWebClientId: String?, val passkeyRelyingParty:
     }
 }
 
-enum class SignInMethod { PHONE, PASSWORD, GOOGLE, PASSKEY }
-
 /**
  * Which sign-in methods can actually run in this build. Phone and password need no client
  * configuration and are always on. Google and passkeys are off until configured AND a platform provider
  * exists (a client ID or domain alone never switches a method on).
  */
 data class SignInCapabilities(val google: Boolean = false, val passkey: Boolean = false) {
-    fun isAvailable(method: SignInMethod) = when (method) {
-        SignInMethod.PHONE, SignInMethod.PASSWORD -> true
-        SignInMethod.GOOGLE -> google
-        SignInMethod.PASSKEY -> passkey
-    }
-
     companion object {
         val NONE = SignInCapabilities()
         fun of(config: SignInConfig, googleProviderAvailable: Boolean = false, passkeyProviderAvailable: Boolean = false) =

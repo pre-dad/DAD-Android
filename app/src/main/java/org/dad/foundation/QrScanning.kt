@@ -14,9 +14,6 @@ import androidx.compose.ui.Modifier
 class ScanGate(private val onValid: (String) -> Unit, private val onInvalid: () -> Unit) {
     private var accepted = false
 
-    /** True once a valid token has been handed on; later frames are ignored. */
-    val isDone: Boolean get() = accepted
-
     fun offer(decoded: String) {
         if (accepted) return
         val code = decoded.trim()

@@ -1,16 +1,8 @@
 package org.dad.foundation
 
-// Account & settings (PRD §6.11, §6.12). Pure value types and the toggle/grouping rules live
-// here so the preferences block, its optimistic version, and the delete-account confirmation gate
-// are unit-testable without a network or UI — the same "pure core, seam for I/O" shape as the
-// other phases.
-
-// MARK: - Profile summary (read-only header)
-
 /**
  * The account header the settings screen shows. [accountRole] is fixed at creation and immutable
- * (D-1), so it is display-only. [zip] drives the streak's local-day rollover (§10), so it is the
- * one profile field settings lets the donor edit here.
+ * (D-1), so it is display-only. The saved time zone controls the streak’s local-day rollover (§10).
  */
 data class ProfileSummary(
     val email: String,
@@ -18,11 +10,11 @@ data class ProfileSummary(
     val zip: String?,
     val city: String?,
     val phone: String?,
+    val timezone: String? = null,
+    val timezoneOverride: String? = null,
 ) {
     val zipLabel: UiText get() = zip?.takeIf { it.isNotBlank() }?.let(UiText::plain) ?: UiText.res(R.string.settings_not_set)
 }
-
-// MARK: - Notification + visibility preferences (§6.11)
 
 /**
  * The donor's preference block. It carries the optimistic-concurrency [version] it was read at;
@@ -55,17 +47,31 @@ data class Preferences(
     /** The push-notification category toggles (§6.11), in display order. Payment-failure emails
      *  are deliberately absent — they are non-toggleable server-side. */
     val pushToggles: List<Toggle>
-        get() = listOf(
-            Toggle("push_referral_converted", UiText.res(R.string.common_someone_joined_through_you), pushReferralConverted),
-            Toggle("push_streak_at_risk", UiText.res(R.string.common_streak_at_risk), pushStreakAtRisk),
-            Toggle("push_streak_milestone", UiText.res(R.string.common_streak_milestone), pushStreakMilestone),
-            Toggle("push_streak_lapsed", UiText.res(R.string.common_streak_lapsed), pushStreakLapsed),
-            Toggle("push_badge_earned", UiText.res(R.string.common_badge_earned), pushBadgeEarned),
-            Toggle("push_event_nearby", UiText.res(R.string.common_events_nearby), pushEventNearby),
-            Toggle("push_event_reminder", UiText.res(R.string.common_event_reminders), pushEventReminder),
-            Toggle("push_event_promoted", UiText.res(R.string.common_event_promoted), pushEventPromoted),
-            Toggle("push_gift_processed", UiText.res(R.string.common_gift_processed), pushGiftProcessed),
-        )
+        get() = PushCategory.entries.map { Toggle(it.settingsKey, it.label, pushEnabled(it)) }
+
+    private fun pushEnabled(category: PushCategory): Boolean = when (category) {
+        PushCategory.REFERRAL_CONVERTED -> pushReferralConverted
+        PushCategory.STREAK_AT_RISK -> pushStreakAtRisk
+        PushCategory.STREAK_MILESTONE -> pushStreakMilestone
+        PushCategory.STREAK_LAPSED -> pushStreakLapsed
+        PushCategory.BADGE_EARNED -> pushBadgeEarned
+        PushCategory.EVENT_NEARBY -> pushEventNearby
+        PushCategory.EVENT_REMINDER -> pushEventReminder
+        PushCategory.EVENT_PROMOTED -> pushEventPromoted
+        PushCategory.GIFT_PROCESSED -> pushGiftProcessed
+    }
+
+    private fun withPush(category: PushCategory, value: Boolean): Preferences = when (category) {
+        PushCategory.REFERRAL_CONVERTED -> copy(pushReferralConverted = value)
+        PushCategory.STREAK_AT_RISK -> copy(pushStreakAtRisk = value)
+        PushCategory.STREAK_MILESTONE -> copy(pushStreakMilestone = value)
+        PushCategory.STREAK_LAPSED -> copy(pushStreakLapsed = value)
+        PushCategory.BADGE_EARNED -> copy(pushBadgeEarned = value)
+        PushCategory.EVENT_NEARBY -> copy(pushEventNearby = value)
+        PushCategory.EVENT_REMINDER -> copy(pushEventReminder = value)
+        PushCategory.EVENT_PROMOTED -> copy(pushEventPromoted = value)
+        PushCategory.GIFT_PROCESSED -> copy(pushGiftProcessed = value)
+    }
 
     /** The email toggles (§6.11). */
     val emailToggles: List<Toggle>
@@ -82,23 +88,12 @@ data class Preferences(
     fun with(key: String, value: Boolean): Preferences = when (key) {
         "referral_emails" -> copy(referralEmails = value)
         "marketing_emails" -> copy(marketingEmails = value)
-        "push_referral_converted" -> copy(pushReferralConverted = value)
-        "push_streak_at_risk" -> copy(pushStreakAtRisk = value)
-        "push_streak_milestone" -> copy(pushStreakMilestone = value)
-        "push_streak_lapsed" -> copy(pushStreakLapsed = value)
-        "push_badge_earned" -> copy(pushBadgeEarned = value)
-        "push_event_nearby" -> copy(pushEventNearby = value)
-        "push_event_reminder" -> copy(pushEventReminder = value)
-        "push_event_promoted" -> copy(pushEventPromoted = value)
-        "push_gift_processed" -> copy(pushGiftProcessed = value)
         "rankings_opted_out" -> copy(rankingsOptedOut = value)
         "network_visible" -> copy(networkVisible = value)
         "volunteer" -> copy(volunteer = value)
-        else -> this
+        else -> PushCategory.entries.firstOrNull { it.settingsKey == key }?.let { withPush(it, value) } ?: this
     }
 }
-
-// MARK: - Delete account (store-mandated, §6.12)
 
 /**
  * The delete-account flow gate. Deletion is irreversible (backend removes personal data, keeps
@@ -114,8 +109,6 @@ data class DeleteAccountGate(val typed: String) {
     val helpText: UiText
         get() = UiText.res(R.string.settings_delete_account_help, CONFIRM_WORD)
 }
-
-// MARK: - Volunteer interests (E-1)
 
 /** Why an interest could not be added; the donor sees [message]. */
 enum class InterestRejection(val message: UiText) {

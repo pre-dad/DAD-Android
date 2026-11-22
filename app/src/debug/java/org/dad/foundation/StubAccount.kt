@@ -13,6 +13,8 @@ internal class StubAccount {
         private set
     var phone = ""
         private set
+    var timezoneOverride: String? = null
+        private set
     private var otherSessions = listOf(OTHER_SESSION)
     private var employer: String? = null
     private var team: String? = null
@@ -28,7 +30,15 @@ internal class StubAccount {
             path == "/donor/me/profile" -> {
                 val newZip = field("zip").orEmpty()
                 if (newZip.isNotEmpty() && !Regex("^[0-9]{5}(-[0-9]{4})?$").matches(newZip)) 422 to "{}"
-                else { zip = newZip; city = field("city").orEmpty(); phone = field("phone").orEmpty(); 200 to profile() }
+                else {
+                    val zone = field("timezone_override")
+                    if (zone != null && StreakTimeZone.choices.none { it.first == zone }) 422 to "{}"
+                    else {
+                        zip = newZip; city = field("city").orEmpty(); phone = field("phone").orEmpty()
+                        if (zone != null) timezoneOverride = zone.ifEmpty { null }
+                        200 to profile()
+                    }
+                }
             }
             path == "/donor/me/email-change" -> when {
                 field("email").orEmpty().startsWith("taken") -> 409 to "{}"
@@ -61,12 +71,13 @@ internal class StubAccount {
 
     private fun team(): String {
         val org = employer ?: return """{"partner_id":"","organization":"","leaderboard":[]}"""
-        val mine = team?.let { ""","team_id":"$TEAM_ID","team_name":"$it"""" }.orEmpty()
-        return """{"partner_id":"44444444-4444-4444-8444-444444444444","organization":"$org"$mine,"leaderboard":[""" +
-            """{"team_id":"55555555-5555-4555-8555-555555555555","name":"Design","active_givers":7,"annualized_minor":420000,"avg_streak_days":21,"volunteer_minutes":180}]}"""
+        val mine = team?.let { ""","team_id":"$TEAM_ID","team_name":${GSON.toJson(it)}""" }.orEmpty()
+        return """{"partner_id":"44444444-4444-4444-8444-444444444444","organization":${GSON.toJson(org)}$mine,"leaderboard":[""" +
+            """{"team_id":"55555555-5555-4555-8555-555555555555","name":"Design","metrics_verified":true,"active_givers":7,"annualized_minor":420000,"avg_streak_days":21,"volunteer_minutes":180}]}"""
     }
 
     companion object {
+        private val GSON = com.google.gson.Gson()
         private const val OTHER_SESSION_ID = "22222222-2222-4222-8222-222222222222"
         private const val TEAM_ID = "33333333-3333-4333-8333-333333333333"
         private const val CURRENT_SESSION = """{"id":"11111111-1111-4111-8111-111111111111","client":"APP","platform":"ANDROID","label":"Pixel","created_at":"2026-10-01T10:00:00Z","last_used_at":"2026-10-30T10:00:00Z","current":true}"""

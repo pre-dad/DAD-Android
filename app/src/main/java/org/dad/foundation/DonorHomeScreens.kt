@@ -41,7 +41,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -62,14 +64,13 @@ private val longDate: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(Form
 internal fun friendlyDate(value: String): String =
     try { LocalDate.parse(value).format(longDate) } catch (_: java.time.format.DateTimeParseException) { value }
 
-private fun friendlyDate(value: OffsetDateTime): String = value.toLocalDate().format(longDate)
+internal fun friendlyDate(value: OffsetDateTime): String = value.atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDate().format(longDate)
 
 @Composable
 internal fun HomeCard(tag: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         modifier = modifier.fillMaxWidth().testTag(tag),
-        // Card radius comes from the token via MaterialTheme.shapes.medium (radius("card") = 18dp),
-        // so the old takeIf{>0} fallback is no longer needed.
+        // Card radius comes from the token via MaterialTheme.shapes.medium (radius("card") = 18dp).
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, DadTheme.color("line")),
         tonalElevation = 1.dp,
@@ -133,7 +134,7 @@ fun DonorHome(
  *  Carries `gift-summary-card` on the card, `gift-summary` on the state line and `open-gift` on the row. */
 @Composable
 private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
-    // giving.load() is driven by DonorHome's top-level LaunchedEffect, matching the old GiftSummaryCard.
+    // giving.load() is driven by DonorHome's top-level LaunchedEffect.
     HomeCard("gift-summary-card") {
         Text(stringResource(R.string.home_your_monthly_gift), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
         // The tap target carries `open-gift` and is a MERGING clickable, so `gift-summary` must stay a
@@ -145,13 +146,16 @@ private fun MonthlyGiftItem(giving: GivingModel, onOpenGift: () -> Unit) {
                 .testTag("open-gift"),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            DadGiftFraming(stringResource(R.string.common_30_month), stringResource(R.string.common_1_a_day))
+            val amount = giving.recurring.amountMinorOrNull
+            val monthly = amount?.let { stringResource(R.string.give_amount_per_month, formatUsdMinor(it)) } ?: "—"
+            val daily = amount?.let(GiftAmount::ofMonthlyMinor)?.let { stringResource(R.string.give_dollars_a_day, it.dailyDollars) } ?: "—"
+            DadGiftFraming(monthly, daily)
         }
         // The live state line keeps the gift-summary text that GiftFlowTest tracks on Home.
         Text(
             summaryLine(giving),
             style = MaterialTheme.typography.bodyMedium,
-            color = DadTheme.color("dkmut"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag("gift-summary"),
         )
     }
@@ -233,6 +237,7 @@ private fun DashboardCards(dashboard: HomeDashboard, onOpenGift: () -> Unit, mil
         // milestone they reached before it existed. Dismissal is remembered per milestone in the store.
         if (milestones != null) {
             val context = LocalContext.current
+            LaunchedEffect(streak, milestones) { seedMilestoneBaseline(streak, milestones) }
             val pending = remember(streak, milestones) { pendingMilestone(streak, milestones) }
             var dismissed by rememberSaveable(pending) { mutableStateOf(false) }
             if (pending != null && !dismissed) {
@@ -344,7 +349,7 @@ private fun AtRiskBanner(byDate: String?, onOpenGift: () -> Unit) {
             DadSymbol("warning", contentDescription = stringResource(R.string.common_warning), tint = DadTheme.color("warn"))
             Text(line, style = MaterialTheme.typography.bodyMedium, color = DadTheme.color("warn"))
         }
-        DadTextButton(stringResource(R.string.home_update_payment), onClick = onOpenGift)
+        DadTextButton(stringResource(R.string.home_update_payment), contentColor = DadTheme.color("brand-ink"), onClick = onOpenGift)
     }
 }
 
@@ -432,7 +437,7 @@ private fun InitiativeCard(phase: DashboardModel.InitiativePhase, onRetry: () ->
 
 /** Gift history (paged) with an inline gift record per row and the calendar-year total on top. */
 @Composable
-fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut: () -> Unit) {
+fun GiftHistoryScreen(model: GiftHistoryModel, onSignedOut: () -> Unit) {
     LaunchedEffect(Unit) { model.load() }
     DisposableEffect(Unit) { onDispose { model.cancel() } }
     LaunchedEffect(model.signedOut) { if (model.signedOut) onSignedOut() }
@@ -448,7 +453,7 @@ fun GiftHistoryScreen(model: GiftHistoryModel, onClose: () -> Unit, onSignedOut:
                     HomeCard("history-summary$suffix") {
                         Text(stringResource(R.string.home_year_total, summary.year), style = MaterialTheme.typography.labelLarge)
                         Text(summary.netLabel, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("history-year-total$suffix"))
-                        Text(stringResource(R.string.home_sandbox_records_not_tax_receipts), style = MaterialTheme.typography.bodySmall)
+                        if (!summary.taxReceipt) Text(stringResource(R.string.home_sandbox_records_not_tax_receipts), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -494,6 +499,9 @@ private fun GiftRow(model: GiftHistoryModel, gift: HomeGift, index: Int) {
             Modifier.fillMaxWidth().heightIn(min = 48.dp)
                 .clickable(onClickLabel = if (open) stringResource(R.string.home_hide_the_gift_record) else stringResource(R.string.home_show_the_gift_record), role = Role.Button) {
                     if (open) model.hideReceipt() else model.showReceipt(gift.id)
+                }
+                .semantics {
+                    if (open) collapse { model.hideReceipt(); true } else expand { model.showReceipt(gift.id); true }
                 }
                 .testTag("gift-row-$index"),
         ) {

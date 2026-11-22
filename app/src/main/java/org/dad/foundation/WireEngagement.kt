@@ -10,8 +10,6 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
-import java.net.URI
-import java.util.UUID
 
 /**
  * The engagement reads and the sharing write, read as raw JSON on purpose: `Conversion.kind` is a contract enum
@@ -99,8 +97,6 @@ class WireEngagement(private val product: ProductClient) : EngagementService {
         )
     }
 
-    // MARK: sections
-
     internal suspend fun badges(): BadgeGrid = product.perform { retrofit ->
         val list = retrofit.create(EngagementApi::class.java).badges().successBody().asObjectOrInvalid().array("badges")
         BadgeGrid(
@@ -173,8 +169,6 @@ class WireEngagement(private val product: ProductClient) : EngagementService {
         } to (json.value("more")?.asBooleanOrInvalid() ?: false)
     }
 
-    // MARK: commands
-
     override suspend fun setRankingOptIn(optIn: Boolean): RankingStanding {
         var retried = false
         while (true) {
@@ -204,8 +198,7 @@ class WireEngagement(private val product: ProductClient) : EngagementService {
     }
 
     override suspend fun initiativeSpend(id: String): InitiativeSpend {
-        // A malformed id is a 404 server-side; refuse it before it becomes a path segment.
-        if (id.length != 36 || runCatching { UUID.fromString(id) }.isFailure) throw AccountFailure.InvalidInput
+        id.requireUuid()
         return product.perform { retrofit ->
             val json = retrofit.create(EngagementApi::class.java).spend(id).successBody().asObjectOrInvalid()
             val total = json.long("total_minor")

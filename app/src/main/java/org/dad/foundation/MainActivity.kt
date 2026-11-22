@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,6 +95,7 @@ sealed interface AccountState {
 class AccountModel(
     private val factory: (CoroutineScope, LaunchOptions) -> AppServices,
     private val io: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    internal val credentialHost: CredentialActivityHost = CredentialActivityHost(),
 ) : ViewModel() {
     var state: AccountState by mutableStateOf(AccountState.Loading)
         private set
@@ -183,11 +185,9 @@ class AccountModel(
                     watchTokenRotations(it)
                 }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) {
-            configurationFailed = true
-            notice = PhoneSignInModel.NOT_CONFIGURED
-            null
-        }
+        catch (_: IllegalArgumentException) { configurationFailed = true; notice = PhoneSignInModel.NOT_CONFIGURED; null }
+        catch (_: IllegalStateException) { configurationFailed = true; notice = PhoneSignInModel.NOT_CONFIGURED; null }
+        catch (_: Exception) { null }
     }
 
     /** Launch: restore the stored session, or land on sign-in. */
@@ -225,6 +225,13 @@ class AccountModel(
 
     /** Sign-out, account deletion or a revoked session: back to sign-in. */
     fun onSignedOut(message: UiText? = null) {
+        auth.external.clearPlatformSession?.let { clear ->
+            viewModelScope.launch {
+                try { kotlinx.coroutines.withTimeout(5_000) { clear() } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Local sign-out must still complete when a credential provider is unavailable. */ }
+            }
+        }
         notice = message
         pushRegistered = false
         destination = null
@@ -325,6 +332,20 @@ class AccountModel(
     fun partnerTokenConsumed() { pendingPartnerToken = null }
 
     fun configurationUnavailable() { hasSession = false; notice = PhoneSignInModel.NOT_CONFIGURED; state = AccountState.Unavailable }
+
+    /**
+     * An arrived link, or nothing: with no link the session is left untouched. A link that cannot be routed because the
+     * build has a public origin but no router is a configuration failure; a build without an origin simply has no links.
+     */
+    fun onLaunchLink(link: String?, router: LinkRouter?, publicOriginConfigured: Boolean): String? {
+        if (link == null) return null
+        if (router == null) {
+            if (publicOriginConfigured) configurationUnavailable()
+            return null
+        }
+        return receive(link, router)
+    }
+
     fun receive(value: String, router: LinkRouter): String? {
         return when (val intent = router.route(value)) {
             is LinkIntent.Account -> if (!partnerSignedIn) {
@@ -466,6 +487,7 @@ class MainActivity : ComponentActivity() {
         }
         val factory = viewModelFactory {
             initializer {
+                val credentialHost = CredentialActivityHost()
                 AccountModel(factory = factory@{ scope, options ->
                     if (BuildConfig.DEBUG) DebugBackend.stub(appContext, scope, options)?.let { return@factory it }
                     if (BuildConfig.DAD_API_ORIGIN.isBlank()) {
@@ -476,7 +498,7 @@ class MainActivity : ComponentActivity() {
                         val origin = BuildConfig.DAD_API_ORIGIN
                         lateinit var session: AccountSession
                         val analytics = AnalyticsUploader(PrefsAnalyticsConsent(appContext), WireAnalytics(origin, access = { session.accessToken() }), scope)
-                        val http = defaultNativeClient().newBuilder().addInterceptor(AnalyticsObserver(analytics)).build()
+                        val http = defaultNativeClient().newBuilder().addInterceptor(ErrorObserver()).addInterceptor(AnalyticsObserver(analytics)).build()
                         session = AccountSession(WireAPI(origin, http), KeystoreCredentialStore(appContext), scope)
                         val linkTokens = PrefsLinkTokenStore(appContext)
                         val milestones = PrefsMilestoneStore(appContext)
@@ -485,11 +507,13 @@ class MainActivity : ComponentActivity() {
                         val pushOptOuts = PrefsPushOptOuts(appContext)
                         val credentialAuth = WireCredentialAuth(origin, android.os.Build.MODEL, http)
                         val external = WireExternalSignIn(origin, android.os.Build.MODEL, http)
+                        val signInConfig = SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)
+                        val googleTokens = signInConfig.validGoogleClientId?.let { PlatformGoogleTokens(appContext, credentialHost, it) }
                         AppServices(
                             session,
                             WireAuth(origin, android.os.Build.MODEL, http),
                             PushMirroringSettings(
-                                WireSettings(product, onLocalWipe = { LegacyAttribution.clear(appContext); linkTokens.clear(); milestones.clear() }),
+                                WireSettings(product, onLocalWipe = { LegacyAttribution.clear(appContext); linkTokens.clear(); milestones.clear(); clearShared(appContext, "calendar"); clearShared(appContext, "reports") }),
                                 record = pushOptOuts::record, clear = pushOptOuts::clear,
                             ),
                             signup = credentialAuth,
@@ -516,28 +540,27 @@ class MainActivity : ComponentActivity() {
                             installReferrer = InstallReferrerIntake(
                                 PlayInstallReferrer({ PlayReferrerConnection(appContext) }), PrefsInstallReferrerLedger(appContext), links),
                             external = ExternalSignInDeps(
-                                // No Credential Manager provider is linked, so a configured ID alone never switches a method on.
-                                capabilities = SignInCapabilities.of(SignInConfig(BuildConfig.DAD_GOOGLE_WEB_CLIENT_ID, BuildConfig.DAD_PASSKEY_RP_ID)),
+                                capabilities = SignInCapabilities.of(signInConfig, googleProviderAvailable = googleTokens != null),
                                 oidc = external, passkey = external,
+                                googleTokens = googleTokens,
+                                clearPlatformSession = googleTokens?.let { tokens -> tokens::clear },
                             ),
                         )
                     }
-                })
+                }, credentialHost = credentialHost)
             }
         }
         setContent {
             val model: AccountModel = viewModel(factory = factory)
+            DisposableEffect(model) {
+                model.credentialHost.bind(this@MainActivity)
+                onDispose { model.credentialHost.unbind(this@MainActivity) }
+            }
             LaunchedEffect(Unit) { model.start(launch) }
             LaunchedEffect(linkEvent) {
-                val router = linkRouter ?: run {
-                    if (BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank()) model.configurationUnavailable()
-                    return@LaunchedEffect
-                }
-                incomingLink?.let { link ->
-                    model.receive(link, router)?.let {
-                        try { CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, it.toUri()) }
-                        catch (_: android.content.ActivityNotFoundException) { model.configurationUnavailable() }
-                    }
+                model.onLaunchLink(incomingLink, linkRouter, BuildConfig.DAD_PUBLIC_ORIGIN.isNotBlank())?.let {
+                    try { CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, it.toUri()) }
+                    catch (_: android.content.ActivityNotFoundException) { model.configurationUnavailable() }
                 }
             }
             LaunchedEffect(tapEvent) {
@@ -582,53 +605,47 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    val router = remember { RoleRouter() }
-                    var root by remember { mutableStateOf<RoleRouter.Root>(router.root) }
                     // A session-backed shell is the donor journey — the donor landing owns every
                     // account sub-state (loading / ready / unavailable / signed-out) and its own
                     // recovery, so stay on it. Only a genuinely session-less app goes to role-select.
-                    LaunchedEffect(model.booted, model.hasSession, model.partnerSignedIn) {
-                        if (model.booted) {
-                            when {
-                                model.hasSession -> router.signedIn(AppRole.DONOR)
-                                model.partnerSignedIn -> router.signedIn(AppRole.PARTNER)
-                                else -> router.signedOut()
-                            }
-                        }
-                        root = router.root
-                    }
+                    val root = RoleRouter.resolve(model.booted, model.hasSession, model.partnerSignedIn)
                     val partnerKit = model.partner
-                    when (val current = root) {
-                        is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
-                            PartnerPortal(
-                                viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
-                                publicOrigin = linkPublicOrigin,
-                                onSignedOut = { model.onPartnerSignedOut() },
-                                pushTokens = model.pushTokens,
-                            )
-                        is RoleRouter.Root.Restoring, is RoleRouter.Root.Authenticated ->
-                            if (preview != null) {
-                                preview()
-                            } else {
-                                DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
+                    SessionModelScope("${model.generation}:$root") {
+                        when (val current = root) {
+                            is RoleRouter.Root.Authenticated if current.role == AppRole.PARTNER && partnerKit != null && preview == null ->
+                                PartnerPortal(
+                                    viewModel(key = "partner-${model.generation}", factory = PartnerModel.factory(partnerKit.service)),
+                                    publicOrigin = linkPublicOrigin,
+                                    onSignedOut = { model.onPartnerSignedOut() },
+                                    pushTokens = model.pushTokens,
+                                )
+                            is RoleRouter.Root.Restoring -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.testTag("session-restoring"))
                             }
-                        is RoleRouter.Root.Unauthenticated -> UnauthenticatedStack(
-                            notice = model.notice,
-                            invitation = model.invitation,
-                            auth = model.auth,
-                            establish = model.establish(),
-                            onPastedLink = { text -> linkRouter?.let { router -> PastedLink.claimToken(text, router)?.let { model.receive(text.trim(), router); true } } ?: false },
-                            generation = model.generation,
-                            onSignedIn = { model.onSignedIn() },
-                            partnerSignIn = model.partner?.signIn,
-                            applicationStatus = model.partner?.applicationStatus,
-                            applicationSubmit = model.partner?.applicationSubmit,
-                            partnerToken = model.pendingPartnerToken,
-                            onPartnerTokenConsumed = { model.partnerTokenConsumed() },
-                            onPartnerSignedIn = { model.onPartnerSignedIn() },
-                            analytics = model.analytics,
-                            publicOrigin = linkPublicOrigin,
-                        )
+                            is RoleRouter.Root.Authenticated ->
+                                if (preview != null) {
+                                    preview()
+                                } else {
+                                    DonorShell(model, publicOrigin = linkPublicOrigin, openGiftAtLaunch = launch.stubOpenGift, openEngagementAtLaunch = launch.stubOpenEngagement)
+                                }
+                            is RoleRouter.Root.Unauthenticated -> UnauthenticatedStack(
+                                notice = model.notice,
+                                invitation = model.invitation,
+                                auth = model.auth,
+                                establish = model.establish(),
+                                onPastedLink = { text -> linkRouter?.let { router -> PastedLink.claimToken(text, router)?.let { model.receive(text.trim(), router); true } } ?: false },
+                                generation = model.generation,
+                                onSignedIn = { model.onSignedIn() },
+                                partnerSignIn = model.partner?.signIn,
+                                applicationStatus = model.partner?.applicationStatus,
+                                applicationSubmit = model.partner?.applicationSubmit,
+                                partnerToken = model.pendingPartnerToken,
+                                onPartnerTokenConsumed = { model.partnerTokenConsumed() },
+                                onPartnerSignedIn = { model.onPartnerSignedIn() },
+                                analytics = model.analytics,
+                                publicOrigin = linkPublicOrigin,
+                            )
+                        }
                     }
                 }
             }
@@ -842,7 +859,6 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                         holder.SaveableStateProvider("history") {
                             GiftHistoryScreen(
                                 viewModel(key = "history-${model.generation}", factory = GiftHistoryModel.factory(dashboard)),
-                                onClose = { pushed = null },
                                 onSignedOut = { pushed = null; model.onSignedOut() },
                             )
                         }
@@ -856,8 +872,8 @@ private fun DonorShell(model: AccountModel, publicOrigin: String, openGiftAtLaun
                     }
                     Pushed.Spend -> {
                         val target = spendTarget
+                        BackHandler { pushed = null; spendTarget = null }
                         if (target != null && engagementService != null) {
-                            BackHandler { pushed = null; spendTarget = null }
                             holder.SaveableStateProvider("spend") {
                                 InitiativeSpendScreen(
                                     viewModel(key = "spend-${model.generation}-${target.id}", factory = InitiativeSpendModel.factory(engagementService, target.id)),
@@ -987,8 +1003,6 @@ private fun DadBrandTile(modifier: Modifier = Modifier) {
 private fun HomeTopBar(model: AccountModel, onSettings: (() -> Unit)?) {
     val publicName = (model.state as? AccountState.Ready)?.profile?.publicName?.trim()?.takeIf { it.isNotEmpty() }
     TopAppBar(
-        // The brand tile is the leading element (the old "DAD" wordmark lived in the body header,
-        // removed in this phase); it carries a description so the mark is not colour alone.
         navigationIcon = { DadBrandTile(Modifier.padding(start = 16.dp)) },
         title = { Text(if (publicName != null) stringResource(R.string.main_hi_name, publicName) else stringResource(R.string.common_welcome_back), modifier = Modifier.dadHeading()) },
         actions = {
@@ -1014,9 +1028,6 @@ private fun HomeTopBar(model: AccountModel, onSettings: (() -> Unit)?) {
 @Composable
 private fun DonorLanding(model: AccountModel, home: @Composable () -> Unit = {}) {
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center) {
-        // The old "DAD / Good things start together. / Welcome, … / Your account has a home here."
-        // header is gone: the greeting now lives in the Home TopAppBar ("Hi, {publicName}"). Only the
-        // account sub-states (loading / unavailable / signed-out) keep an on-screen answer here.
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             when (model.state) {
                 AccountState.Loading -> { CircularProgressIndicator(); Text(stringResource(R.string.main_loading_your_account)) }
@@ -1082,6 +1093,10 @@ internal fun SettingsHome(
             }
         }
         model.actionError?.let { Text(it.asString(), modifier = Modifier.testTag("settings-action-error")) }
+        HorizontalDivider()
+        SettingsHeading(stringResource(R.string.about_heading))
+        Text(stringResource(R.string.about_organization))
+        Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -1115,7 +1130,7 @@ private fun SettingsContent(
     SettingsHeading(stringResource(R.string.main_notifications))
     // Payment-failure email is absent by design (non-toggleable server-side).
     SettingsToggleSection(stringResource(R.string.main_emails), snapshot.preferences.emailToggles, model)
-    SettingsToggleSection(stringResource(R.string.main_notifications), snapshot.preferences.pushToggles, model)
+    SettingsToggleSection(stringResource(R.string.main_push), snapshot.preferences.pushToggles, model)
     SettingsHeading(stringResource(R.string.main_privacy))
     Column {
         ToggleRow(stringResource(R.string.common_show_my_ranking), snapshot.preferences.showRanking, "ranking-toggle", "star") {
@@ -1130,6 +1145,7 @@ private fun SettingsContent(
         if (analytics != null) {
             ToggleRow(stringResource(R.string.main_usage_analytics), analytics.choice == true, "analytics-toggle", "shield") { analytics.choose(it) }
         }
+        DiagnosticsChoice()
     }
     if (snapshot.preferences.volunteer) VolunteerInterestsSection(model, snapshot.preferences.volunteerInterests)
     if (analytics != null) {
@@ -1172,6 +1188,19 @@ private fun SettingsContent(
 }
 
 @Composable
+private fun DiagnosticsChoice() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val consent = remember { DiagnosticsConsent(context) }
+    var allowed by remember { mutableStateOf(consent.allowed) }
+    ToggleRow(stringResource(R.string.diagnostics_title), allowed, "diagnostics-toggle", "shield", enabled = Diagnostics.available || allowed) {
+        Diagnostics.choose(it)
+        allowed = it
+    }
+    Text(stringResource(R.string.diagnostics_explainer), style = MaterialTheme.typography.bodySmall)
+    if (!Diagnostics.available) Text(stringResource(R.string.diagnostics_unavailable), style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable
 private fun SettingsToggleSection(title: String, toggles: List<Preferences.Toggle>, model: SettingsModel) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.titleSmall)
@@ -1185,14 +1214,14 @@ private fun SettingsHeading(title: String) {
 }
 
 @Composable
-private fun ToggleRow(label: String, value: Boolean, tag: String, icon: String, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(label: String, value: Boolean, tag: String, icon: String, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     // Tag and toggle state share one node (the ListItem); the Switch itself is display-only.
     ListItem(
         headlineContent = { Text(label) },
         leadingContent = { DadSymbol(icon, "", Modifier.clearAndSetSemantics {}) },
-        trailingContent = { Switch(checked = value, onCheckedChange = null) },
+        trailingContent = { Switch(checked = value, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.fillMaxWidth().testTag(tag)
-            .toggleable(value = value, role = Role.Switch, onValueChange = onChange),
+            .toggleable(value = value, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
 }

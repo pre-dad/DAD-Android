@@ -1,5 +1,12 @@
 package org.dad.foundation
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,19 +64,20 @@ private fun StatusLine(message: String, tag: String) {
     Text(message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(tag).semantics { liveRegion = LiveRegionMode.Polite })
 }
 
-/** ZIP, city and phone. The ZIP sets the donor's city for events and rankings, and their time zone. */
+/** A manual zone corrects ZIP suggestions at regional boundaries. */
 @Composable
 internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
     val busy = model.phase == DetailsPhase.Saving
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("details-section")) {
         Text(stringResource(R.string.acct_your_details), style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
-        Text(stringResource(R.string.acct_your_zip_code_sets_your_city_for), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.acct_your_zip_code_suggests_your_time_zone), style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
             value = model.zip, onValueChange = { model.zip = it.take(10) }, label = { Text(stringResource(R.string.common_zip_code)) }, singleLine = true, enabled = !busy,
             isError = !model.zipValid, supportingText = if (model.zipValid) null else ({ Text(stringResource(R.string.acct_enter_a_5_digit_zip_code_or_leave)) }),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth().testTag("details-zip"),
         )
+        StreakTimeZonePicker(model, busy)
         OutlinedTextField(
             value = model.city, onValueChange = { model.city = it.take(ProfileRules.CITY_LIMIT) }, label = { Text(stringResource(R.string.common_city)) }, singleLine = true, enabled = !busy,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
@@ -89,6 +97,36 @@ internal fun ProfileDetailsSection(model: ProfileDetailsModel) {
         }
         OutlinedButton(onClick = model::save, enabled = model.canSave, modifier = Modifier.heightIn(min = 48.dp).testTag("details-save")) { Text(stringResource(R.string.acct_save_details)) }
     }
+}
+
+@Composable
+private fun StreakTimeZonePicker(model: ProfileDetailsModel, busy: Boolean) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val selected = StreakTimeZone.choices.firstOrNull { it.first == model.timezoneOverride } ?: StreakTimeZone.choices.first()
+    OutlinedButton(onClick = { expanded = true }, enabled = !busy, modifier = Modifier.testTag("details-timezone")) {
+        Text(stringResource(R.string.timezone_selected, stringResource(selected.second)))
+    }
+    model.profile.timezone?.let { Text(stringResource(R.string.timezone_saved, it), style = MaterialTheme.typography.bodySmall) }
+    if (expanded) AlertDialog(
+        onDismissRequest = { expanded = false },
+        title = { Text(stringResource(R.string.timezone_title)) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).selectableGroup()) {
+                StreakTimeZone.choices.forEach { (value, label) ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
+                            selected = model.timezoneOverride == value, role = Role.RadioButton,
+                            onClick = { model.timezoneOverride = value; expanded = false },
+                        ), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = model.timezoneOverride == value, onClick = null)
+                        Text(stringResource(label))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { expanded = false }) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /**
@@ -113,7 +151,7 @@ internal fun EmailChangeSection(model: EmailChangeModel) {
                     modifier = Modifier.fillMaxWidth().testTag("email-change-input"),
                 )
                 (model.phase as? EmailChangePhase.Failed)?.let { ErrorLine(it.message, "email-change-error") }
-                DadPrimaryButton(stringResource(R.string.acct_send_confirmation), Modifier.testTag("email-change-submit")) { model.submit() }
+                DadPrimaryButton(stringResource(R.string.acct_send_confirmation), Modifier.testTag("email-change-submit"), enabled = model.canSubmit) { model.submit() }
                 OutlinedButton(onClick = { model.edit(); expanded = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_cancel)) }
             }
         }
@@ -173,11 +211,14 @@ private fun Linked(model: EmployerModel, organization: String, team: EmployerTea
     if (team.leaderboard.isEmpty()) {
         Text(stringResource(R.string.acct_teams_appear_here_once_they_have), style = MaterialTheme.typography.bodySmall)
     } else {
+        val ranksVerified = team.leaderboard.all { it.metricsVerified }
         team.leaderboard.forEachIndexed { index, row ->
             Column(Modifier.testTag("leaderboard-${row.id}")) {
-                Text(stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name), style = MaterialTheme.typography.titleSmall)
-                Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatUsdMinor(row.annualizedMinor.clampToInt()), row.avgStreakDays),
-                    style = MaterialTheme.typography.bodySmall)
+                Text(if (ranksVerified) stringResource(R.string.acct_leaderboard_rank_name, index + 1, row.name) else row.name, style = MaterialTheme.typography.titleSmall)
+                if (row.metricsVerified) {
+                    Text(pluralStringResource(R.plurals.acct_leaderboard_stats, row.activeGivers.toQuantity(), row.activeGivers, formatMinorUsd(row.annualizedMinor), row.avgStreakDays),
+                        style = MaterialTheme.typography.bodySmall)
+                } else Text(stringResource(R.string.metrics_awaiting), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -201,7 +242,7 @@ internal fun SessionsSection(model: DeviceSessionsModel, onSignedOut: () -> Unit
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f)) {
                             Text(if (session.current) stringResource(R.string.acct_session_this_device, session.label) else session.label)
-                            Text(stringResource(R.string.acct_session_last_used, session.lastUsedAt.format(lastUsedFormat)), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.acct_session_last_used, session.lastUsedAt.atZoneSameInstant(java.time.ZoneId.systemDefault()).format(lastUsedFormat)), style = MaterialTheme.typography.bodySmall)
                         }
                         if (!session.current) {
                             TextButton(onClick = { model.revoke(session.id) }, enabled = !model.busy,
@@ -221,8 +262,20 @@ internal fun SessionsSection(model: DeviceSessionsModel, onSignedOut: () -> Unit
         }
         model.notice?.let { StatusLine(it, "sessions-notice") }
         model.actionError?.let { ErrorLine(it, "sessions-error") }
-        OutlinedButton(onClick = model::signOutEverywhere, enabled = !model.busy,
+        var confirmEverywhere by rememberSaveable { mutableStateOf(false) }
+        OutlinedButton(onClick = { confirmEverywhere = true }, enabled = !model.busy,
             modifier = Modifier.heightIn(min = 48.dp).testTag("sessions-sign-out-everywhere")) { Text(stringResource(R.string.acct_sign_out_on_every_device)) }
+        if (confirmEverywhere) AlertDialog(
+            onDismissRequest = { confirmEverywhere = false },
+            title = { Text(stringResource(R.string.acct_sign_out_everywhere_title)) },
+            text = { Text(stringResource(R.string.acct_sign_out_everywhere_body)) },
+            confirmButton = {
+                TextButton(onClick = { confirmEverywhere = false; model.signOutEverywhere() }, modifier = Modifier.testTag("sessions-sign-out-everywhere-confirm")) {
+                    Text(stringResource(R.string.acct_sign_out_on_every_device))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmEverywhere = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
@@ -237,6 +290,8 @@ internal fun WalletPassButton(model: WalletPassModel) {
             try {
                 uriHandler.openUri(url)
             } catch (_: android.content.ActivityNotFoundException) {
+                model.openFailed()
+            } catch (_: IllegalArgumentException) {
                 model.openFailed()
             }
         }

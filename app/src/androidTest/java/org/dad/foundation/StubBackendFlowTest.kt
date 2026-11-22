@@ -5,11 +5,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isEnabled
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
@@ -33,26 +31,23 @@ class StubBackendFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun waitFor(tag: String, timeout: Long = 15_000) =
-        compose.waitUntil(timeout) { compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }
-
     /** Waits until the tagged control exists AND is enabled, so a click never lands on a still-disabled button. */
     private fun waitEnabled(tag: String, timeout: Long = 15_000) =
         compose.waitUntil(timeout) { compose.onAllNodes(hasTestTag(tag).and(isEnabled())).fetchSemanticsNodes().isNotEmpty() }
 
     private fun signIn(code: String) {
-        waitFor("role-donor")
+        compose.waitForTag("role-donor")
         compose.tapSafely("role-donor")
-        waitFor("method-phone")
+        compose.waitForTag("method-phone")
         compose.tapSafely("method-phone")
-        waitFor("phone-input")
+        compose.waitForTag("phone-input")
         // The phone field is prefilled with the "+1 " country code, so REPLACE the field rather than
         // append to it (an append would produce "+1 +1415…", which fails the E.164 check).
         compose.enterText("phone-input", "+14155551234", replace = true)
         compose.waitForIdle()
         waitEnabled("send-code")
         compose.tapSafely("send-code")
-        waitFor("code-input")
+        compose.waitForTag("code-input")
         // A complete 6-digit code submits by itself (and hides the keyboard / leaves the screen), so there is
         // no keyboard to settle and no Verify button left to tap.
         compose.enterText("code-input", code, settleAfter = false)
@@ -60,11 +55,11 @@ class StubBackendFlowTest {
     }
 
     private fun deleteAccount() {
-        waitFor("open-settings")
+        compose.waitForTag("open-settings")
         compose.tapSafely("open-settings")
-        waitFor("delete-start")
+        compose.waitForTag("delete-start")
         compose.tapSafely("delete-start")
-        waitFor("delete-input")
+        compose.waitForTag("delete-input")
         compose.enterText("delete-input", "DELETE")
         compose.waitForIdle()
         compose.tapSafely("delete-confirm")
@@ -72,7 +67,7 @@ class StubBackendFlowTest {
 
     @Test fun anInviteLinkNamesTheReferrerBeforeSignIn() {
         launch(link = "https://stub.invalid/r/ALEX42").use {
-            waitFor("auth-invitation", 20_000)
+            compose.waitForTag("auth-invitation", 20_000)
             compose.onNodeWithTag("auth-invitation").assertTextEquals("Alex R invited you to give with DAD.")
         }
     }
@@ -81,7 +76,7 @@ class StubBackendFlowTest {
         launch().use {
             signIn("123456")
             deleteAccount()
-            waitFor("role-donor")
+            compose.waitForTag("role-donor")
             compose.onNodeWithTag("role-donor").assertIsDisplayed()
         }
     }
@@ -89,7 +84,7 @@ class StubBackendFlowTest {
     @Test fun wrongCodeKeepsPersonSignedOutOnCodeEntry() {
         launch().use {
             signIn("654321")
-            waitFor("sign-in-error")
+            compose.waitForTag("sign-in-error")
             assertTrue(compose.onAllNodes(hasTestTag("open-settings")).fetchSemanticsNodes().isEmpty())
             compose.onNodeWithTag("code-input").assertIsDisplayed()
         }
@@ -98,7 +93,7 @@ class StubBackendFlowTest {
     @Test fun throttledCodeShowsTheWaitMessageAndStaysSignedOut() {
         launch().use {
             signIn("000000")
-            waitFor("sign-in-error")
+            compose.waitForTag("sign-in-error")
             assertTrue(compose.onAllNodes(hasTestTag("open-settings")).fetchSemanticsNodes().isEmpty())
         }
     }
@@ -107,7 +102,7 @@ class StubBackendFlowTest {
         launch("stub_delete_blocked").use {
             signIn("123456")
             deleteAccount()
-            waitFor("settings-action-error")
+            compose.waitForTag("settings-action-error")
             compose.onNodeWithTag("settings-action-error").performScrollTo().assertIsDisplayed()
             compose.onNodeWithTag("delete-confirm").assertExists()
         }
@@ -116,50 +111,49 @@ class StubBackendFlowTest {
     @Test fun signOutFromSettingsReturnsToSignIn() {
         launch().use {
             signIn("123456")
-            waitFor("open-settings")
+            compose.waitForTag("open-settings")
             compose.tapSafely("open-settings")
-            waitFor("settings-signout")
+            compose.waitForTag("settings-signout")
             compose.tapSafely("settings-signout")
-            waitFor("role-donor")
+            compose.waitForTag("role-donor")
         }
     }
 
     @Test fun partnerSignsInWithAPastedLinkAndSignsOut() {
         launch().use {
-            waitFor("role-partner")
+            compose.waitForTag("role-partner")
             compose.tapSafely("role-partner")
-            waitFor("partner-apply")
+            compose.waitForTag("partner-apply")
             compose.enterText("partner-sign-in-email", "ada@acme.com")
             waitEnabled("partner-sign-in-submit")
             compose.tapSafely("partner-sign-in-submit")
-            waitFor("partner-check-email")
+            compose.waitForTag("partner-check-email")
             compose.enterText("partner-paste-link", "https://stub.invalid/partner/accept#token=goodpartner0123456789abcdefghijklmnop")
             waitEnabled("partner-paste-submit")
             compose.tapSafely("partner-paste-submit")
-            waitFor("partner-committed")
+            compose.waitForTag("partner-committed")
             compose.onNodeWithTag("partner-organization").assertTextEquals("Acme Corp")
             compose.tapSafely("partner-tab-organization")
             compose.tapSafely("partner-sign-out")
-            waitFor("role-partner")
+            compose.waitForTag("role-partner")
         }
     }
 
     @Test fun aStoredPartnerSessionOpensThePortal() {
         launch("stub_partner_signed_in").use {
-            waitFor("partner-committed")
+            compose.waitForTag("partner-committed")
             compose.tapSafely("partner-tab-organization")
-            waitFor("partner-invite")
+            compose.waitForTag("partner-invite")
         }
     }
 
     @Test fun theAnalyticsQuestionIsAskedOnceAndAnsweringYesSendsAnEvent() {
         DebugBackend.resetRequestLog()
         launch("stub_analytics_unset").use {
-            // The analytics question moved off Welcome: it is now a ModalBottomSheet shown ONCE after the
-            // first sign-in. So sign in first, then expect analytics-choice, allow it, and confirm an event
-            // is uploaded. Same copy/options/tags; only WHEN it appears changed.
+            // The analytics question is a ModalBottomSheet shown ONCE after the first sign-in: sign in first,
+            // expect analytics-choice, allow it, and confirm an event is uploaded.
             signIn("123456")
-            waitFor("analytics-choice")
+            compose.waitForTag("analytics-choice")
             compose.tapSafely("analytics-allow")
             compose.waitUntil(15_000) { compose.onAllNodes(hasTestTag("analytics-choice")).fetchSemanticsNodes().isEmpty() }
             compose.waitUntil(15_000) { "POST /analytics/events" in DebugBackend.requestLog }
@@ -173,7 +167,7 @@ class StubBackendFlowTest {
             .putExtra("stub_backend", true).putExtra("stub_signed_in", true).putExtra("stub_push", true)
             .putExtra("category", "STREAK_AT_RISK").putExtra("path", "/account/gifts")
         compose.launchReady(intent).use {
-            waitFor("history-screen")
+            compose.waitForTag("history-screen")
             compose.waitUntil(15_000) { "POST /donor/me/push-device" in DebugBackend.requestLog }
         }
     }

@@ -23,8 +23,6 @@ class ExternalSignInTest {
 
     private val goodClient = "1234567890-abc.apps.googleusercontent.com"
 
-    // MARK: gating
-
     @Test fun methodsAreOffByDefaultAndAClientIdAloneNeverSwitchesOneOn() {
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig(null, null)))
         assertEquals(SignInCapabilities.NONE, SignInCapabilities.of(SignInConfig("", "")))
@@ -45,13 +43,12 @@ class ExternalSignInTest {
         val google = SignInCapabilities.of(config, googleProviderAvailable = true)
         assertTrue(google.google); assertFalse(google.passkey)
         val both = SignInCapabilities.of(config, googleProviderAvailable = true, passkeyProviderAvailable = true)
-        assertTrue(both.isAvailable(SignInMethod.GOOGLE)); assertTrue(both.isAvailable(SignInMethod.PASSKEY))
+        assertTrue(both.google); assertTrue(both.passkey)
         val provided = ExternalSignInDeps(both, googleTokens = { _ -> "t" }, authenticator = { throw ExternalSignInError.Unsupported })
         assertTrue(provided.offersGoogle); assertTrue(provided.offersPasskey)
         assertFalse(ExternalSignInDeps(both).offersGoogle) // a capability without a provider shows nothing
         assertFalse(ExternalSignInDeps(provided.capabilities.copy(google = false), googleTokens = { _ -> "t" }).offersGoogle)
-        assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PHONE)); assertTrue(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSWORD))
-        assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.GOOGLE)); assertFalse(SignInCapabilities.NONE.isAvailable(SignInMethod.PASSKEY))
+        assertFalse(SignInCapabilities.NONE.google); assertFalse(SignInCapabilities.NONE.passkey)
     }
 
     @Test fun anUnconfiguredBuildFailsClearly() = runTest {
@@ -59,13 +56,10 @@ class ExternalSignInTest {
         assertEquals(AccountFailure.InvalidConfiguration, runCatching { UnconfiguredExternalSignIn.begin() }.exceptionOrNull())
     }
 
-    // MARK: wire
-
     private fun wire(status: Int, json: String = "{}"): Pair<WireExternalSignIn, ScriptedHttp> {
         val http = ScriptedHttp { status to json }
         return WireExternalSignIn(TEST_ORIGIN, "Pixel", http.client()) to http
     }
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
 
     @Test fun googleExchangeSendsProviderPathTokenAndPlatform() = runTest {
         val (w, http) = wire(200, nativeSessionJson("g-access", "g-refresh"))
@@ -148,8 +142,6 @@ class ExternalSignInTest {
         assertNull("!!!".fromBase64Url())
     }
 
-    // MARK: models
-
     private class FakeOidc(var failure: Exception? = null) : OidcSignInService {
         val tokens = mutableListOf<String>()
         val nonces = mutableListOf<String>()
@@ -224,8 +216,6 @@ class ExternalSignInTest {
         m.start()
         assertEquals(ExternalSignInPhase.Working, m.phase)
     }
-
-    // MARK: nonce
 
     @Test fun nonceIsBase64UrlOf32BytesAndUniqueOverManyDraws() {
         val draws = List(1000) { SignInNonce.generate() }

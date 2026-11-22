@@ -35,6 +35,13 @@ data class PartnerSnapshot(
     val sectionsUnavailable: Boolean,
 ) {
     val selfId: String? get() = overview.userId
+
+    override fun equals(other: Any?): Boolean = this === other || other is PartnerSnapshot &&
+        overview == other.overview && initiatives == other.initiatives && spend == other.spend && people == other.people &&
+        teams == other.teams && users == other.users && exports == other.exports && logo.contentEquals(other.logo) &&
+        sectionsUnavailable == other.sectionsUnavailable
+
+    override fun hashCode(): Int = listOf(overview, initiatives, spend, people, teams, users, exports, logo?.contentHashCode(), sectionsUnavailable).hashCode()
 }
 
 /** One earlier report export (P-14). [downloadable] is false once its retained PDF has aged out. */
@@ -46,6 +53,10 @@ data class PartnerExport(
     val deployedMinor: Long,
     val downloadable: Boolean,
 )
+
+class PartnerReportLimit(val reason: Reason) : java.io.IOException() {
+    enum class Reason { DAILY, STORAGE, TOO_LARGE }
+}
 
 interface PartnerService {
     suspend fun overview(): PartnerOverview
@@ -301,6 +312,12 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     /** The share sheet has the report; forget the bytes. */
     fun reportShared() { report = null }
 
+    /** No app can take the report: say so instead of dropping it silently. */
+    fun reportUnavailable() {
+        report = null
+        actionError = UiText.res(R.string.partner_no_app_for_that)
+    }
+
     fun signOut() {
         viewModelScope.launch {
             bestEffort { service.unregisterPushDevice() }
@@ -319,6 +336,11 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
     }
 
     private fun message(error: Exception): UiText = when (error) {
+        is PartnerReportLimit -> UiText.res(when (error.reason) {
+            PartnerReportLimit.Reason.DAILY -> R.string.report_daily_limit
+            PartnerReportLimit.Reason.STORAGE -> R.string.report_storage_limit
+            PartnerReportLimit.Reason.TOO_LARGE -> R.string.report_size_limit
+        })
         is AccountFailure.SignedOut -> SESSION_ENDED
         is AccountFailure.RateLimited -> RATE_LIMITED
         else -> SOMETHING_WENT_WRONG
@@ -335,8 +357,6 @@ class PartnerModel(private val service: PartnerService) : ViewModel() {
         }
     }
 }
-
-// MARK: - Partner sign-in (approved partner users sign in with an emailed link)
 
 interface PartnerSignInService {
     suspend fun requestSignInLink(email: String)
@@ -409,7 +429,7 @@ class PartnerSignInModel(private val service: PartnerSignInService) : ViewModel(
     fun acceptPasted(raw: String) {
         val text = raw.trim()
         val token = text.substringAfter('#', "").split('&').firstOrNull { it.startsWith("token=") }?.removePrefix("token=") ?: text
-        if (token.isEmpty() || token.any(Char::isWhitespace)) {
+        if (!token.matches(SIGN_IN_PROOF_SHAPE)) {
             phase = PartnerSignInPhase.Failed(UiText.res(R.string.partner_paste_the_whole_sign_in_link_from))
             return
         }

@@ -164,7 +164,6 @@ class PartnerRulesTest {
         assertNull(model.report)
     }
 
-    // --- the applicant's status card ---
 
     private class Status(var result: () -> ApplicationStatusInfo?) : ApplicationStatusService {
         var reads = 0

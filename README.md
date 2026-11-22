@@ -13,7 +13,7 @@ installs credentials through `AccountSession.establish` so the session owns the 
 reachable from the donor shell; sign-out, deletion and a revoked session return to sign-in. A
 release build with no `dadApiOrigin` shows a "not configured" notice and never serves synthetic data.
 
-**Wired against the API (Phase 2, donor home):** the signed-in donor landing now shows the real dashboard
+**Donor home:** the signed-in donor landing shows the real dashboard
 (`GET /donor/me/dashboard`: streak card with the 30-day ladder and at-risk grace notice, national/city rank,
 total given, network and referral totals; `preparing` shows "Getting your dashboard ready"), today's initiative
 (`todayInitiative`; a 404 means nothing is in rotation, not an error; the card carries the A-5 note that this is
@@ -41,10 +41,21 @@ with AGP 9.4 support. Set `ANDROID_HOME` to your SDK directory or use an ignored
 its own Gradle distribution.
 
 ```sh
+node --test scripts/*.test.mjs
 node scripts/check-foundation.mjs
 node scripts/check-hardcoded-strings.mjs
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease --warning-mode all
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:lintRelease -PdadLoadTests --warning-mode all
+scripts/check-release-apk.sh
 ```
+
+CI also runs `node scripts/check-foundation-drift.mjs` to check published foundation tags. This is advisory
+for an additive release or an unreachable remote; adopting a new snapshot remains a deliberate change.
+
+`-PdadLoadTests` includes the native load suite: a 128-read burst sharing one refresh, and a one-minute soak
+that repeatedly refreshes and revokes independent sessions. These run the real session/Retrofit/OkHttp code
+over a synthetic transport; they do not contact providers or establish production throughput or 4G timings.
+Omit the property for the shorter unit suite. CI includes the load suite.
+For a longer soak, add `-PdadSoakSeconds=3600` (allowed range: 60–3600 seconds).
 
 All user-visible text lives in `app/src/main/res/values/strings.xml`: Compose reads it with `stringResource` /
 `pluralStringResource`, and models carry a `UiText` (a string or plural resource id plus arguments, never a
@@ -64,8 +75,8 @@ configuration deprecation diagnostics; those upstream warnings are not suppresse
 
 ## Contract, sessions, and transport
 
-`foundation.lock.json` pins the mobile foundation release (currently 2.12.0, tag
-`mobile-foundation-v2.12.0`) and its manifest
+`foundation.lock.json` pins the mobile foundation release (currently 2.13.0, tag
+`mobile-foundation-v2.13.0`) and its manifest
 SHA-256. The vendored release is verified before code generation. The build invokes pinned
 OpenAPI Generator CLI 7.20.0 and generates Retrofit coroutine interfaces and Gson models
 for the operations allow-listed in `scripts/prepare-client.mjs`. No client is generated
@@ -85,7 +96,11 @@ AES-GCM ciphertext is atomically written under `noBackupFilesDir`, using a non-e
 Android Keystore key and an application-bound authentication tag. Both legacy and current
 backup/transfer policies exclude credentials. Tokens/proofs have redacted descriptions.
 Logout clears local storage first and uses the newest known access token for remote
-revocation; offline remote failure is surfaced rather than reported as confirmed success.
+revocation. Settings completes local sign-out even when remote revocation is unavailable; that server
+session then expires. Signing out everywhere requires a confirmed server response.
+
+Product and authentication models have a session-owned `ViewModelStore`, retained across rotation. A session
+or role change clears the old store and cancels its requests before creating the next session's models.
 
 OkHttp disables cookies, redirects, and automatic transport retries, uses connect/read/
 call timeouts, and caps bodies at 1 MiB. Requests use `X-DAD-Client: native` and a bearer
@@ -108,7 +123,7 @@ build uses `org.dad.foundation.debug` so both install side by side. Phone, email
 password sign-in are wired (see below). No permission is requested on startup, and no
 staging/production service is contacted by the synthetic preview.
 
-## Sign-in methods (Phase 1b, contract 2.4.0)
+## Sign-in methods (contract 2.4.0)
 
 **Wired:** email signup (`postDonorSignup`: name, email, ZIP, city; the server emails a single-use link, which
 the app claims when it opens or from a pasted link on "Check your email"), email + password sign-in
@@ -116,21 +131,21 @@ the app claims when it opens or from a pasted link on "Check your email"), email
 (`postDonorMePassword`: a 422 with code `CURRENT_PASSWORD_INCORRECT` is a wrong current password and keeps the
 session; a real 401 refreshes once, then signs out). Passwords are masked, never logged, and cleared after send.
 
-**Built but switched off until configured:** Google sign-in (`oidcSignIn`) and passkeys
-(`beginDonorPasskeySignIn`/`finishDonorPasskeySignIn`). The server exchanges, models, UI states and stub-transport
-tests exist; the sign-in screen hides both buttons while no platform provider is linked and shows each as soon as its provider is supplied. Sign in with Apple is
-not offered on Android. To turn them on you must supply:
+**Google sign-in:** `oidcSignIn` uses AndroidX Credential Manager and the Google ID library. The native
+button appears when a valid `dadGoogleWebClientId` is supplied. Its provider uses the current Activity,
+binds each request's nonce, handles cancellation without signing in, and clears platform credential state
+on sign-out. Provider adapters are covered with synthetic SDK responses; a real Google account still needs
+the deployment configuration below. Sign in with Apple is not offered on Android.
 
-- **Both:** the AndroidX Credential Manager dependency (`androidx.credentials`, plus
-  `androidx.credentials:credentials-play-services-auth` for older devices), and an implementation of
-  `GoogleIdTokenProvider` / `PasskeyAuthenticator` passed in `ExternalSignInDeps` (not yet written, a dependency decision).
 - **Google nonce:** every attempt gets a fresh `SignInNonce` (32 random bytes, base64url, single-use, never logged
-  or stored). `GoogleIdTokenProvider.idToken(nonce)` receives it, and the Credential Manager implementation must pass
-  that exact value to `GetGoogleIdOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
+  or stored). `GoogleIdTokenProvider.idToken(nonce)` passes that exact value to
+  `GetSignInWithGoogleOption.Builder().setNonce(nonce)`. The same raw value is sent as `nonce` in the
   `oidcSignIn` body; the server accepts it raw or as lowercase hex SHA-256 of it in the id_token `nonce` claim.
 - **Google:** a Google Cloud *web* OAuth client ID (`-PdadGoogleWebClientId=...apps.googleusercontent.com`), an Android
-  OAuth client for the release signing certificate's SHA-1, and the Google ID library
-  (`com.google.android.libraries.identity.googleid`). The same client ID must be accepted by DAD-Main's OIDC verifier.
+  OAuth client for the release signing certificate's SHA-1. The same client ID must be accepted by DAD-Main's OIDC verifier.
+
+**Optional passkeys remain off:** the server exchanges, models and UI states exist, but a platform
+`PasskeyAuthenticator` must still be supplied in `ExternalSignInDeps` before the button appears.
 - **Passkeys:** the relying-party domain (`-PdadPasskeyRpId=dad.example`) and that domain's
   `/.well-known/assetlinks.json` with the `delegate_permission/common.get_login_creds` relation for the app
   package and release certificate fingerprint.
@@ -183,19 +198,26 @@ revocation cleanup, and logout. Test-only transports trust the temporary server'
 certificate; production TLS settings are unchanged. No provider credentials are used.
 The test runner removes the private proof fixtures after either success or failure.
 
-## Giving (wiring phase 3, contract 2.6.0)
+For Android alone, run `TEST_DATABASE_URL=... DAD_MAIN_DIR=../DAD-Main scripts/test-native-backend.sh`.
+Use only a migrated, disposable synthetic `donor_go` database. The script runs the backend lifecycle test
+with Go's race detector, starts its temporary HTTPS server, runs Android's claim/refresh/revocation/logout
+integration test, and removes the private proof fixtures on exit. It does not run iOS acceptance.
+
+## Giving (contract 2.6.0)
 
 Starting a gift uses `startRecurringCheckout`; changing the amount, cancelling and the card update use
 `changeAmount`, `cancelRecurring` and `beginPaymentUpdate`. Hosted Stripe pages open in a Custom Tab
 (`androidx.browser`, already a dependency). The return page proves nothing: when the donor comes back the app
-polls `GET /donor/me/recurring` (5 reads, 2 s apart) until a subscription is present. Each command holds one
+polls `GET /donor/me/recurring` (5 reads, 2 s apart) until the server reports an active subscription.
+An incomplete or unknown subscription status never confirms payment or triggers the first-gift celebration.
+A failed payment-update read stays unknown rather than reusing an earlier update's result. Each command holds one
 Idempotency-Key, reused after a 429, 503 or lost response and retired on success, 403, 409 or 422. The giving
 reads are parsed from raw JSON so an unlisted Stripe status (`paused`, `trialing`) never fails the response.
 No App Link is registered for `/app/return`, so the donor closes the tab to return. Deleting an account with a
 renewing gift (409) offers "Cancel my monthly gift" first. Debug stub extras: `stub_gift_active`,
 `stub_gift_fail_first`, `stub_dashboard_slow`, `stub_open_gift`.
 
-## Events (wiring phase 4, contract 2.7.0)
+## Events (contract 2.7.0)
 
 `WireEvents` merges `donorEvents` and `inviteOnlyEvents` (de-duplicated, soonest first) and drives detail,
 reserve / waitlist, cancel, check-in and the authenticated calendar file. The reads are parsed from raw JSON so
@@ -209,7 +231,7 @@ which is always on screen. Live capture is device-only; tests use a fake scanner
 through a FileProvider URI and the share sheet (no calendar permission). The contract defines no Idempotency-Key
 for these commands. Debug stub extras: `stub_events_invited`, `stub_events_fail_first`, `stub_events_not_eligible`.
 
-## Engagement (wiring phase 5, contract 2.7.0)
+## Engagement (contract 2.7.0)
 
 Real `WireEngagement` behind `EngagementService`, opened from the donor home ("See your impact"): lifetime impact
 and rank from `dashboard`, the badge grid (`donorBadges`; earned / locked and the perk are stated in text, perk
@@ -247,6 +269,20 @@ remove one with its Remove button. Entries are trimmed, repeats (in any letter c
 limits apply on the device too: at most 20 interests of 60 characters. Each change saves the whole preference block at
 its current `version`, one save at a time, so a stale or failed save keeps the list as it was and shows the error.
 
+Settings also shows an About DAD section with the legal organization name and the installed app's version.
+
+### Client error reporting
+
+Release builds with Firebase configured use Crashlytics for crash reports and coarse API transport/server
+failures. Sharing defaults to off in the manifest and has its own opt-in under Settings → Privacy; usage
+analytics consent does not enable it. Debug/synthetic builds never send diagnostics. Unconfigured builds
+show the sharing control as unavailable. Turning sharing off disables collection and deletes unsent reports.
+The SDK's crash reports include technical/device information; the opt-in explains that saved reports may
+also be shared. Non-fatal API reports contain only the code-defined operation and failure category, never
+request paths, bodies, tokens, user IDs or the original server/exception message. Duplicate reports are
+bounded and thread-safe. Release symbol mapping is handled by the Crashlytics Gradle plugin when Firebase
+is configured. Actual delivery and privacy/store disclosures remain deployment acceptance checks.
+
 ## Partner portal (contract 2.9.0)
 
 A partner signs in with an emailed link: "Partner" on the start screen asks for a work email
@@ -254,10 +290,19 @@ A partner signs in with an emailed link: "Partner" on the start screen asks for 
 exchanged for a 12-hour bearer (`partnerAcceptInvite`; a used or expired link is 422, a blocked partner 403). The
 bearer is kept in its own Keystore entry (`partner-session`), cannot be refreshed, and is forgotten on expiry, on a
 401, or on sign-out (local first, then `partnerSignOut`), returning the partner to sign-in. Becoming a partner is a
-website application (`applyWithReceipt`, browser-only), linked from partner sign-in as `<public origin>/apply`.
+native application form (`applyWithReceipt`, contract 2.11+), with the website as an alternative at
+`<public origin>/apply`. Before sending, the app stores a private status receipt in its own Keystore entry.
+A retry after an unconfirmed response repeats the same receipt, content and Idempotency-Key; a definitive
+refusal unlocks the form. The receipt reads the application's pending, approved or rejected status above
+partner sign-in; it never opens the portal without an approved partner session.
 
-The portal has four sections. **Overview** shows only verified figures (§7.3; an unverified figure is left out,
-never estimated) and spend by category. **Initiatives** lists the partner's initiatives and their metrics.
+The portal has five sections. **Overview** shows only verified figures (§7.3; an unverified figure is left out,
+never estimated), spend by category and initiative cards. **Initiatives** shows county coverage, deployed vs.
+committed progress (or Final), up to three metrics and the update date; tapping a card opens every verified
+metric with its verification date and the initiative's category spend. **Spend** shows overall and
+per-initiative category totals. No additional request is needed for a detail or spend view.
+The aggregate spend endpoint has no update timestamp, so that view explicitly shows the date as unavailable;
+it does not reuse the overview's timestamp. Per-figure timestamps for all rollups require additional API data.
 **People** shows the employee-programme summary (suppressed below the privacy threshold) and team standings.
 **Organization** edits the profile, workforce size and logo (PNG, picked with the system photo picker), shows the
 company code with its sign-up QR and share link, manages users (admins invite by name, email and role and remove
@@ -296,6 +341,11 @@ no permission prompt appears. To turn it on:
 3. Give DAD-Main the FCM credentials (a service account for the HTTP v1 API) so it can deliver. Until it does,
    `registerPushDevice` answers 503 `PUSH_UNCONFIGURED` and the app carries on.
 
+The resolved Messaging SDK deprecates `getToken` / `onNewToken` in favor of Installation ID registration.
+This app still uses registration tokens to match the pinned mobile contract; these compiler diagnostics remain
+visible. Installation ID messaging needs a coordinated DAD-Main sender, contract and native-client migration,
+so enabling that Firebase mode alone is not a supported configuration.
+
 DAD-Main sends each push as a `notification` block (`title`, `body`, and `tag` = the notification id) plus `data`
 (`category`, `path`). While the app is in the foreground `DadMessagingService` builds the notification itself: text
 from the `notification` block, else the data `title`/`body`, else the category label; routing from the data; the tag
@@ -304,7 +354,9 @@ displays the notification without running app code, so the on-device opt-out can
 opt-out is authoritative. Categories the app has no toggle for (`EVENT_CANCELLED`, `PARTNER_*`) show on the general
 channel.
 
-**Referral and company-code links (contract 2.10).** An invite (`/r/<code>`, `?via=irl` in person) or company
+## Referral and install attribution (contract 2.10)
+
+**Referral and company-code links.** An invite (`/r/<code>`, `?via=irl` in person) or company
 (`/c/<code>`) link that opens the app is recorded with DAD-Main (`captureReferral` / `captureCompany`), and the visitor
 token it returns is kept where the website keeps its cookie (`LinkAttribution`, SharedPreferences; the latest link
 wins, and a visit that keeps nothing discards it). The referral token goes with the first monthly gift

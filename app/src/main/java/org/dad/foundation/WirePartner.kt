@@ -196,8 +196,16 @@ class WirePartner(
             region = i.str("region"), committedMinor = i.long("committed_minor"), deployedMinor = i.long("deployed_minor"),
             metrics = i.array("metrics").map {
                 val m = it.asObjectOrInvalid()
-                PartnerMetric(m.str("label"), m.long("value"), PartnerMetric.Unit.from(m.str("unit")))
+                val verifiedOn = try { java.time.LocalDate.parse(m.str("verified_on")) }
+                catch (_: java.time.format.DateTimeParseException) { throw AccountFailure.InvalidResponse }
+                PartnerMetric(m.str("label"), m.long("value"), PartnerMetric.Unit.from(m.str("unit")), verifiedOn)
             },
+            countyCount = i.long("county_count").toIntOrInvalid().also { if (it < 0) throw AccountFailure.InvalidResponse },
+            spend = i.array("spend").map {
+                val category = it.asObjectOrInvalid()
+                PartnerSpendCategory(category.str("category"), category.long("amount_minor"))
+            },
+            updatedAt = i.time("updated_at"),
         )
     }
 
@@ -210,14 +218,14 @@ class WirePartner(
         val p = read { people() }
         return PartnerPeople(
             p.long("enrolled"), p.long("workforce_size").toIntOrInvalid(), p.long("given_minor"), p.long("matched_minor"),
-            p.long("avg_streak_days"), p.long("volunteer_minutes"), p.long("teams"), suppressed = p.bool("suppressed"),
+            p.long("avg_streak_days"), p.long("volunteer_minutes"), p.long("teams"), suppressed = p.bool("suppressed"), streakVerified = p.bool("streak_verified"),
         )
     }
 
     override suspend fun teams(): List<TeamStanding> = read { teams() }.array("teams").map {
         val t = it.asObjectOrInvalid()
         TeamStanding(t.str("team_id"), t.str("name"), t.long("active_givers"), t.long("annualized_minor"),
-            t.long("avg_streak_days"), t.long("volunteer_minutes"))
+            t.long("avg_streak_days"), t.long("volunteer_minutes"), metricsVerified = t.bool("metrics_verified"))
     }
 
     override suspend fun users(): List<PartnerUser> = read { users() }.array("users").map {
@@ -230,6 +238,7 @@ class WirePartner(
     }
 
     override suspend fun removeUser(id: String) {
+        id.requireUuid()
         perform { it.create(PartnerReads::class.java).remove(id, JsonObject()).partnerBody() }
     }
 
@@ -256,10 +265,25 @@ class WirePartner(
     }
 
     override suspend fun report(): ByteArray =
-        perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).report().partnerBody().use(ResponseBody::bytes) }
+        perform(PDF_LIMIT) {
+            val response = it.create(PartnerFiles::class.java).report()
+            if (!response.isSuccessful) {
+                val code = response.problem().first
+                val reason = when {
+                    response.code() == 429 && code == "PARTNER_REPORT_DAILY_LIMIT" -> PartnerReportLimit.Reason.DAILY
+                    response.code() == 409 && code == "PARTNER_REPORT_STORAGE_LIMIT" -> PartnerReportLimit.Reason.STORAGE
+                    response.code() == 413 && code == "PARTNER_REPORT_TOO_LARGE" -> PartnerReportLimit.Reason.TOO_LARGE
+                    else -> null
+                }
+                if (reason != null) throw PartnerReportLimit(reason)
+            }
+            response.partnerBody().use(ResponseBody::bytes)
+        }
 
-    override suspend fun retainedReport(id: String): ByteArray =
-        perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).retained(id).partnerBody().use(ResponseBody::bytes) }
+    override suspend fun retainedReport(id: String): ByteArray {
+        id.requireUuid()
+        return perform(PDF_LIMIT) { it.create(PartnerFiles::class.java).retained(id).partnerBody().use(ResponseBody::bytes) }
+    }
 
     /** The local session is forgotten first, so the partner is signed out on this device even when the server
      *  cannot be reached; the server session then simply expires. */

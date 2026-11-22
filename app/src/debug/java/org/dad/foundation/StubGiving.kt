@@ -44,7 +44,7 @@ internal class StubGiving(scenario: StubGift) {
             val requested = Regex("\"amount_minor\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
             when {
                 giftAmount == null || ending || !body.contains(SUBSCRIPTION) -> 409 to "{}"
-                requested == null || requested % 3000 != 0 -> 422 to "{}"
+                requested == null || requested % GiftAmount.CENTS_PER_DAILY_DOLLAR != 0 -> 422 to "{}"
                 else -> {
                     val previous = giftAmount
                     giftAmount = requested
@@ -58,7 +58,7 @@ internal class StubGiving(scenario: StubGift) {
             val requested = Regex("\"amount_minor\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
             when {
                 idempotencyKey.isNullOrBlank() -> 422 to "{}"
-                requested == null || requested % 3000 != 0 -> 422 to "{}"
+                requested == null || requested % GiftAmount.CENTS_PER_DAILY_DOLLAR != 0 -> 422 to "{}"
                 // A gift that has not yet stopped (even one set to end), or a different checkout still open: the same refusals the server gives.
                 giftAmount != null -> 409 to "{}"
                 checkoutKey != null && checkoutKey != idempotencyKey -> 409 to "{}"

@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -55,6 +58,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.Date
 
 // Events screens (PRD E-1..E-10): the list, an event's detail with reserve / waitlist / cancel, check-in by
@@ -108,8 +112,12 @@ private fun EventList(model: EventsModel, onClose: (() -> Unit)?, onOpen: (Strin
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EventRow(event: DonorEvent, now: Date, onOpen: (String) -> Unit) {
-    // Not clickable as a whole: a clickable row would merge the tagged texts away. The chevron button opens it.
-    Row(modifier = Modifier.fillMaxWidth().testTag("event-${event.id}"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+    // Tapping anywhere opens it. Not Modifier.clickable: that merges the tagged texts into one node; the chevron stays as the
+    // explicit control for assistive technology.
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("event-${event.id}").pointerInput(event.id) { detectTapGestures { onOpen(event.id) } },
+        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top,
+    ) {
         val day = event.startsAt.toInstant().atZone(EventTime.zone(event.timeZone))
         Column(
             modifier = Modifier.clearAndSetSemantics {}.background(DadTheme.color("brand-wash"), MaterialTheme.shapes.small).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -121,7 +129,7 @@ private fun EventRow(event: DonorEvent, now: Date, onOpen: (String) -> Unit) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(event.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.dadHeading())
             Text(EventTime.start(event), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("event-start-${event.id}"))
-            Text(listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", ") + " · " + event.spotsLabel.asString(), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.common_pair_dot, listOf(event.venue, event.city).filter { it.isNotBlank() }.joinToString(", "), event.spotsLabel.asString()), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // State in text, not colour alone.
                 if (event.isInviteOnly) Text(stringResource(R.string.events_invite_only), style = MaterialTheme.typography.labelLarge, modifier = Modifier.testTag("invite-only-${event.id}"))
@@ -208,7 +216,7 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
                 Column(modifier = Modifier.testTag("cancel-confirm-${event.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist) else stringResource(R.string.events_give_up_your_spot), style = MaterialTheme.typography.bodyLarge)
                     DadDestructiveTextButton(
-                        if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist_2) else stringResource(R.string.events_give_up_my_spot),
+                        if (event.status == ReservationStatus.WAITLISTED) stringResource(R.string.events_leave_the_waitlist_button) else stringResource(R.string.events_give_up_my_spot),
                         Modifier.fillMaxWidth().testTag("cancel-confirm-go"), enabled = !busy,
                     ) { confirmingCancel = false; model.cancel(event.id) }
                     DadSecondaryButton(stringResource(R.string.events_keep_it), Modifier.fillMaxWidth().testTag("cancel-keep")) { confirmingCancel = false }
@@ -227,8 +235,6 @@ private fun EventDetail(model: EventsModel, event: DonorEvent, onBack: () -> Uni
         event.reportIssueUrl?.let { url -> ReportIssue(url) }
     }
 }
-
-// MARK: check-in (E-8)
 
 @Composable
 private fun CheckInSection(model: EventsModel, event: DonorEvent, now: Date) {
@@ -266,8 +272,6 @@ private fun CheckInSection(model: EventsModel, event: DonorEvent, now: Date) {
     }
 }
 
-// MARK: calendar (E-6)
-
 @Composable
 private fun AddToCalendar(model: EventsModel, event: DonorEvent) {
     val state = model.calendar
@@ -286,25 +290,28 @@ private fun CalendarShare(model: EventsModel) {
     val context = LocalContext.current
     val state = model.calendar
     val chooserTitle = stringResource(R.string.events_add_to_calendar)
+    DisposableEffect(Unit) { onDispose { clearShared(context, "calendar") } }
     LaunchedEffect(state) {
         if (state !is CalendarState.Ready) return@LaunchedEffect
-        val file = withContext(Dispatchers.IO) { sharedFile(context, "calendar", "event.ics").also { it.writeBytes(state.bytes) } }
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/calendar"
-            putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, fileAuthority(context), file))
-            putExtra(Intent.EXTRA_SUBJECT, state.title)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
         try {
+            val file = withContext(Dispatchers.IO) { freshSharedFile(context, "calendar", "event.ics").also { it.writeBytes(state.bytes) } }
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/calendar"
+                putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, fileAuthority(context), file))
+                putExtra(Intent.EXTRA_SUBJECT, state.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
             context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
             model.calendarShared()
         } catch (_: ActivityNotFoundException) {
             model.calendarUnavailable()
+        } catch (_: IOException) {
+            model.calendarUnavailable()
+        } catch (_: IllegalArgumentException) {
+            model.calendarUnavailable()
         }
     }
 }
-
-// MARK: report an issue (E-10)
 
 @Composable
 private fun ReportIssue(url: String) {
@@ -330,3 +337,13 @@ internal fun fileAuthority(context: Context) = "${context.packageName}.files"
 
 internal fun sharedFile(context: Context, folder: String, name: String): File =
     File(File(context.cacheDir, "shared/$folder").apply { mkdirs() }, name)
+
+/** A shared file in an otherwise emptied folder, so earlier exports never pile up in the cache. */
+internal fun freshSharedFile(context: Context, folder: String, name: String): File {
+    clearShared(context, folder)
+    return sharedFile(context, folder, name)
+}
+
+internal fun clearShared(context: Context, folder: String) {
+    File(context.cacheDir, "shared/$folder").deleteRecursively()
+}

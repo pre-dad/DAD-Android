@@ -2,15 +2,10 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -38,20 +33,16 @@ class GiftFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { exists(tag) }
-    private fun waitGone(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { !exists(tag) }
     private fun tap(tag: String) = compose.tapSafely(tag)
 
     /** Wait for the home gift card to finish loading, then open the gift screen from it. */
     private fun openGift() {
-        waitFor("open-gift")
-        compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+        compose.waitForTag("open-gift")
+        compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
         compose.waitForIdle()
         tap("open-gift")
-        waitFor("gift-screen")
+        compose.waitForTag("gift-screen")
     }
-
 
     private fun waitSummary(text: String) = compose.waitUntil(20_000) {
         runCatching { compose.onNodeWithTag("gift-summary").assertTextContains(text, substring = true) }.isSuccess
@@ -59,46 +50,56 @@ class GiftFlowTest {
 
     private fun closeGift() {
         tap("gift-close")
-        waitFor("donor-home")
+        compose.waitForTag("donor-home")
+    }
+
+    @Test fun theHomeGiftAmountMatchesTheLoadedSubscription() {
+        launch("stub_gift_active").use {
+            waitSummary("$150/month")
+            compose.onNodeWithTag("open-gift").assertTextContains("$150/month", substring = true)
+            compose.onNodeWithTag("open-gift").assertTextContains("$5 a day", substring = true)
+        }
     }
 
     @Test fun aGiftStartedAfterAnInviteLinkCreditsTheReferrer() {
         launch(link = "https://stub.invalid/r/ALEX42?via=irl").use {
             compose.waitUntil(20_000) { DebugBackend.requestLog.contains("POST /donor/referrals/ALEX42") }
-            waitFor("gift-summary")
+            compose.waitForTag("gift-summary")
             waitSummary("No monthly gift yet.")
             openGift()
-            waitFor("start-gift")
+            compose.waitForTag("start-gift")
             tap("start-gift")
-            waitFor("hosted-page-stub")
+            compose.waitForTag("hosted-page-stub")
             assertEquals(DebugBackend.REFERRAL_TOKEN, DebugBackend.checkoutReferral)
         }
     }
 
     @Test fun startAGiftThroughTheHostedPageThenTheHomeCardShowsIt() {
         launch().use {
-            waitFor("gift-summary")
+            compose.waitForTag("gift-summary")
             waitSummary("No monthly gift yet.")
             openGift()
-            waitFor("start-gift")
-            waitFor("gift-none")
+            compose.waitForTag("start-gift")
+            compose.waitForTag("gift-none")
             // Pick $6 a day, then start: the app sends the amount and opens the (stubbed) hosted page.
             tap("gift-chip-other")
             repeat(5) { tap("gift-increase") }
             compose.onNodeWithTag("gift-daily").assertTextEquals("$6 a day")
             tap("start-gift")
-            waitFor("hosted-page-stub")
+            compose.waitForTag("hosted-page-stub")
             assertTrue(DebugBackend.requestLog.contains("POST /donor/me/recurring/checkout"))
             tap("stub-complete")
             // The first-gift celebration covers the screen; the stub's founding_donor is true.
-            waitFor("celebration-screen")
-            waitFor("celebration-founding")
+            compose.waitForTag("celebration-screen")
+            compose.waitForTag("celebration-founding")
             tap("celebration-done")
-            waitFor("gift-monthly")
+            compose.waitForTag("gift-monthly")
             compose.onNodeWithTag("gift-monthly").assertTextEquals("$180/month")
             compose.onNodeWithTag("gift-notice").assertTextEquals("Your gift is set up.")
             closeGift()
             waitSummary("$180/month · renews")
+            compose.onNodeWithTag("open-gift").assertTextContains("$180/month", substring = true)
+            compose.onNodeWithTag("open-gift").assertTextContains("$6 a day", substring = true)
         }
     }
 
@@ -106,11 +107,11 @@ class GiftFlowTest {
         launch().use {
             openGift()
             tap("start-gift")
-            waitFor("hosted-page-stub")
+            compose.waitForTag("hosted-page-stub")
             tap("stub-close")
-            waitFor("gift-notice")
+            compose.waitForTag("gift-notice")
             compose.onNodeWithTag("gift-notice").assertTextContains("We haven’t seen a new gift yet", substring = true)
-            assertTrue(exists("gift-none"))
+            assertTrue(compose.tagExists("gift-none"))
             assertEquals(1, DebugBackend.requestLog.count { it == "POST /donor/me/recurring/checkout" })
             closeGift()
             waitSummary("No monthly gift yet.")
@@ -120,13 +121,13 @@ class GiftFlowTest {
     @Test fun changeTheAmount() {
         launch("stub_gift_active").use {
             openGift()
-            waitFor("gift-monthly")
+            compose.waitForTag("gift-monthly")
             compose.onNodeWithTag("gift-monthly").assertTextEquals("$150/month")
             compose.onNodeWithTag("gift-daily").assertTextEquals("$5 a day")
             tap("gift-chip-other")
             tap("gift-increase")
             tap("save-gift")
-            waitFor("gift-notice")
+            compose.waitForTag("gift-notice")
             compose.onNodeWithTag("gift-notice").assertTextEquals("Saved. Your next renewal will be $180.")
             compose.onNodeWithTag("gift-monthly").assertTextEquals("$180/month")
             assertTrue(DebugBackend.requestLog.contains("POST /donor/me/recurring/amount"))
@@ -139,10 +140,10 @@ class GiftFlowTest {
         launch("stub_gift_active").use {
             openGift()
             tap("gift-cancel")
-            waitFor("cancel-confirm")
+            compose.waitForTag("cancel-confirm")
             compose.onNodeWithTag("cancel-confirm").assertIsDisplayed()
             tap("cancel-end")
-            waitFor("gift-ending")
+            compose.waitForTag("gift-ending")
             compose.onNodeWithTag("gift-ending").assertTextContains("won’t renew", substring = true)
             closeGift()
             waitSummary("no further renewals")
@@ -153,11 +154,11 @@ class GiftFlowTest {
         launch("stub_gift_active").use {
             openGift()
             tap("gift-cancel")
-            waitFor("cancel-confirm")
+            compose.waitForTag("cancel-confirm")
             tap("cancel-keep")
-            waitGone("cancel-confirm")
-            assertTrue(exists("gift-cancel"))
-            assertTrue(!exists("gift-ending"))
+            compose.waitForTagGone("cancel-confirm")
+            assertTrue(compose.tagExists("gift-cancel"))
+            assertTrue(!compose.tagExists("gift-ending"))
             assertTrue(DebugBackend.requestLog.none { it == "POST /donor/me/recurring/cancel" })
         }
     }
@@ -165,11 +166,11 @@ class GiftFlowTest {
     @Test fun updateThePaymentMethodThroughTheHostedPage() {
         launch("stub_gift_active").use {
             openGift()
-            waitFor("payment-status")
+            compose.waitForTag("payment-status")
             tap("update-payment")
-            waitFor("hosted-page-stub")
+            compose.waitForTag("hosted-page-stub")
             tap("stub-complete")
-            waitFor("gift-notice")
+            compose.waitForTag("gift-notice")
             compose.onNodeWithTag("gift-notice").assertTextEquals("Your payment method was updated.")
             compose.onNodeWithTag("payment-status").assertTextContains("Card updated", substring = true)
         }
@@ -177,10 +178,10 @@ class GiftFlowTest {
 
     @Test fun aFailedGiftReadShowsAMessageAndOpeningTheScreenRecovers() {
         launch("stub_gift_fail_first").use {
-            waitFor("gift-summary")
+            compose.waitForTag("gift-summary")
             waitSummary("Your gift isn’t available right now.")
             openGift()
-            waitFor("gift-monthly")
+            compose.waitForTag("gift-monthly")
             compose.onNodeWithTag("gift-monthly").assertTextEquals("$150/month")
             closeGift()
             waitSummary("$150/month")
@@ -188,11 +189,11 @@ class GiftFlowTest {
     }
 
     private fun startDeleting() {
-        waitFor("open-settings")
-        compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+        compose.waitForTag("open-settings")
+        compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
         tap("open-settings")
         tap("delete-start")
-        waitFor("delete-input")
+        compose.waitForTag("delete-input")
         compose.enterText("delete-input", "DELETE")
     }
 
@@ -201,19 +202,19 @@ class GiftFlowTest {
             startDeleting()
             tap("delete-confirm")
             // The server refuses (409): the screen explains and offers the real cancel flow.
-            waitFor("settings-action-error")
+            compose.waitForTag("settings-action-error")
             compose.onNodeWithTag("settings-action-error").assertTextContains("Cancel your monthly gift first", substring = true)
             tap("delete-cancel-gift")
-            waitFor("gift-screen")
+            compose.waitForTag("gift-screen")
             tap("gift-cancel")
-            waitFor("cancel-confirm")
+            compose.waitForTag("cancel-confirm")
             tap("cancel-end")
-            waitFor("gift-ending")
+            compose.waitForTag("gift-ending")
             tap("gift-close")
             // Back in Settings with the half-finished confirmation intact: with the gift no longer renewing, deleting goes through.
-            waitFor("delete-confirm")
+            compose.waitForTag("delete-confirm")
             tap("delete-confirm")
-            waitFor("role-donor")
+            compose.waitForTag("role-donor")
             assertEquals(1, DebugBackend.requestLog.count { it == "POST /donor/me/recurring/cancel" })
         }
     }
@@ -222,20 +223,20 @@ class GiftFlowTest {
         launch().use {
             startDeleting()
             tap("delete-confirm")
-            waitFor("role-donor")
-            assertTrue(!exists("delete-cancel-gift"))
+            compose.waitForTag("role-donor")
+            assertTrue(!compose.tagExists("delete-cancel-gift"))
         }
     }
 
     @Test fun theLoadingLayoutReservesTheSpaceTheCardsFillSoGiftHistoryDoesNotMove() {
         launch("stub_dashboard_slow", "stub_gift_active").use {
-            waitFor("dashboard-loading")
-            waitFor("open-history")
+            compose.waitForTag("dashboard-loading")
+            compose.waitForTag("open-history")
             compose.waitForIdle()
             val density = compose.density.density
             val before = compose.onNodeWithTag("open-history").fetchSemanticsNode().boundsInRoot.top
-            assertTrue("the measurement must be taken while the cards are still loading", exists("dashboard-loading") && exists("initiative-loading"))
-            compose.waitUntil(30_000) { exists("streak-count") && exists("initiative-title") }
+            assertTrue("the measurement must be taken while the cards are still loading", compose.tagExists("dashboard-loading") && compose.tagExists("initiative-loading"))
+            compose.waitUntil(30_000) { compose.tagExists("streak-count") && compose.tagExists("initiative-title") }
             compose.waitForIdle()
             val after = compose.onNodeWithTag("open-history").fetchSemanticsNode().boundsInRoot.top
             val shiftDp = Math.abs(after - before) / density

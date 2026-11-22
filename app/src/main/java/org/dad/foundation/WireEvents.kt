@@ -9,7 +9,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import java.util.Date
-import java.util.UUID
 
 /**
  * The events routes, read as raw JSON on purpose. The generated models cannot express what the server may
@@ -49,19 +48,28 @@ class WireEvents(private val product: ProductClient) : EventsService {
 
     override suspend fun events(): List<DonorEvent> {
         val own = product.perform { it.create(EventsApi::class.java).events().eventsBody() }
-        val gated = product.perform { it.create(EventsApi::class.java).inviteOnly().eventsBody() }
+        // The invite-only read is an addition to the donor's own list: if it alone fails, show what loaded.
+        val gated = try {
+            product.perform { it.create(EventsApi::class.java).inviteOnly().eventsBody() }
+        } catch (signedOut: AccountFailure.SignedOut) {
+            throw signedOut
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
         // The same event may appear in both reads; keep one, then soonest-first (E-2).
         val seen = HashSet<String>()
         return (own + gated).filter { seen.add(it.id) }.take(ROW_LIMIT).sortedBy { it.startsAt }
     }
 
     override suspend fun event(id: String): DonorEvent {
-        requireId(id)
+        id.requireUuid()
         return product.perform { mapEvent(it.create(EventsApi::class.java).detail(id).eventBody().asObjectOrInvalid()) }
     }
 
     override suspend fun reserve(eventId: String): ReservationOutcome? {
-        requireId(eventId)
+        eventId.requireUuid()
         return product.perform { retrofit ->
             val status = retrofit.create(EventsApi::class.java).reserve(eventId).eventBody().asObjectOrInvalid().str("status")
             // CANCELLED is not a place a reserve can leave the donor in; an unknown value is re-read, not guessed.
@@ -70,7 +78,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
     }
 
     override suspend fun cancel(eventId: String) {
-        requireId(eventId)
+        eventId.requireUuid()
         product.perform { retrofit ->
             // Anything but CANCELLED means the server did not do what was asked: do not report success.
             val status = retrofit.create(EventsApi::class.java).cancel(eventId).eventBody().asObjectOrInvalid().str("status")
@@ -89,7 +97,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
     }
 
     override suspend fun calendar(eventId: String): ByteArray {
-        requireId(eventId)
+        eventId.requireUuid()
         return product.perform { retrofit ->
             val response = retrofit.create(EventsApi::class.java).calendar(eventId)
             if (!response.isSuccessful) { response.errorBody()?.close(); throw failureForStatus(response.code()) }
@@ -98,13 +106,6 @@ class WireEvents(private val product: ProductClient) : EventsService {
             if (bytes == null || bytes.isEmpty() || !String(bytes, Charsets.UTF_8).trimStart().startsWith("BEGIN:VCALENDAR")) throw AccountFailure.InvalidResponse
             bytes
         }
-    }
-
-    // MARK: helpers
-
-    /** A malformed id is a 404 server-side; refuse it before it becomes a path segment. */
-    private fun requireId(id: String) {
-        if (id.length != 36 || runCatching { UUID.fromString(id) }.isFailure) throw AccountFailure.InvalidInput
     }
 
     private fun Response<JsonElement>.eventBody(): JsonElement = successBody()
@@ -137,7 +138,7 @@ class WireEvents(private val product: ProductClient) : EventsService {
                 cancelled = json.bool("cancelled"),
                 bookingOpensAt = json.optTime("booking_opens_at")?.toDate(),
                 earlyBooking = json.bool("early_booking"),
-                timeZone = json.optStr("time_zone") ?: "UTC",
+                timeZone = json.str("time_zone"),
                 checkedInAt = json.optTime("checked_in_at")?.toDate(),
                 details = json.optStr("description").orEmpty(), address = json.optStr("address").orEmpty(),
             )

@@ -14,6 +14,13 @@ local.properties
 keystore.properties
 *.keystore
 *.jks
+app/google-services.json
 
 # Untracked planning/requirements working docs (not shipped software).
 docs/requirements/
+
+# Agent working files (task plans, reviews); the skills links are local-only.
+.agents/
+
+# Local UX capture notes and screenshots.
+docs/ux-android/

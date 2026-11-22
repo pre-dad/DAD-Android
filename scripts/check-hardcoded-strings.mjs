@@ -45,7 +45,11 @@ export function scan(source, file = "source.kt") {
       i = stop;
       continue;
     }
-    if (c === "'") { i += source[i + 1] === "\\" ? 4 : 3; continue; }
+    if (c === "'") {
+      const close = source.indexOf("'", i + (source[i + 1] === "\\" ? 3 : 2));
+      i = close < 0 ? i + 1 : close + 1;
+      continue;
+    }
     if (source.startsWith('"""', i)) {
       const end = source.indexOf('"""', i + 3);
       const stop = end < 0 ? source.length : end + 3;

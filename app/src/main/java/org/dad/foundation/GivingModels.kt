@@ -15,11 +15,6 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
-// Giving view model + the service seam. The model owns an explicit state machine driven through
-// [GivingService], so start / change-amount / cancel / payment-method are unit-tested without a
-// network, an Android framework or UI, exactly like the auth and attribution layers. The Kotlin
-// counterpart of the iOS GivingModel.
-
 /**
  * The payment path resolved for a request. The app never handles card data: the first charge is
  * backend-driven after the hosted page finishes, so this only decides which affordance the screen shows.
@@ -296,18 +291,24 @@ class GivingModel(
         viewModelScope.launch {
             try {
                 var settled = false
+                readFailed = false
                 for (attempt in 0 until attempts) {
                     if (attempt > 0) delay(pollDelayMs)
                     if (!readAfterHandoff()) break
                     settled = when (finished.purpose) {
-                        HostedHandoff.Purpose.START_GIFT -> recurring.subscriptionIdOrNull != null
+                        HostedHandoff.Purpose.START_GIFT -> when (val gift = recurring) {
+                            is RecurringState.Active -> gift.status == SubscriptionStatus.ACTIVE
+                            is RecurringState.Ending -> gift.status == SubscriptionStatus.ACTIVE
+                            else -> false
+                        }
                         HostedHandoff.Purpose.UPDATE_PAYMENT -> payment?.let { !it.isInFlight } ?: false
                     }
                     if (settled) break
                 }
                 syncSelection()
                 hasLoaded = true
-                notice = outcome(finished.purpose, settled, payment)
+                notice = if (!settled && readFailed) UiText.res(R.string.give_we_couldnt_check_your_gift_status)
+                else outcome(finished.purpose, settled, payment)
                 if (settled && finished.purpose == HostedHandoff.Purpose.START_GIFT) {
                     celebrating = true
                     confirmations++
@@ -325,8 +326,6 @@ class GivingModel(
         handoff = null
         phase = GivingPhase.Failed(UiText.res(R.string.give_we_couldnt_open_the_secure_payment))
     }
-
-    // MARK: private
 
     private fun begin(purpose: HostedHandoff.Purpose, startedFromConflict: Boolean, open: suspend () -> PaymentPath) {
         phase = GivingPhase.Working
@@ -365,14 +364,19 @@ class GivingModel(
         }
     }
 
+    /** True when the latest recurring read during confirmation failed, so "not settled" may only mean "could not check". */
+    private var readFailed = false
+
     /** One recurring + payment read during confirmation. False when the poll should stop (the session ended). */
     private suspend fun readAfterHandoff(): Boolean {
         try {
             recurring = service.recurring()
+            readFailed = false
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             if (error is AccountFailure.SignedOut) { signedOut = true; return false }
+            readFailed = true
         }
         readSupporting()
         return !signedOut
@@ -382,13 +386,13 @@ class GivingModel(
         if (recurring.subscriptionIdOrNull != null) {
             try { offer = service.amountOffer() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { noteSoft(error) }
+            catch (error: Exception) { offer = null; noteSoft(error) }
         } else {
             offer = null
         }
         try { payment = service.paymentMethod() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) { noteSoft(error) }
+        catch (error: Exception) { payment = null; noteSoft(error) }
     }
 
     private fun noteSoft(error: Exception) { if (error is AccountFailure.SignedOut) signedOut = true }

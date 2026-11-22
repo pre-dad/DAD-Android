@@ -2,9 +2,8 @@ package org.dad.foundation
 
 /**
  * Optional sign-in methods that need owner-supplied configuration and a platform provider. Both
- * providers are null until a Credential Manager implementation is linked, so [capabilities] is
- * [SignInCapabilities.NONE] and the sign-in screen offers neither method. Each button appears on its
- * own once its capability is on and its provider is supplied.
+ * buttons appear only when both their capability and provider are supplied. Production builds link
+ * the Google Credential Manager provider when a valid client ID is configured.
  */
 class ExternalSignInDeps(
     val capabilities: SignInCapabilities = SignInCapabilities.NONE,
@@ -12,6 +11,7 @@ class ExternalSignInDeps(
     val passkey: PasskeySignInService = UnconfiguredExternalSignIn,
     val googleTokens: GoogleIdTokenProvider? = null,
     val authenticator: PasskeyAuthenticator? = null,
+    val clearPlatformSession: (suspend () -> Unit)? = null,
 ) {
     val offersGoogle: Boolean get() = capabilities.google && googleTokens != null
     val offersPasskey: Boolean get() = capabilities.passkey && authenticator != null

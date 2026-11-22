@@ -27,6 +27,14 @@ object Referral {
         return "$origin/r/$sanitized" + if (inPerson) "?via=irl" else ""
     }
 
+    /** The company sign-up link `/c/<code>`; null for a malformed origin or a code that fails sanitization. */
+    fun companyLink(publicOrigin: String, code: String): String? {
+        val sanitized = Attribution.sanitized(code) ?: return null
+        val origin = publicOrigin.trimEnd('/')
+        if (!origin.startsWith("https://") || origin.length < "https://a".length) return null
+        return "$origin/c/$sanitized"
+    }
+
     /**
      * Encode a string into a QR bit-matrix (true = dark module). Pure computation — rendering to
      * a Compose/Bitmap surface is the caller's job — so the encode/decode round-trip is a unit
@@ -47,18 +55,19 @@ object Referral {
 /**
  * Shares an invite link through the Android share sheet (R-1) or copies it (R-2). An interface
  * so tests assert the share was requested with the right payload and the app wires the real
- * `Intent.ACTION_SEND` / clipboard in the Activity. Every successful share emits `invite_shared`.
+ * `Intent.ACTION_SEND` / clipboard in the Activity. Every share that reached a share target emits
+ * `invite_shared`.
  */
 interface ReferralSharer {
-    fun share(link: String, channel: String)
+    /** False when nothing could take the share (no app handles it). */
+    fun share(link: String, channel: String): Boolean
     fun copy(link: String)
 }
 
 /** Drives sharing + analytics; the UI calls this, not the raw sharer. */
 class ReferralShareAction(private val sharer: ReferralSharer, private val analytics: AnalyticsEmitter? = null) {
     fun share(link: String, channel: String = "share_sheet") {
-        sharer.share(link, channel)
-        analytics?.emit(AnalyticsEvent.InviteShared(channel))
+        if (sharer.share(link, channel)) analytics?.emit(AnalyticsEvent.InviteShared(channel))
     }
     fun copy(link: String) {
         sharer.copy(link)
@@ -71,10 +80,12 @@ class ReferralShareAction(private val sharer: ReferralSharer, private val analyt
 
 /** The real sharer: the system share sheet for [share] and the clipboard for [copy]. */
 class AndroidReferralSharer(private val context: Context) : ReferralSharer {
-    override fun share(link: String, channel: String) {
+    override fun share(link: String, channel: String): Boolean {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
-        try { context.startActivity(Intent.createChooser(send, context.getString(R.string.referral_share_chooser_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        catch (_: android.content.ActivityNotFoundException) { }
+        return try {
+            context.startActivity(Intent.createChooser(send, context.getString(R.string.referral_share_chooser_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (_: android.content.ActivityNotFoundException) { false }
     }
 
     override fun copy(link: String) {

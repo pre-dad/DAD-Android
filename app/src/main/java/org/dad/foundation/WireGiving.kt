@@ -91,7 +91,8 @@ class WireGiving(
     }
 
     override suspend fun changeAmount(subscriptionId: String, amountMinor: Int): RecurringState {
-        if (!subscriptionId.isUuid() || GiftAmount.ofMonthlyMinor(amountMinor) == null) throw AccountFailure.InvalidInput
+        subscriptionId.requireUuid()
+        if (GiftAmount.ofMonthlyMinor(amountMinor) == null) throw AccountFailure.InvalidInput
         // The command echoes what the matching GET returned, so read it fresh; a subscription that is no
         // longer the one on screen is a conflict, not something to send.
         val offer = amountOffer() ?: throw AccountFailure.Unavailable
@@ -110,7 +111,7 @@ class WireGiving(
     }
 
     override suspend fun cancel(subscriptionId: String, periodEnd: Date): RecurringState {
-        if (!subscriptionId.isUuid()) throw AccountFailure.InvalidInput
+        subscriptionId.requireUuid()
         val body = JsonObject().apply {
             addProperty("subscription_id", subscriptionId)
             addProperty("period_end", periodEnd.toIsoString())
@@ -133,6 +134,7 @@ class WireGiving(
         return command("checkout:$amountMinor:${referralFingerprint(referral)}") { key ->
             product.perform { retrofit ->
                 val json = retrofit.create(GivingApi::class.java).startRecurringCheckout(key, body).givingBody().asObjectOrInvalid()
+                // Strict shape check of the response; the values are unused.
                 json.str("session_id")
                 json.time("expires_at")
                 PaymentPath.WebCheckoutHandoff(hostedUrl(json.str("url")))
@@ -155,8 +157,6 @@ class WireGiving(
             )
         }
     }
-
-    // MARK: helpers
 
     /**
      * Run a command under its Idempotency-Key. Definitive refusals and successes retire the key; a retryable
@@ -182,15 +182,12 @@ class WireGiving(
     private fun Response<JsonElement>.givingBody(): JsonElement {
         if (isSuccessful) return body() ?: throw AccountFailure.InvalidResponse
         val (problemCode, _) = problem()
-        throw when (code()) {
-            401 -> AccountFailure.SignedOut
-            403 -> AccountFailure.Forbidden
-            409 -> AccountFailure.Conflict
-            422 -> AccountFailure.InvalidInput
-            429 -> AccountFailure.RateLimited
+        throw when {
             // A 503 carrying a `code` is a feature this deployment has not configured: do not retry.
-            503 -> if (problemCode != null) AccountFailure.PaymentsUnavailable else AccountFailure.Unavailable
-            else -> AccountFailure.Unavailable
+            code() == 503 && problemCode != null -> AccountFailure.PaymentsUnavailable
+            // Unlike the shared mapping, a 404 here is not a resource the donor can act on.
+            code() == 404 -> AccountFailure.Unavailable
+            else -> failureForStatus(code())
         }
     }
 
@@ -210,7 +207,11 @@ class WireGiving(
     }
 
     companion object {
-        /** A hosted page must be https with no embedded credentials; anything else is never opened. */
+        /**
+         * A hosted page must be https with no embedded credentials; anything else is never opened. The host is
+         * deliberately not allow-listed: the URL arrives over the pinned-https first-party API, and Stripe hosted
+         * pages, custom domains and test hosts all differ by environment.
+         */
         internal fun hostedUrl(text: String): String {
             val url = text.toHttpUrlOrNull() ?: throw AccountFailure.InvalidResponse
             if (!url.isHttps || url.host.isEmpty() || url.username.isNotEmpty() || url.password.isNotEmpty()) throw AccountFailure.InvalidResponse
@@ -219,6 +220,5 @@ class WireGiving(
     }
 }
 
-private fun String.isUuid(): Boolean = length == 36 && runCatching { UUID.fromString(this) }.isSuccess
 private fun OffsetDateTime.toDate(): Date = Date.from(toInstant())
 private fun Date.toIsoString(): String = Instant.ofEpochMilli(time).toString()

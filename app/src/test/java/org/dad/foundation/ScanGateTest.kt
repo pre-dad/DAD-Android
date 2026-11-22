@@ -1,7 +1,6 @@
 package org.dad.foundation
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,7 +18,6 @@ class ScanGateTest {
         val p = Probe()
         p.gate.offer(token)
         assertEquals(listOf(token), p.valid)
-        assertTrue(p.gate.isDone)
         assertEquals(0, p.invalid)
     }
 
@@ -44,10 +42,8 @@ class ScanGateTest {
         p.gate.offer("short")
         assertEquals(2, p.invalid)
         assertTrue(p.valid.isEmpty())
-        assertFalse(p.gate.isDone)
         p.gate.offer(token)
         assertEquals(listOf(token), p.valid)
-        assertTrue(p.gate.isDone)
     }
 
     @Test fun surroundingWhitespaceIsTrimmedButTheShapeIsNotRepaired() {

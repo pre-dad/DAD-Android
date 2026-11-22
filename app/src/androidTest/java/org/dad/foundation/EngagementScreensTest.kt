@@ -3,7 +3,7 @@ package org.dad.foundation
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -19,7 +19,7 @@ class EngagementScreensTest {
     private class RecordingSharer : ReferralSharer {
         val shared = mutableListOf<String>()
         val copied = mutableListOf<String>()
-        override fun share(link: String, channel: String) { shared += link }
+        override fun share(link: String, channel: String): Boolean { shared += link; return true }
         override fun copy(link: String) { copied += link }
     }
 

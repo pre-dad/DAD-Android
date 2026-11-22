@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assess } from "./check-foundation-drift.mjs";
+import { assess, newestVersion } from "./check-foundation-drift.mjs";
 
 const v = (major, minor, patch) => ({ major, minor, patch });
 
@@ -36,4 +36,16 @@ test("unreachable remote (null latest) warns, never fails", () => {
 
 test("invalid pinned version fails", () => {
   assert.equal(assess("not-a-version", v(2, 2, 0)).level, "fail");
+});
+
+test("the newest tag is chosen numerically, ignoring unrelated tags", () => {
+  const output = [
+    "aaa\trefs/tags/mobile-foundation-v2.9.0",
+    "bbb\trefs/tags/mobile-foundation-v2.10.0",
+    "ccc\trefs/tags/mobile-foundation-v2.2.5",
+    "ddd\trefs/tags/other-v9.0.0",
+    "eee\trefs/tags/mobile-foundation-v3.0.0-rc1",
+  ].join("\n");
+  assert.deepEqual(newestVersion(output), v(2, 10, 0));
+  assert.equal(newestVersion("ddd\trefs/tags/other-v9.0.0\n"), null);
 });

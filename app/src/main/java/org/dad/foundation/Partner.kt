@@ -7,8 +7,6 @@ import java.util.Date
 // last-updated rendering are unit-testable without a network or UI — the Kotlin counterpart of
 // the iOS Phase F partner domain.
 
-// MARK: - Role (§7.2, P-4/P-5)
-
 /** A partner user's role. ADMIN manages users/invites/profile/exports; VIEWER is read-only.
  *  Partner accounts never donate (P-5) — enforced by the portal having no giving surface. */
 enum class PartnerRole {
@@ -30,16 +28,7 @@ internal fun formatCount(value: Long): String = String.format(java.util.Locale.U
 /** Invite-email shape check (shared with iOS): trimmed, at most 254 characters, `local@domain`
  *  with a non-empty local part and a domain of at least two non-empty dot-separated labels, no
  *  whitespace. The server remains the authority. */
-fun isPlausibleEmail(value: String): Boolean {
-    val email = value.trim()
-    if (email.isEmpty() || email.length > 254 || email.any { it.isWhitespace() }) return false
-    val parts = email.split('@')
-    if (parts.size != 2 || parts[0].isEmpty()) return false
-    val labels = parts[1].split('.')
-    return labels.size >= 2 && labels.all { it.isNotEmpty() }
-}
-
-// MARK: - Verified figures (§7.3 — hidden, never estimated)
+fun isPlausibleEmail(value: String): Boolean = CredentialRules.isPlausibleEmail(value)
 
 /** A money figure shown ONLY when the server marks it verified; unverified is hidden (§7.3). */
 data class VerifiedMoney(val amountMinor: Long, val verified: Boolean) {
@@ -50,8 +39,6 @@ data class VerifiedMoney(val amountMinor: Long, val verified: Boolean) {
 data class VerifiedCount(val value: Long, val verified: Boolean) {
     val label: String? get() = if (verified) formatCount(value) else null
 }
-
-// MARK: - Overview (P-10, §7.3)
 
 /**
  * The partner Overview tiles. Each money/count pairs its value with a verified flag; the UI
@@ -86,8 +73,6 @@ data class PartnerOverview(
         }
 }
 
-// MARK: - Our People rollup (P-13, EM-3 suppression)
-
 /** The workforce rollup. When [suppressed] the group is under the <5 threshold and the UI must
  *  show the suppression notice instead of any figure (EM-3). */
 data class PartnerPeople(
@@ -99,14 +84,13 @@ data class PartnerPeople(
     val volunteerMinutes: Long,
     val teams: Long,
     val suppressed: Boolean,
+    val streakVerified: Boolean = false,
 ) {
     val givenLabel: String? get() = if (suppressed) null else formatMinorUsd(givenMinor)
     val matchedLabel: String? get() = if (suppressed) null else formatMinorUsd(matchedMinor)
     val suppressionNotice: UiText?
         get() = if (suppressed) UiText.res(R.string.partner_fewer_than_5_people_have_enrolled) else null
 }
-
-// MARK: - Initiatives (P-11)
 
 enum class InitiativeStatus {
     ACTIVE, COMPLETE;
@@ -124,13 +108,19 @@ data class PartnerInitiative(
     val committedMinor: Long,
     val deployedMinor: Long,
     val metrics: List<PartnerMetric>,
+    val countyCount: Int? = null,
+    val spend: List<PartnerSpendCategory> = emptyList(),
+    val updatedAt: java.time.OffsetDateTime? = null,
 ) {
     val headlineMetrics: List<PartnerMetric> get() = metrics.take(3)
     val committedLabel: String get() = formatMinorUsd(committedMinor)
     val deployedLabel: String get() = formatMinorUsd(deployedMinor)
+    val deployedFraction: Float? get() = if (committedMinor > 0) {
+        (deployedMinor.toDouble() / committedMinor).coerceIn(0.0, 1.0).toFloat()
+    } else null
 }
 
-data class PartnerMetric(val label: String, val value: Long, val unit: Unit) {
+data class PartnerMetric(val label: String, val value: Long, val unit: Unit, val verifiedOn: java.time.LocalDate? = null) {
     enum class Unit {
         USD_CENTS, PEOPLE, INITIATIVES, PARTNERS;
         companion object {
@@ -142,11 +132,7 @@ data class PartnerMetric(val label: String, val value: Long, val unit: Unit) {
     val valueLabel: String get() = if (unit == Unit.USD_CENTS) formatMinorUsd(value) else formatCount(value)
 }
 
-// MARK: - Users (P-13 management)
-
 data class PartnerUser(val id: String, val email: String, val name: String, val role: PartnerRole)
-
-// MARK: - Spend (P-12, totals only)
 
 data class PartnerSpendCategory(val category: String, val amountMinor: Long) {
     val amountLabel: String get() = formatMinorUsd(amountMinor)

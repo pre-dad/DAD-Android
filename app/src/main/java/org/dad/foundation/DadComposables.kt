@@ -2,6 +2,7 @@ package org.dad.foundation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -11,14 +12,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-// Shared DAD composables (design-system primitives). Additive: these are wired into screens in later
-// PRs, so no screen behaviour or testTags change here. Token colours only; 48dp-safe; a title that is a
-// section heading carries dadHeading().
-
 /**
  * Frames a recurring gift as its monthly and daily amounts at EQUAL visual weight — both lines use the
- * same figure style and colour, so neither reads as subordinate (replacing the old displaySmall vs
- * bodyLarge imbalance). The pair is one semantics group for TalkBack.
+ * same figure style and colour, so neither reads as subordinate. The pair is one semantics group for TalkBack.
  */
 @Composable
 fun DadGiftFraming(
@@ -27,7 +23,7 @@ fun DadGiftFraming(
     modifier: Modifier = Modifier,
     monthlyModifier: Modifier = Modifier,
     dailyModifier: Modifier = Modifier,
-    color: Color = DadTheme.color("ink"),
+    color: Color = LocalContentColor.current,
 ) {
     Column(
         modifier = modifier.contentDescribed(R.string.ui_gift_framing_description, monthly, daily),
@@ -52,7 +48,7 @@ fun DadStatTile(title: String, value: String?, caption: String, modifier: Modifi
         } else {
             Text("—", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.contentDescribed(R.string.common_not_available))
         }
-        Text(caption, style = MaterialTheme.typography.bodySmall, color = DadTheme.color("muted"))
+        Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -32,6 +33,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import org.dad.foundation.generated.DADTokens
@@ -45,12 +47,14 @@ object DadTheme {
     /**
      * Resolve a DAD color token by name. Falls back to a visible magenta for an unknown token
      * so a typo is obvious rather than silently wrong. Some tokens (outline cues like `ghost-line`)
-     * are authored as `rgba(r,g,b,a)` with fractional alpha; `toColorInt` only parses `#rgb`/`#rrggbb`,
-     * so those are decoded here to keep their real token value (and alpha) rather than a magenta fallback.
+     * use CSS rgba or shorthand hex, which Android's color parser does not support.
      */
     fun color(name: String): Color = resolved.getOrPut(name) {
         val raw = DADTokens.color[name] ?: return@getOrPut Color.Magenta
-        parseRgba(raw) ?: runCatching { Color(raw.toColorInt()) }.getOrElse { Color.Magenta }
+        val hex = if (raw.startsWith("#") && raw.length == 4) {
+            "#" + raw.drop(1).map { "$it$it" }.joinToString("")
+        } else raw
+        parseRgba(raw) ?: runCatching { Color(hex.toColorInt()) }.getOrElse { Color.Magenta }
     }
 
     private val resolved = java.util.concurrent.ConcurrentHashMap<String, Color>()
@@ -78,25 +82,6 @@ object DadTheme {
 
     fun brandAccent(dark: Boolean): Color = color(brandAccentToken(dark))
 
-    /** Page background token for the given theme. */
-    fun backgroundToken(dark: Boolean): String = if (dark) "ink-deep" else "paper"
-
-    /** WCAG 2.x contrast ratio (1.0..21.0) between two opaque `#rgb`/`#rrggbb` tokens, by token name. */
-    fun contrast(foreground: String, background: String): Double {
-        val la = luminance(DADTokens.color.getValue(foreground))
-        val lb = luminance(DADTokens.color.getValue(background))
-        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
-    }
-
-    private fun luminance(hex: String): Double {
-        val digits = hex.removePrefix("#").let { if (it.length == 3) it.map { c -> "$c$c" }.joinToString("") else it }
-        fun channel(i: Int): Double {
-            val v = digits.substring(i, i + 2).toInt(16) / 255.0
-            return if (v <= 0.03928) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
-    }
-
     fun radius(name: String): Dp = (DADTokens.radius[name] ?: 0.0).dp
 }
 
@@ -112,22 +97,23 @@ fun Modifier.contentDescribed(@StringRes id: Int, vararg formatArgs: Any): Modif
 
 /**
  * A top app bar whose only control is a back arrow. The arrow is an [IconButton] (never a filled
- * button, so a screen keeps its single filled primary) drawn with the "\u2190" glyph — no
- * `material-icons` dependency is on the classpath, so the glyph is the icon. It carries [backTag]
- * (the testTag moved off the old inline Close/Back button) and [backDescription] for TalkBack; the
- * 48dp IconButton is the touch target. Colours come from the theme (no literal Color). [title] is
+ * button, so a screen keeps its single filled primary) drawn with the "\u2190" glyph (mirrored to
+ * "\u2192" in a right-to-left layout) — no `material-icons` dependency is on the classpath, so the
+ * glyph is the icon. It carries [backTag] and [backDescription] for TalkBack; the 48dp IconButton
+ * is the touch target. Colours come from the theme (no literal Color). [title] is
  * optional because most screens keep their heading in the body; pass it only where the bar owns it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DadBackBar(backTag: String, backDescription: String, title: String = "", onBack: () -> Unit) {
+    val arrow = if (LocalLayoutDirection.current == LayoutDirection.Rtl) "\u2192" else "\u2190"
     TopAppBar(
         title = { if (title.isNotEmpty()) Text(title, modifier = Modifier.dadHeading()) },
         navigationIcon = {
             IconButton(
                 onClick = onBack,
                 modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = backDescription }.testTag(backTag),
-            ) { Text("\u2190", style = MaterialTheme.typography.headlineSmall) }
+            ) { Text(arrow, style = MaterialTheme.typography.headlineSmall) }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
@@ -139,16 +125,10 @@ fun DadBackBar(backTag: String, backDescription: String, title: String = "", onB
 
 /**
  * Primary call-to-action — the web primary: `brand` fill with an `ink` label (ink-on-brand = 5.11:1,
- * WCAG AA). Replaces the former `brand-ink` fill + `paper` label; a `paper` label on raw `brand` is
- * only 3.2:1, so the label is `ink`, not paper. 48dp minimum target. One filled primary per screen.
+ * WCAG AA); a `paper` label on raw `brand` is only 3.2:1, so the label is `ink`, not paper. 48dp minimum target. One filled primary per screen.
  */
 @Composable
-fun DadPrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) =
-    DadPrimaryButton(text = text, modifier = modifier, enabled = true, onClick = onClick)
-
-/** Primary call-to-action with an explicit enabled state (e.g. a busy/invalid form guard). */
-@Composable
-fun DadPrimaryButton(text: String, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+fun DadPrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = enabled,

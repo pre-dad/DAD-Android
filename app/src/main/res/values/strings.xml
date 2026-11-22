@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="partner_spend_title">Spend by category</string>
+    <string name="diagnostics_title">Share crash and error reports</string>
+    <string name="diagnostics_unavailable">Diagnostic sharing is unavailable in this build.</string>
+    <string name="diagnostics_explainer">Optional: share crash traces, app and device information, and saved diagnostic reports with Google Firebase to help fix problems. This is separate from usage analytics. You can turn sharing off here.</string>
+    <string name="partner_all_initiatives">All initiatives</string>
+    <string name="partner_view_details">View initiative details</string>
+    <string name="partner_all_metrics">Verified metrics</string>
+    <string name="partner_no_app_for_that">There’s no app on this device that can open that.</string>
+    <string name="partner_no_metrics">No verified metrics yet.</string>
+    <string name="partner_no_spend">No verified spend yet.</string>
+    <string name="partner_final">Final</string>
+    <string name="partner_verified_on">Verified %1$s</string>
+    <string name="partner_updated_at">Updated %1$s</string>
+    <string name="partner_update_unknown">Update date unavailable</string>
+    <plurals name="partner_counties">
+        <item quantity="one">%1$d county</item>
+        <item quantity="other">%1$d counties</item>
+    </plurals>
+    <string name="about_heading">About DAD</string>
+    <string name="about_organization">Dynamic Aid Delivery, INC.</string>
+    <string name="about_version">Version %1$s</string>
     <string name="app_name">DAD</string>
 
     <!-- Sign-in: role select and methods -->
@@ -97,7 +118,7 @@
     <string name="cred_set_a_password_to_sign_in_with">Set a password to sign in with your email. Leave “Current password” empty if you haven’t set one.</string>
     <string name="cred_current_password">Current password</string>
     <string name="cred_new_password">New password</string>
-    <string name="cred_12_to_72_characters">12 to 72 characters.</string>
+    <string name="cred_12_to_72_bytes">12 to 72 bytes. Accented characters count more.</string>
     <string name="cred_confirm_new_password">Confirm new password</string>
     <string name="cred_passwords_dont_match">Passwords don’t match.</string>
     <string name="cred_save_password">Save password</string>
@@ -105,9 +126,9 @@
     <string name="cred_check_your_name_email_city_and_zip">Check your name, email, city and ZIP code, then try again.</string>
     <string name="cred_the_email_or_password_is_incorrect">The email or password is incorrect.</string>
     <string name="cred_check_your_email_and_password_then">Check your email and password, then try again.</string>
-    <string name="cred_use_12_to_72_characters">Use 12 to 72 characters.</string>
+    <string name="cred_use_12_to_72_bytes">Use 12 to 72 bytes. Accented characters count more.</string>
     <string name="cred_your_current_password_didnt_match">Your current password didn’t match. Check it and try again.</string>
-    <string name="cred_use_a_password_of_12_to_72">Use a password of 12 to 72 characters.</string>
+    <string name="cred_use_a_password_of_12_to_72_bytes">Use a password of 12 to 72 bytes. Accented characters count more.</string>
     <string name="cred_we_couldnt_save_your_password">We couldn’t save your password right now. Please try again in a moment.</string>
     <string name="extsignin_google_sign_in_isnt_available_on">Google sign-in isn’t available on this device.</string>
     <string name="extsignin_we_couldnt_find_a_dad_account_for">We couldn’t find a DAD account for that Google sign-in. Create your account with your email first.</string>
@@ -119,7 +140,7 @@
 
     <!-- Account details, employer and sessions -->
     <string name="acct_your_details">Your details</string>
-    <string name="acct_your_zip_code_sets_your_city_for">Your ZIP code sets your city for events and rankings, and your time zone.</string>
+    <string name="acct_your_zip_code_suggests_your_time_zone">Your ZIP code suggests your time zone. Correct it below if your local midnight differs.</string>
     <string name="acct_enter_a_5_digit_zip_code_or_leave">Enter a 5-digit ZIP code, or leave it empty.</string>
     <string name="acct_mobile_phone">Mobile phone</string>
     <string name="acct_enter_a_us_number_or_include_the">Enter a US number, or include the country code starting with +.</string>
@@ -140,6 +161,8 @@
     <string name="acct_youre_not_signed_in_anywhere_else">You’re not signed in anywhere else.</string>
     <string name="acct_sign_out_of_every_other_device">Sign out of every other device</string>
     <string name="acct_sign_out_on_every_device">Sign out on every device</string>
+    <string name="acct_sign_out_everywhere_title">Sign out on every device?</string>
+    <string name="acct_sign_out_everywhere_body">You’ll be signed out here and on every other device, and will need to sign in again.</string>
     <string name="acct_preparing_your_wallet_pass">Preparing your Wallet pass…</string>
     <string name="acct_add_to_google_wallet">Add to Google Wallet</string>
     <string name="acct_wallet_availability_couldnt_be">Wallet availability couldn’t be checked. Your on-screen code still works.</string>
@@ -157,6 +180,7 @@
     <string name="acct_your_account_is_already_linked_to">Your account is already linked to another employer.</string>
     <string name="acct_that_team_name_couldnt_be_saved">That team name couldn’t be saved. Use up to 80 characters.</string>
     <string name="acct_the_wallet_pass_couldnt_be">The Wallet pass couldn’t be prepared. Please try again. Your on-screen code still works.</string>
+    <string name="acct_wallet_pass_throttled">Too many attempts. Please wait a moment and try again. Your on-screen code still works.</string>
     <string name="acct_email_change_sent">Check your current email address first. After you confirm there, we’ll send a second confirmation to your new address. Each link expires after 15 minutes.</string>
     <string name="acct_linked_to">Linked to %1$s</string>
     <string name="acct_your_team">Your team: %1$s</string>
@@ -165,7 +189,7 @@
     <string name="acct_session_last_used">Last used %1$s</string>
     <string name="acct_sign_out_session">Sign out %1$s</string>
     <plurals name="acct_leaderboard_stats">
-        <item quantity="one">%1$d givers · %2$s a year · %3$d-day average streak</item>
+        <item quantity="one">%1$d giver · %2$s a year · %3$d-day average streak</item>
         <item quantity="other">%1$d givers · %2$s a year · %3$d-day average streak</item>
     </plurals>
 
@@ -326,6 +350,7 @@
     <string name="network_invite_only_milestone_events">Invite-only milestone events</string>
     <string name="network_invite_only_events_a_dad_merch">Invite-only events, a DAD merch item, 48-hour early event booking and opt-in name listing on initiative pages</string>
     <string name="network_unlocks_a_member_perk">Unlocks a member perk</string>
+    <string name="network_conversion_gift">Gift</string>
     <string name="network_in_person">In person</string>
     <string name="network_join_me_on_dollar_a_day_give_1_a">Join me on Dollar A Day — give $1 a day to local causes.</string>
     <string name="network_status_giving">giving</string>
@@ -399,7 +424,7 @@
     <string name="events_youre_on_the_waitlist">You’re on the waitlist.</string>
     <string name="events_leave_the_waitlist">Leave the waitlist?</string>
     <string name="events_give_up_your_spot">Give up your spot?</string>
-    <string name="events_leave_the_waitlist_2">Leave the waitlist</string>
+    <string name="events_leave_the_waitlist_button">Leave the waitlist</string>
     <string name="events_give_up_my_spot">Give up my spot</string>
     <string name="events_keep_it">Keep it</string>
     <string name="events_leave_waitlist">Leave waitlist</string>
@@ -418,7 +443,7 @@
     <string name="events_report_an_issue">Report an issue</string>
     <string name="events_volunteer">Volunteer</string>
     <string name="events_community">Community</string>
-    <string name="events_invite_only_2">Invite-only</string>
+    <string name="events_type_invite_only">Invite-only</string>
     <string name="events_event">Event</string>
     <string name="events_open_to_everyone">Open to everyone</string>
     <string name="events_full">Full</string>
@@ -428,7 +453,7 @@
     <string name="events_youre_not_eligible_for_this_event">You’re not eligible for this event.</string>
     <string name="events_this_event_is_no_longer_available">This event is no longer available.</string>
     <string name="events_this_event_changed_while_you_were">This event changed while you were looking at it. We’ve refreshed it; please review and try again.</string>
-    <string name="events_that_doesnt_look_like_an_event">That doesn’t look like an event check-in code. It is 66 characters long.</string>
+    <string name="events_that_doesnt_look_like_an_event" tools:ignore="PluralsCandidate">That doesn’t look like an event check-in code. It is %1$d characters long.</string>
     <string name="events_that_code_didnt_work_check_that">That code didn’t work. Check that you hold a seat, the event is under way, and the code is the one shown at the event.</string>
     <string name="events_that_code_is_for_a_different_event">That code is for a different event.</string>
     <string name="events_check_in_is_for_donors_who_hold_a">Check-in is for donors who hold a seat. Waitlisted places can’t check in.</string>
@@ -497,6 +522,7 @@
     <string name="give_your_gift_changed_while_you_were">Your gift changed while you were looking at it. We’ve refreshed it; please review and try again.</string>
     <string name="give_payments_arent_available_right_now">Payments aren’t available right now. Please try again later.</string>
     <string name="give_your_gift_is_set_up">Your gift is set up.</string>
+    <string name="give_we_couldnt_check_your_gift_status">We couldn’t check your gift status just now. Please check again in a moment.</string>
     <string name="give_we_havent_seen_a_new_gift_yet_if">We haven’t seen a new gift yet. If you finished checkout, it can take a moment to appear.</string>
     <string name="give_were_still_waiting_for_the_payment">We’re still waiting for the payment provider to confirm. Check back in a moment.</string>
     <string name="give_your_payment_method_was_updated">Your payment method was updated.</string>
@@ -655,16 +681,12 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
-    <plurals name="partner_team_line">
-        <item quantity="one">%1$d. %2$s · %3$d givers · %4$s/yr</item>
-        <item quantity="other">%1$d. %2$s · %3$d givers · %4$s/yr</item>
-    </plurals>
     <plurals name="partner_average_streak_days">
-        <item quantity="one">Average streak: %1$d days</item>
+        <item quantity="one">Average streak: %1$d day</item>
         <item quantity="other">Average streak: %1$d days</item>
     </plurals>
     <plurals name="partner_volunteered_hours">
-        <item quantity="one">Volunteered: %1$d hours</item>
+        <item quantity="one">Volunteered: %1$d hour</item>
         <item quantity="other">Volunteered: %1$d hours</item>
     </plurals>
 
@@ -689,6 +711,7 @@
     <string name="main_profile">Profile</string>
     <string name="main_notifications">Notifications</string>
     <string name="main_emails">Emails</string>
+    <string name="main_push">Push</string>
     <string name="main_privacy">Privacy</string>
     <string name="main_network_visible">Network visible</string>
     <string name="main_volunteer_opt_in">Volunteer opt-in</string>
@@ -737,6 +760,7 @@
     <string name="settings_delete_account_help">This permanently deletes your personal data. Your required gift records are kept. Type %1$s to confirm.</string>
     <string name="settings_keep_an_interest_to_characters" tools:ignore="PluralsCandidate">Keep an interest to %1$d characters or fewer.</string>
     <string name="settings_you_can_add_up_to_interests" tools:ignore="PluralsCandidate">You can add up to %1$d interests. Remove one to add another.</string>
+    <string name="settings_changed_elsewhere_try_again">Your settings changed on another device. Review them and try again.</string>
     <string name="settings_type_word_to_confirm">Type %1$s to confirm.</string>
     <string name="push_general_channel_name">General</string>
     <string name="push_default_title">DAD</string>
@@ -744,4 +768,28 @@
     <!-- Shared components -->
     <string name="ui_streak_bar_description" tools:ignore="PluralsCandidate">Streak: %1$d of %2$d days</string>
     <string name="ui_gift_framing_description">%1$s, %2$s</string>
+    <string name="timezone_auto">Use ZIP suggestion</string>
+    <string name="timezone_eastern">Eastern</string>
+    <string name="timezone_central">Central</string>
+    <string name="timezone_mountain">Mountain</string>
+    <string name="timezone_arizona">Arizona</string>
+    <string name="timezone_pacific">Pacific</string>
+    <string name="timezone_alaska">Alaska</string>
+    <string name="timezone_aleutian">Aleutian Islands</string>
+    <string name="timezone_hawaii">Hawaii</string>
+    <string name="timezone_puerto_rico">Puerto Rico / US Virgin Islands</string>
+    <string name="timezone_guam">Guam / Northern Mariana Islands</string>
+    <string name="timezone_samoa">American Samoa</string>
+    <string name="timezone_title">Streak time zone</string>
+    <string name="timezone_saved">Saved streak time zone: %1$s</string>
+    <string name="metrics_awaiting">Giving and streak figures are awaiting verification.</string>
+    <string name="streak_awaiting">Streak figures are awaiting verification.</string>
+    <string name="timezone_selected">Streak time zone: %1$s</string>
+    <plurals name="team_verified_stats">
+        <item quantity="one">%1$d giver · %2$s/yr</item>
+        <item quantity="other">%1$d givers · %2$s/yr</item>
+    </plurals>
+    <string name="report_daily_limit">This organization has reached today’s report limit. Try after midnight UTC. Existing reports remain available.</string>
+    <string name="report_storage_limit">Report storage is full. Download an existing report or contact DAD support.</string>
+    <string name="report_size_limit">This report is too large to export. Existing reports remain available; contact DAD support.</string>
 </resources>

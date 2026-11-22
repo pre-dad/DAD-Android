@@ -10,15 +10,8 @@ import org.junit.Test
 
 /** The real engagement conformer + real AccountSession + real Retrofit stack over a scripted transport. */
 class WireEngagementTest {
-    private class Rig(scope: kotlinx.coroutines.CoroutineScope, handler: (Recorded) -> Pair<Int, String>) {
-        val http = ScriptedHttp(handler)
-        val store = RecordingStore(validCredentials())
-        val client = http.client()
-        val session = AccountSession(WireAPI(TEST_ORIGIN, client), store, scope)
-        val wire = WireEngagement(ProductClient(TEST_ORIGIN, session, client))
-    }
-
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
+    private fun Rig(scope: kotlinx.coroutines.CoroutineScope, creds: Credentials? = validCredentials(), handler: (Recorded) -> Pair<Int, String>) =
+        WireRig(scope, creds, handler) { WireEngagement(it) }
 
     private val spendId = "11111111-1111-4111-8111-111111111111"
     private val readyDashboard = """{"state":"ready","computed_at":"2026-10-30T12:00:00Z","founding_donor":true,"referrals":{"irl":1,"link":2,"total_minor":12000},"streak":null,"rank":{"national_percentile":2,"city":"Austin","city_rank":4},"rankings_opted_out":false,"network":null,"impact":{"given_minor":124000,"initiatives_funded":4,"events_volunteered":2}}"""
@@ -37,10 +30,8 @@ class WireEngagementTest {
         else -> 404 to "{}"
     }
 
-    // --- snapshot ---
-
     @Test fun snapshotAssemblesEverySection() = runTest {
-        val rig = Rig(backgroundScope, ::happy)
+        val rig = Rig(backgroundScope, handler = ::happy)
         val snapshot = rig.wire.snapshot()
         assertEquals("$1,240", snapshot.impact?.givenLabel)
         assertEquals("Top 2% nationally", snapshot.ranking?.nationalLabel.textOrNull())
@@ -60,7 +51,7 @@ class WireEngagementTest {
     }
 
     @Test fun theInviteLinkIsNeverTakenFromTheServerHost() = runTest {
-        val snapshot = Rig(backgroundScope, ::happy).wire.snapshot()
+        val snapshot = Rig(backgroundScope, handler = ::happy).wire.snapshot()
         assertEquals("https://dad.org/r/ALEX2026", snapshot.referral?.link("https://dad.org"))
     }
 
@@ -71,7 +62,7 @@ class WireEngagementTest {
     }
 
     @Test fun earnedCityBadgeShowsItsDisplayTitleAndLockedKeepsTheGenericTitle() = runTest {
-        val badges = Rig(backgroundScope, ::happy).wire.snapshot().badges!!.badges.associateBy { it.code }
+        val badges = Rig(backgroundScope, handler = ::happy).wire.snapshot().badges!!.badges.associateBy { it.code }
         assertEquals("Chicago", badges.getValue("CITY50").city)
         assertEquals("Top 50 in Chicago", badges.getValue("CITY50").shownTitle)
         assertEquals("Top 50 City", badges.getValue("CITYLOCK").shownTitle)
@@ -106,10 +97,10 @@ class WireEngagementTest {
     @Test fun rankStatesMapDistinctly() = runTest {
         val unranked = readyDashboard.replace(Regex("\"rank\":\\{[^}]*\\}"), "\"rank\":null")
         val notRanked = Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to unranked else happy(r) }.wire.snapshot().ranking!!
-        assertFalse(notRanked.isOptedOut)
+        assertFalse(notRanked.optedOut)
         assertNull(notRanked.nationalLabel)
         val hidden = readyDashboard.replace("\"rankings_opted_out\":false", "\"rankings_opted_out\":true")
-        assertTrue(Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to hidden else happy(r) }.wire.snapshot().ranking!!.isOptedOut)
+        assertTrue(Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 200 to hidden else happy(r) }.wire.snapshot().ranking!!.optedOut)
     }
 
     @Test fun aPreparingDashboardStillReadsTheRankingsChoiceFromTheProfile() = runTest {
@@ -122,7 +113,7 @@ class WireEngagementTest {
         }
         val snapshot = rig.wire.snapshot()
         assertNull(snapshot.impact)
-        assertTrue(snapshot.ranking!!.isOptedOut)
+        assertTrue(snapshot.ranking!!.optedOut)
     }
 
     @Test fun noPublicNameMeansNeedsNameAndNoConversionsRead() = runTest {
@@ -158,8 +149,6 @@ class WireEngagementTest {
         assertNull(partly.badges)
     }
 
-    // --- rankings choice ---
-
     private fun prefsHandler(saveStatus: () -> Int, onSave: (Recorded) -> Unit = {}): (Recorded) -> Pair<Int, String> = { r ->
         when {
             r.path == "/donor/me/profile" -> 200 to profileJson(version = 3)
@@ -170,9 +159,9 @@ class WireEngagementTest {
     }
 
     @Test fun optingOutReadsTheProfileThenSavesTheWholeBlockWithItsVersion() = runTest {
-        val rig = Rig(backgroundScope, prefsHandler({ 200 }))
+        val rig = Rig(backgroundScope, handler = prefsHandler({ 200 }))
         val standing = rig.wire.setRankingOptIn(false)
-        assertTrue(standing.isOptedOut)
+        assertTrue(standing.optedOut)
         assertEquals(listOf("/donor/me/profile", "/donor/me/preferences"), rig.http.requests.map { it.path })
         val body = rig.http.requests.last().body
         assertTrue(body.contains("\"version\":3"))
@@ -181,7 +170,7 @@ class WireEngagementTest {
     }
 
     @Test fun optingBackInSavesFalseAndReadsTheServersPosition() = runTest {
-        val rig = Rig(backgroundScope, prefsHandler({ 200 }))
+        val rig = Rig(backgroundScope, handler = prefsHandler({ 200 }))
         val standing = rig.wire.setRankingOptIn(true)
         assertTrue(rig.http.requests.first { it.path == "/donor/me/preferences" }.body.contains("\"rankings_opted_out\":false"))
         assertEquals("Top 2% nationally", standing.nationalLabel.textOrNull())
@@ -190,33 +179,31 @@ class WireEngagementTest {
     @Test fun optingBackInKeepsTheChoiceWhenThePositionReadFails() = runTest {
         val rig = Rig(backgroundScope) { r -> if (r.path == "/donor/me/dashboard") 503 to "{}" else prefsHandler({ 200 })(r) }
         val standing = rig.wire.setRankingOptIn(true)
-        assertFalse(standing.isOptedOut)
+        assertFalse(standing.optedOut)
         assertNull(standing.nationalLabel)
     }
 
     @Test fun aStaleVersionRereadsAndRetriesOnce() = runTest {
         var saves = 0
-        val rig = Rig(backgroundScope, prefsHandler({ if (++saves == 1) 409 else 200 }))
-        assertTrue(rig.wire.setRankingOptIn(false).isOptedOut)
+        val rig = Rig(backgroundScope, handler = prefsHandler({ if (++saves == 1) 409 else 200 }))
+        assertTrue(rig.wire.setRankingOptIn(false).optedOut)
         assertEquals(2, rig.http.count("/donor/me/preferences"))
         assertEquals(2, rig.http.count("/donor/me/profile"))
     }
 
     @Test fun aSecondStaleVersionIsAConflict() = runTest {
-        val rig = Rig(backgroundScope, prefsHandler({ 409 }))
+        val rig = Rig(backgroundScope, handler = prefsHandler({ 409 }))
         assertEquals(AccountFailure.Conflict, failure { rig.wire.setRankingOptIn(false) })
         assertEquals(2, rig.http.count("/donor/me/preferences"))
     }
 
     @Test fun saveStatusesMapToTheirFailures() = runTest {
         assertEquals(AccountFailure.SignedOut, failure { val save = prefsHandler({ 401 }); Rig(backgroundScope) { r -> if (r.path == "/donor/refresh") 401 to "{}" else save(r) }.wire.setRankingOptIn(false) })
-        assertEquals(AccountFailure.Forbidden, failure { Rig(backgroundScope, prefsHandler({ 403 })).wire.setRankingOptIn(false) })
-        assertEquals(AccountFailure.InvalidInput, failure { Rig(backgroundScope, prefsHandler({ 422 })).wire.setRankingOptIn(false) })
-        assertEquals(AccountFailure.RateLimited, failure { Rig(backgroundScope, prefsHandler({ 429 })).wire.setRankingOptIn(false) })
-        assertEquals(AccountFailure.Unavailable, failure { Rig(backgroundScope, prefsHandler({ 503 })).wire.setRankingOptIn(false) })
+        assertEquals(AccountFailure.Forbidden, failure { Rig(backgroundScope, handler = prefsHandler({ 403 })).wire.setRankingOptIn(false) })
+        assertEquals(AccountFailure.InvalidInput, failure { Rig(backgroundScope, handler = prefsHandler({ 422 })).wire.setRankingOptIn(false) })
+        assertEquals(AccountFailure.RateLimited, failure { Rig(backgroundScope, handler = prefsHandler({ 429 })).wire.setRankingOptIn(false) })
+        assertEquals(AccountFailure.Unavailable, failure { Rig(backgroundScope, handler = prefsHandler({ 503 })).wire.setRankingOptIn(false) })
     }
-
-    // --- public name ---
 
     @Test fun choosingANameSendsItTrimmedWithoutReplacingTheCode() = runTest {
         val rig = Rig(backgroundScope) { 200 to sharingJson }
@@ -241,8 +228,6 @@ class WireEngagementTest {
         assertEquals(AccountFailure.RateLimited, failure { Rig(backgroundScope) { 429 to "" }.wire.choosePublicName("Alex") })
         assertEquals(AccountFailure.SignedOut, failure { Rig(backgroundScope) { 401 to "{}" }.wire.choosePublicName("Alex") })
     }
-
-    // --- spend ---
 
     @Test fun spendIsTotalsByCategory() = runTest {
         val rig = Rig(backgroundScope) { 200 to """{"initiative_id":"$spendId","total_minor":500000,"categories":[{"category":"Food","amount_minor":300000},{"category":"Transport","amount_minor":200000}]}""" }

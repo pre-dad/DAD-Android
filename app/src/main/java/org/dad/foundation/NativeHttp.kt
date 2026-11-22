@@ -33,14 +33,14 @@ internal fun nativeRetrofit(url: HttpUrl, baseClient: OkHttpClient, access: Stri
         val request = chain.request().newBuilder().header("X-DAD-Client", "native").header("X-DAD-Platform", "ANDROID").removeHeader("Origin").removeHeader("Cookie")
         if (access != null) request.header("Authorization", "Bearer $access") else request.removeHeader("Authorization")
         try {
-            val response = chain.proceed(request.build())
-            val body = response.body
-            if (body.contentLength() > maxBodyBytes) { response.close(); throw AccountFailure.InvalidResponse }
-            val source = body.source()
-            if (source.request(maxBodyBytes + 1)) { response.close(); throw AccountFailure.InvalidResponse }
-            val bytes = source.readByteArray()
-            response.close()
-            response.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+            chain.proceed(request.build()).use { response ->
+                val body = response.body
+                if (body.contentLength() > maxBodyBytes) throw AccountFailure.InvalidResponse
+                val source = body.source()
+                if (source.request(maxBodyBytes + 1)) throw AccountFailure.InvalidResponse
+                val bytes = source.readByteArray()
+                response.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+            }
         } catch (failure: AccountFailure) {
             throw failure
         } catch (_: java.io.IOException) {
@@ -78,6 +78,12 @@ internal fun <T> Response<T>.problem(): Pair<String?, String?> = try {
 
 internal fun <T> Response<T>.requireBody(conflict: AccountFailure = AccountFailure.Unavailable): T =
     checked(conflict).body() ?: throw AccountFailure.InvalidResponse
+
+/** A malformed id is a 404 server-side and a dot segment could re-route the path, so it is refused before it becomes a path segment. */
+internal fun String.requireUuid(): String {
+    if (length != 36 || runCatching { java.util.UUID.fromString(this) }.isFailure) throw AccountFailure.InvalidInput
+    return this
+}
 
 /**
  * A malformed 200 body is an invalid response, not an unhandled parser crash. An empty body surfaces from

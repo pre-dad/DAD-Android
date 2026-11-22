@@ -2,9 +2,7 @@ package org.dad.foundation
 
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
@@ -31,99 +29,93 @@ class EngagementWiredFlowTest {
         return compose.launchReady(intent)
     }
 
-    private fun exists(tag: String) = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { exists(tag) }
-    private fun waitGone(tag: String, timeout: Long = 20_000) = compose.waitUntil(timeout) { !exists(tag) }
     private fun tap(tag: String) = compose.tapSafely(tag)
-    private fun textOf(tag: String, text: String) = compose.waitUntil(20_000) {
-        runCatching { compose.onNodeWithTag(tag).assertTextContains(text, substring = true) }.isSuccess
-    }
 
     private fun openEngagement(vararg extras: String): ActivityScenario<MainActivity> {
         val scenario = launch("stub_open_engagement", *extras)
-        waitFor("engagement-home")
-        waitGone("engagement-loading")
+        compose.waitForTag("engagement-home")
+        compose.waitForTagGone("engagement-loading")
         return scenario
     }
 
     @Test fun theHomeCardOpensTheScreenAndCloseReturns() {
         launch().use {
-            waitFor("open-engagement")
-            compose.waitUntil(20_000) { !exists("dashboard-loading") && !exists("initiative-loading") }
+            compose.waitForTag("open-engagement")
+            compose.waitUntil(20_000) { !compose.tagExists("dashboard-loading") && !compose.tagExists("initiative-loading") }
             compose.waitForIdle()
             tap("open-engagement")
-            waitFor("engagement-home")
-            waitFor("badge-summary")
+            compose.waitForTag("engagement-home")
+            compose.waitForTag("badge-summary")
             tap("engagement-close")
-            waitFor("donor-home")
+            compose.waitForTag("donor-home")
         }
     }
 
     @Test fun badgesShowEarnedAndLockedInTextWithAPerkAndInviteOnlyAccess() {
         openEngagement().use {
-            waitFor("badge-summary")
-            textOf("badge-summary", "4 of 9 earned")
+            compose.waitForTag("badge-summary")
+            compose.waitForTagText("badge-summary", "4 of 9 earned")
             compose.onNodeWithTag("badge-invite-access").performScrollTo().assertIsDisplayed()
             // Earned Founding Donor carries its perk as copy (the server sends a key); locked Team Captain shows its rule.
             compose.onNodeWithTag("badge-earned-F").performScrollTo().assertIsDisplayed()
-            textOf("badge-earned-F", "Invite-only founding events")
+            compose.waitForTagText("badge-earned-F", "Invite-only founding events")
             compose.onNodeWithTag("badge-locked-TC").performScrollTo().assertIsDisplayed()
-            textOf("badge-locked-TC", "20 converted referrals")
-            textOf("badge-locked-TC", "Locked")
+            compose.waitForTagText("badge-locked-TC", "20 converted referrals")
+            compose.waitForTagText("badge-locked-TC", "Locked")
             compose.onNodeWithTag("badge-earned-CITY50").performScrollTo().assertIsDisplayed()
-            textOf("badge-earned-CITY50", "Top 50 in Chicago")
+            compose.waitForTagText("badge-earned-CITY50", "Top 50 in Chicago")
         }
     }
 
     @Test fun rankingShowsTheTopBucketAsIsAndTheToggleWorksBothWays() {
         openEngagement().use {
-            waitFor("ranking-national")
-            textOf("ranking-national", "Top 2% nationally")
+            compose.waitForTag("ranking-national")
+            compose.waitForTagText("ranking-national", "Top 2% nationally")
             tap("ranking-toggle")
-            waitFor("ranking-optedout")
-            waitGone("ranking-national")
+            compose.waitForTag("ranking-optedout")
+            compose.waitForTagGone("ranking-national")
             tap("ranking-toggle")
-            waitFor("ranking-national")
-            textOf("ranking-national", "Top 2% nationally")
+            compose.waitForTag("ranking-national")
+            compose.waitForTagText("ranking-national", "Top 2% nationally")
         }
     }
 
     @Test fun aFailedToggleRevertsAndSaysSo() {
         openEngagement("stub_rankings_fail_toggle").use {
-            waitFor("ranking-national")
+            compose.waitForTag("ranking-national")
             tap("ranking-toggle")
-            waitFor("engagement-action-error")
-            waitFor("ranking-national")
-            textOf("ranking-national", "Top 2%")
+            compose.waitForTag("engagement-action-error")
+            compose.waitForTag("ranking-national")
+            compose.waitForTagText("ranking-national", "Top 2%")
         }
     }
 
     @Test fun theNetworkListsNamedInviteesAndCountsTheAnonymousOnes() {
         openEngagement().use {
-            textOf("network-active", "5 people giving")
-            textOf("network-annualized", "$3,480/yr")
-            textOf("network-invitee-0", "Jordan M.")
-            textOf("network-anonymous", "2 people choose to stay anonymous")
-            waitFor("network-milestone")
+            compose.waitForTagText("network-active", "5 people giving")
+            compose.waitForTagText("network-annualized", "$3,480/yr")
+            compose.waitForTagText("network-invitee-0", "Jordan M.")
+            compose.waitForTagText("network-anonymous", "2 people choose to stay anonymous")
+            compose.waitForTag("network-milestone")
         }
     }
 
     @Test fun theInviteLinkIsTheServerRouteAndRecentFirstGiftsListed() {
         openEngagement().use {
-            textOf("referral-code", "ALEX2026")
-            textOf("referral-total", "3 people have joined through you")
-            textOf("invite-link", "https://stub.invalid/r/ALEX2026")
+            compose.waitForTagText("referral-code", "ALEX2026")
+            compose.waitForTagText("referral-total", "3 people have joined through you")
+            compose.waitForTagText("invite-link", "https://stub.invalid/r/ALEX2026")
             compose.onNodeWithTag("conversion-0").performScrollTo().assertIsDisplayed()
-            textOf("conversion-0", "Link")
-            textOf("conversion-1", "In person")
+            compose.waitForTagText("conversion-0", "Link")
+            compose.waitForTagText("conversion-1", "In person")
         }
     }
 
     @Test fun copyPutsTheLinkOnTheClipboard() {
         openEngagement().use {
-            waitFor("copy-invite")
+            compose.waitForTag("copy-invite")
             tap("copy-invite")
-            textOf("copy-invite", "Copied")
+            compose.waitForTagText("copy-invite", "Copied")
             // Assert at the app's own sharer seam (the DEBUG capturing [DebugReferralSharer] records what
             // [ReferralShareAction.copy] forwarded) rather than reading the OS clipboard back, which races
             // window focus on the headless CI emulator and intermittently returns null. Same guarantee —
@@ -135,63 +127,63 @@ class EngagementWiredFlowTest {
 
     @Test fun theQrIsDrawnLocallyForTheInPersonLink() {
         openEngagement().use {
-            waitFor("show-qr")
+            compose.waitForTag("show-qr")
             tap("show-qr")
-            waitFor("qr-code")
+            compose.waitForTag("qr-code")
             compose.onNodeWithTag("qr-code").assertIsDisplayed()
             tap("qr-close")
-            waitFor("engagement-home")
+            compose.waitForTag("engagement-home")
         }
     }
 
     @Test fun aWalletPassThatCannotBePreparedSaysTheCodeStillWorks() {
         openEngagement().use {
-            waitFor("wallet-add")
+            compose.waitForTag("wallet-add")
             tap("wallet-add")
-            textOf("wallet-error", "on-screen code still works")
+            compose.waitForTagText("wallet-error", "on-screen code still works")
         }
     }
 
     @Test fun aDonorWithNoPublicNameIsPromptedToChooseOne() {
         openEngagement("stub_no_public_name").use {
-            waitFor("name-field")
+            compose.waitForTag("name-field")
             compose.enterText("name-field", "Alex C.")
             tap("save-name")
-            waitFor("referral-code")
-            textOf("invite-link", "https://stub.invalid/r/ALEX2026")
+            compose.waitForTag("referral-code")
+            compose.waitForTagText("invite-link", "https://stub.invalid/r/ALEX2026")
         }
     }
 
     @Test fun aSectionThatFailedSaysSoWhileTheRestStaysOnScreen() {
         openEngagement("stub_badges_down").use {
-            waitFor("badges-unavailable")
-            waitFor("network-active")
-            waitFor("ranking-national")
+            compose.waitForTag("badges-unavailable")
+            compose.waitForTag("network-active")
+            compose.waitForTag("ranking-national")
         }
         openEngagement("stub_network_down").use {
-            waitFor("network-unavailable")
-            waitFor("badge-summary")
+            compose.waitForTag("network-unavailable")
+            compose.waitForTag("badge-summary")
         }
     }
 
     @Test fun todaysInitiativeOpensTheSpendByCategory() {
         launch().use {
-            waitFor("open-spend")
+            compose.waitForTag("open-spend")
             tap("open-spend")
-            waitFor("spend-screen")
-            textOf("spend-total", "$5,000")
-            textOf("spend-row-0", "Food")
-            textOf("spend-row-1", "Transport")
+            compose.waitForTag("spend-screen")
+            compose.waitForTagText("spend-total", "$5,000")
+            compose.waitForTagText("spend-row-0", "Food")
+            compose.waitForTagText("spend-row-1", "Transport")
             tap("spend-close")
-            waitFor("donor-home")
+            compose.waitForTag("donor-home")
         }
     }
 
     @Test fun anInitiativeWithNoPublishedSpendSaysSo() {
         launch("stub_spend_unpublished").use {
-            waitFor("open-spend")
+            compose.waitForTag("open-spend")
             tap("open-spend")
-            waitFor("spend-unpublished")
+            compose.waitForTag("spend-unpublished")
         }
     }
 }

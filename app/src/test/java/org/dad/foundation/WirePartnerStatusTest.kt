@@ -21,13 +21,8 @@ import java.util.concurrent.atomic.AtomicReference
  * request never carries the donor's token (nor the donor's the partner's).
  */
 class WirePartnerStatusTest {
-    private class MemoryStore(var value: Credentials? = null) : CredentialStore {
-        override fun load() = value
-        override fun save(value: Credentials) { this.value = value }
-        override fun clear() { value = null }
-    }
 
-    private fun wire(http: ScriptedHttp, store: MemoryStore = MemoryStore()): WirePartner =
+    private fun wire(http: ScriptedHttp, store: RecordingStore = RecordingStore()): WirePartner =
         WirePartner(TEST_ORIGIN, PartnerSession(store).also { it.install("PB") }, http.client())
 
     private val operations: Map<String, suspend (WirePartner) -> Any?> = mapOf(
@@ -38,14 +33,28 @@ class WirePartnerStatusTest {
         "teams" to { it.teams() },
         "users" to { it.users() },
         "invite" to { it.inviteUser("b@x.com", "Bea", PartnerRole.VIEWER) },
-        "remove" to { it.removeUser("u2") },
+        "remove" to { it.removeUser("33333333-3333-4333-8333-333333333333") },
         "saveProfile" to { it.saveProfile("Acme", "About") },
         "saveWorkforce" to { it.saveWorkforce(10) },
         "saveLogo" to { it.saveLogo(byteArrayOf(1)) },
         "exports" to { it.exports() },
         "report" to { it.report() },
-        "retained" to { it.retainedReport("r1") },
+        "retained" to { it.retainedReport("44444444-4444-4444-8444-444444444444") },
     )
+
+    @Test fun reportLimitsPreserveTheSessionAndExplainTheRefusal() = runTest {
+        for ((status, code, reason) in listOf(
+            Triple(429, "PARTNER_REPORT_DAILY_LIMIT", PartnerReportLimit.Reason.DAILY),
+            Triple(409, "PARTNER_REPORT_STORAGE_LIMIT", PartnerReportLimit.Reason.STORAGE),
+            Triple(413, "PARTNER_REPORT_TOO_LARGE", PartnerReportLimit.Reason.TOO_LARGE),
+        )) {
+            val http = ScriptedHttp { status to "{\"code\":\"$code\"}" }
+            val store = RecordingStore()
+            val failure = runCatching { wire(http, store).report() }.exceptionOrNull()
+            assertEquals(reason, (failure as? PartnerReportLimit)?.reason)
+            assertNotNull(store.value)
+        }
+    }
 
     @Test fun everyOperationMapsEveryStatusTheSameWay() = runTest {
         val expected = mapOf(
@@ -63,7 +72,7 @@ class WirePartnerStatusTest {
 
     @Test fun anEndedSessionIsForgottenByEveryOperation() = runTest {
         for ((name, call) in operations) {
-            val store = MemoryStore()
+            val store = RecordingStore()
             val failure = runCatching { call(wire(ScriptedHttp { 401 to "{}" }, store)) }.exceptionOrNull()
             assertEquals(name, AccountFailure.SignedOut, failure)
             assertNull(name, store.value)
@@ -92,7 +101,7 @@ class WirePartnerStatusTest {
                     """"committed_minor":1,"deployed_minor":1,"deployed_percent":1,"people_reached":1,"employees_enrolled":null,"workforce_size":1,""" +
                     """"enrolled_percent":null,"updated_at":null,"has_logo":false,"committed_verified":true,"deployed_verified":true,"people_reached_verified":true}""")
                 "/donor/partner/initiatives" -> 200 to ("""{"initiatives":[{"id":"i1","title":"T","summary":"S","status":"PAUSED","region":"R","committed_minor":1,""" +
-                    """"deployed_minor":1,"metrics":[{"label":"L","value":3,"unit":"HOURS"}]}]}""")
+                    """"deployed_minor":1,"county_count":1,"spend":[],"updated_at":"2026-10-28T10:00:00Z","metrics":[{"label":"L","value":3,"unit":"HOURS","verified_on":"2026-10-20"}]}]}""")
                 "/donor/partner/users" -> 200 to """{"users":[{"id":"u9","email":"a@b.co","name":"N","role":"OWNER"}]}"""
                 else -> 404 to "{}"
             }
@@ -106,34 +115,37 @@ class WirePartnerStatusTest {
         assertEquals(PartnerRole.VIEWER, partner.users().single().role)
     }
 
-    @Test fun partnerRequestsNeverCarryTheDonorTokenAndSignOutUsesThePartnerBearer() = runTest {
+    @Test fun partnerAndDonorRequestsEachCarryOnlyTheirOwnBearerAndPartnerSignOutLeavesTheDonor() = runTest {
         val http = ScriptedHttp {
             when (it.path) {
                 "/donor/partner/overview" -> 200 to """{}"""
                 "/donor/partner/sign-out" -> 200 to """{"signed_out":true}"""
-                else -> 404 to "{}"
+                else -> 200 to """{"email":"donor@example.org","public_name":"Alex"}"""
             }
         }
-        val donor = RecordingStore(validCredentials("DONOR-ACCESS", "DONOR-REFRESH"))
-        val partnerStore = MemoryStore()
-        val session = PartnerSession(partnerStore).also { it.install("PB") }
-        val partner = WirePartner(TEST_ORIGIN, session, http.client())
+        val donorStore = RecordingStore(validCredentials("DONOR-ACCESS", "DONOR-REFRESH"))
+        val donor = AccountSession(WireAPI(TEST_ORIGIN, http.client()), donorStore, backgroundScope)
+        val partnerStore = RecordingStore()
+        val partner = WirePartner(TEST_ORIGIN, PartnerSession(partnerStore).also { it.install("PB") }, http.client())
+        donor.profile()
         runCatching { partner.overview() }
         partner.signOut()
-        assertTrue(http.requests.isNotEmpty())
-        assertTrue(http.requests.all { it.headers["authorization"] == "Bearer PB" })
-        assertTrue(http.requests.none { it.headers.values.any { value -> value.contains("DONOR") } || it.body.contains("DONOR") })
-        assertTrue(http.requests.all { it.headers["origin"] == null && it.headers["cookie"] == null && it.path.startsWith("/donor/partner/") })
-        // Signing out of the partner side leaves the donor's credentials alone.
+        val donorCalls = http.requests.filter { !it.path.startsWith("/donor/partner/") }
+        val partnerCalls = http.requests.filter { it.path.startsWith("/donor/partner/") }
+        assertEquals(1, donorCalls.size)
+        assertEquals("Bearer DONOR-ACCESS", donorCalls.single().headers["authorization"])
+        assertEquals(2, partnerCalls.size)
+        assertTrue(partnerCalls.all { it.headers["authorization"] == "Bearer PB" })
+        assertTrue(partnerCalls.none { it.headers.values.any { value -> value.contains("DONOR") } || it.body.contains("DONOR") })
+        assertTrue(partnerCalls.all { it.headers["origin"] == null && it.headers["cookie"] == null })
         assertNull(partnerStore.value)
-        assertEquals("DONOR-ACCESS", donor.value?.access)
-        assertEquals(0, donor.clears)
+        assertEquals("DONOR-ACCESS", donorStore.value?.access)
+        assertEquals(0, donorStore.clears)
     }
 
-    @Test fun theSessionLastsTwelveHoursThenIsForgottenWithoutTouchingTheDonor() {
+    @Test fun theSessionLastsTwelveHoursThenIsForgotten() {
         var now = 1_000_000L
-        val donor = RecordingStore(validCredentials())
-        val store = MemoryStore()
+        val store = RecordingStore()
         val session = PartnerSession(store, now = { now })
         session.install("PB")
         now += PartnerSession.LIFETIME_MILLIS - 1
@@ -141,14 +153,12 @@ class WirePartnerStatusTest {
         now += 1
         assertFalse(session.isSignedIn)
         assertNull(store.value)
-        assertNotNull(donor.value)
-        assertEquals(0, donor.clears)
     }
 
     @Test fun cancellingAPartnerReadRethrowsCancellationAndKeepsTheSession() = runTest {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
-        val store = MemoryStore()
+        val store = RecordingStore()
         val http = ScriptedHttp { started.countDown(); release.await(10, TimeUnit.SECONDS); 200 to """{"users":[]}""" }
         val partner = wire(http, store)
         val thrown = AtomicReference<Throwable?>()
@@ -162,9 +172,7 @@ class WirePartnerStatusTest {
         assertNotNull(store.value)
     }
 
-    // --- application status (the receipt is the bearer, kept apart from both sessions) ---
-
-    private fun receiptStore() = MemoryStore(Credentials("RECEIPT", "", Long.MAX_VALUE))
+    private fun receiptStore() = RecordingStore(Credentials("RECEIPT", "", Long.MAX_VALUE))
 
     @Test fun applicationStatusSendsTheReceiptAsItsOnlyBearer() = runTest {
         val http = ScriptedHttp { 200 to """{"organization":"Acme","status":"PENDING"}""" }
@@ -177,7 +185,7 @@ class WirePartnerStatusTest {
 
     @Test fun withoutAReceiptNothingIsReadOrSent() = runTest {
         val http = ScriptedHttp { 200 to "{}" }
-        val wire = WireApplicationStatus(TEST_ORIGIN, MemoryStore(), http.client())
+        val wire = WireApplicationStatus(TEST_ORIGIN, RecordingStore(), http.client())
         assertNull(wire.status())
         assertTrue(http.requests.isEmpty())
     }

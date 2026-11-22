@@ -20,8 +20,8 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
 
     override suspend fun savePreferences(preferences: Preferences): SettingsSnapshot {
         val body = preferencesBody(preferences)
-        // A stale `version` (409) means the caller must re-read; surfaced as unavailable so the model shows retry.
-        return snapshot(product.perform { it.create(DonorApi::class.java).savePreferences(body).requireBody() })
+        // A stale `version` (409) means the caller must re-read; the model does so and asks the donor to try again.
+        return snapshot(product.perform { it.create(DonorApi::class.java).savePreferences(body).requireBody(AccountFailure.Conflict) })
     }
 
     /**
@@ -76,7 +76,7 @@ class WireSettings(private val product: ProductClient, private val onLocalWipe: 
 }
 
 internal fun Profile.summary() = ProfileSummary(
-    email = email.orInvalid(), accountRole = accountRole.orInvalid().value, zip = zip.orNullIfBlank(), city = city.orNullIfBlank(), phone = phone.orNullIfBlank())
+    email = email.orInvalid(), accountRole = accountRole.orInvalid().value, zip = zip.orNullIfBlank(), city = city.orNullIfBlank(), phone = phone.orNullIfBlank(), timezone = timezone.orNullIfBlank(), timezoneOverride = timezoneOverride.orNullIfBlank())
 
 // Gson leaves absent fields null despite the generated non-null types; treat that as a bad response.
 private fun <T> T?.orInvalid(): T = this ?: throw AccountFailure.InvalidResponse

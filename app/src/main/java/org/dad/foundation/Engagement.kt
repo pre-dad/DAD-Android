@@ -11,8 +11,6 @@ internal fun formatMinorUsd(minor: Long): String {
     return String.format(Locale.US, "$%,.2f", minor / 100.0)
 }
 
-// MARK: - Impact totals (I-1..I-3)
-
 /**
  * Lifetime impact. A null [givenMinor] means "not currently known" — the UI must render it as "--",
  * never as $0 (the contract's explicit rule).
@@ -26,8 +24,6 @@ data class ImpactTotals(
     val givenLabel: String get() = givenMinor?.let { formatMinorUsd(it) } ?: "--"
 }
 
-// MARK: - Rankings (K-1..K-3), opt-out hides self
-
 /**
  * National/city standing. [optedOut] mirrors the explicit `rankings_opted_out` flag — read from the donor
  * dashboard (contract v2.3.0) wherever the dashboard is the source, and the profile otherwise. It is NOT inferred from missing figures, because a donor can be unranked
@@ -40,8 +36,6 @@ data class RankingStanding(
     val cityRank: Int?,
     val optedOut: Boolean = false,
 ) {
-    val isOptedOut: Boolean get() = optedOut
-
     companion object {
         /** The standing of a donor who set `rankings_opted_out`: nothing is shown. */
         fun optedOut() = RankingStanding(null, null, null, optedOut = true)
@@ -70,8 +64,6 @@ data class RankingStanding(
         return UiText.res(R.string.eng_rank_in_city, rank, c)
     }
 }
-
-// MARK: - Spend-by-category (A-3), totals only
 
 /** One spend category line (totals only — never per-transaction line items, PRD §5.2). */
 data class SpendCategory(val category: String, val amountMinor: Long) {

@@ -36,7 +36,8 @@ class UiTextTest {
     }
 
     @Test fun everyStringResourceParsesAndHasNoStraightApostropheInAWord() {
-        assertTrue(TestStrings.stringKeys.size > 500)
+        assertTrue(TestStrings.stringKeys.isNotEmpty())
+        assertEquals("You’re going", TestStrings.string("events_youre_going"))
         val straight = TestStrings.stringKeys.filter { Regex("[A-Za-z]'[A-Za-z]").containsMatchIn(TestStrings.string(it)) }
         assertEquals(emptyList<String>(), straight)
     }

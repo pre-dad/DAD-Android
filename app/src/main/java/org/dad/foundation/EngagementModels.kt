@@ -132,6 +132,9 @@ class EngagementModel(private val service: EngagementService) : ViewModel() {
         viewModelScope.launch {
             try {
                 val ranking = service.setRankingOptIn(optIn)
+                // A refresh still in flight read the ranking before this change and would overwrite it.
+                generation++
+                job?.cancel()
                 snapshot = snapshot?.replacing(ranking)
             } catch (cancelled: CancellationException) {
                 throw cancelled

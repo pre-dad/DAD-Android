@@ -12,6 +12,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -23,7 +25,6 @@ class GivingTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    // --- amount rule (G-1/G-2): $1…$30/day, ×30 to monthly cents ---
     @Test fun dailyAmountTimes30IsMonthlyCents() {
         val one = GiftAmount.ofDailyDollars(1)!!
         assertEquals(3000, one.monthlyMinor) // $1/day -> $30/mo -> 3000¢
@@ -72,17 +73,15 @@ class GivingTest {
         assertEquals("$12,345.67", formatUsdMinor(1_234_567))
     }
 
-    // --- cancel copy (G-8/G-9) ---
     @Test fun cancelCopyNamesThePeriodEndAndStreakEnd() {
         val utc = TimeZone.getTimeZone("UTC")
-        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = utc }
         val periodEnd = parser.parse("2026-12-15")!!
         val copy = CancelCopy.confirmation(periodEnd, utc, Locale.US)
         assertTrue(copy.text().contains("Dec 15, 2026"))
         assertTrue(copy.text().contains("your streak ends"))
     }
 
-    // --- model state machine ---
     private class FakeGivingService(
         var state: RecurringState = RecurringState.None,
         var failLoad: Boolean = false,
@@ -191,7 +190,6 @@ class GivingTest {
         assertEquals("Your gift is ending", giftHeading(true, RecurringState.Ending("s", 3000, d, d)).textOrNull())
     }
 
-    // --- presets and long dates ---
     @Test fun selectedChipFollowsPresetsAndOther() {
         assertEquals(GiftPresets.Chip.PRESET_1, GiftPresets.selectedChip(1, false))
         assertEquals(GiftPresets.Chip.PRESET_3, GiftPresets.selectedChip(3, false))
@@ -201,7 +199,7 @@ class GivingTest {
     }
 
     @Test fun longUsDateSpellsOutTheMonth() {
-        val cal = java.util.Calendar.getInstance().apply { clear(); set(2027, java.util.Calendar.APRIL, 22, 12, 0) }
+        val cal = Calendar.getInstance().apply { clear(); set(2027, Calendar.APRIL, 22, 12, 0) }
         assertEquals("April 22, 2027", longUsDate(cal.time))
     }
 }

@@ -17,7 +17,7 @@ object TestStrings {
 
     init {
         val root = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-            .parse(File("src/main/res/values/strings.xml")).documentElement
+            .parse(File(System.getProperty("dad.strings.path") ?: "src/main/res/values/strings.xml")).documentElement
         val children = root.childNodes
         for (i in 0 until children.length) {
             val node = children.item(i) as? Element ?: continue

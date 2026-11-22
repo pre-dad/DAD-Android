@@ -48,8 +48,6 @@ class DonorHomeModelsTest {
 
     private fun idle() = dispatcher.scheduler.advanceUntilIdle()
 
-    // --- DashboardModel ---
-
     @Test fun loadShowsTheDashboardAndTheInitiative() = runTest {
         val service = FakeService().apply { dashboardResult = { readyDash() }; initiativeResult = { initiative() } }
         val model = DashboardModel(service)
@@ -66,7 +64,7 @@ class DonorHomeModelsTest {
         val service = FakeService().apply {
             dashboardResult = {
                 if (fail) throw AccountFailure.Unavailable
-                DashboardState.Ready((readyDash() as DashboardState.Ready).dashboard.copy(foundingDonor = founding))
+                DashboardState.Ready(readyDash().dashboard.copy(foundingDonor = founding))
             }
         }
         val model = DashboardModel(service)
@@ -179,8 +177,6 @@ class DonorHomeModelsTest {
         assertTrue(model.phase is DashboardModel.Phase.Ready)
         assertEquals(DashboardModel.InitiativePhase.Failed, model.initiative)
     }
-
-    // --- GiftHistoryModel ---
 
     private fun pageOf(range: IntRange, next: Int?) = GiftHistoryPage(range.map(::gift), next)
 
@@ -342,7 +338,7 @@ class DonorHomeModelsTest {
         assertEquals("$5 refunded", gift(1).copy(refundedMinor = 500).refundLabel.textOrNull())
         assertNull(gift(1).refundLabel)
         assertEquals("$1,234.56", formatMinorUsd(123456))
-        assertEquals("1 person", HomeMetric("a", 1, HomeMetric.Unit.PEOPLE, "d").valueLabel.textOrNull())
+        assertEquals("1 person", HomeMetric("a", 1, HomeMetric.MetricUnit.PEOPLE, "d").valueLabel.textOrNull())
         assertEquals("1-day streak", HomeStreak(1, false, null, null).headline.textOrNull())
         assertEquals("1 day to your 7-day milestone", HomeLadder(6, 0, 7, 1, emptyList()).nextLabel.textOrNull())
         assertNull(HomeLadder(2000, 1460, null, null, emptyList()).nextLabel)

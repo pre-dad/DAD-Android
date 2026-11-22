@@ -6,6 +6,7 @@ import android.view.Choreographer
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
@@ -22,10 +23,10 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
+/*
  * Keyboard-safe interaction for the instrumentation tests.
  *
- * Root cause (GiftFlowTest, fbbffc8): the soft keyboard's inset animation is driven by the system, not the Compose
+ * Root cause: the soft keyboard's inset animation is driven by the system, not the Compose
  * clock, so waitForIdle does not cover it. A button tapped while the viewport is still shrinking ends up clipped
  * behind the keyboard, and a click on a clipped node is dropped WITHOUT an error. Two safeguards, used by every
  * test that types and then taps:
@@ -66,7 +67,7 @@ private fun imeBottomInset(activity: Activity): Pair<Boolean, Int> {
  */
 fun ComposeTestRule.launchReady(intent: Intent): ActivityScenario<MainActivity> {
     val scenario = ActivityScenario.launch<MainActivity>(intent)
-    waitUntil(READY_TIMEOUT_MS) { runCatching { resumedActivity() != null }.getOrDefault(false) }
+    waitUntil(READY_TIMEOUT_MS) { resumedActivity() != null }
     waitUntil(READY_TIMEOUT_MS) {
         runCatching { onAllNodes(isRoot()).fetchSemanticsNodes().any { it.children.isNotEmpty() } }.getOrDefault(false)
     }
@@ -121,11 +122,22 @@ private fun SemanticsNodeInteraction.assertNotUnderKeyboard(description: String)
     check(nodeBottom <= limit + 1f) { "$description is covered by the keyboard (bottom=$nodeBottom, keyboard top=$limit)" }
 }
 
-private fun ComposeTestRule.exists(tag: String) = onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+fun ComposeTestRule.tagExists(tag: String) = onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+
+fun ComposeTestRule.tagAbsent(tag: String) = !tagExists(tag)
+
+fun ComposeTestRule.waitForTag(tag: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) { tagExists(tag) }
+
+fun ComposeTestRule.waitForTagGone(tag: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) { tagAbsent(tag) }
+
+/** Waits until the node tagged [tag] contains [text]. */
+fun ComposeTestRule.waitForTagText(tag: String, text: String, timeoutMs: Long = 20_000) = waitUntil(timeoutMs) {
+    runCatching { onNodeWithTag(tag).assertTextContains(text, substring = true) }.isSuccess
+}
 
 /** Waits for [tag] to exist and be enabled, scrolls it into view, checks it is visible and clear of the keyboard, clicks. */
 fun ComposeTestRule.tapSafely(tag: String, timeoutMs: Long = 15_000) {
-    waitUntil(timeoutMs) { exists(tag) }
+    waitUntil(timeoutMs) { tagExists(tag) }
     waitUntil(timeoutMs) { runCatching { onNodeWithTag(tag).assertIsEnabled() }.isSuccess }
     tapNode(onNodeWithTag(tag), tag)
 }
@@ -135,7 +147,7 @@ fun ComposeTestRule.tapNode(node: SemanticsNodeInteraction, description: String)
     // App-shell chrome (the Scaffold TopAppBar back arrow / account avatar and the NavigationBar tabs)
     // is deliberately NOT inside a scrollable container, so performScrollTo there throws "no parent
     // layout with a Scroll SemanticsAction". Such chrome is always on screen, so a failed scroll there
-    // is harmless; attempt the scroll and swallow only that failure (same runCatching idiom as
+    // is harmless; attempt the scroll and swallow the failure (same runCatching idiom as
     // DashboardFlowTest). Reading ScrollBy off the semantics tree to pre-decide missed scrollable text
     // fields, which skipped the scroll, left the field off-screen and unfocused, and timed out the IME
     // wait in awaitKeyboardSettled. Still assert displayed + clear of the keyboard either way.
@@ -149,7 +161,7 @@ fun ComposeTestRule.tapNode(node: SemanticsNodeInteraction, description: String)
 fun ComposeTestRule.enterText(
     tag: String, text: String, replace: Boolean = false, timeoutMs: Long = 15_000, settleAfter: Boolean = true,
 ) {
-    waitUntil(timeoutMs) { exists(tag) }
+    waitUntil(timeoutMs) { tagExists(tag) }
     val field = onNodeWithTag(tag).performScrollTo()
     // A semantics-only insertion can request the IME before Android has served the editor.
     // Focus it through the same touch path as a user, then wait for the input connection and layout.

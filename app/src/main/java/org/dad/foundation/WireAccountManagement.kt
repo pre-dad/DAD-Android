@@ -26,8 +26,9 @@ private interface SessionReads {
  * `employeeEnroll` / `employeeJoinTeam`, all authorized through the session.
  */
 class WireAccountManagement(private val product: ProductClient) : AccountManagementService {
-    override suspend fun saveProfile(zip: String, city: String, phone: String): ProfileSummary {
-        return product.perform { it.create(DonorApi::class.java).saveProfile(SaveProfileRequest(zip = zip, city = city, phone = phone)).requireBody() }.summary()
+    override suspend fun saveProfile(zip: String, city: String, phone: String, timezoneOverride: String?): ProfileSummary {
+        if (timezoneOverride != null && StreakTimeZone.choices.none { it.first == timezoneOverride }) throw AccountFailure.InvalidInput
+        return product.perform { it.create(DonorApi::class.java).saveProfile(SaveProfileRequest(zip = zip, city = city, phone = phone, timezoneOverride = timezoneOverride)).requireBody() }.summary()
     }
 
     override suspend fun requestEmailChange(email: String) {
@@ -36,7 +37,12 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
 
     override suspend fun sessions() = product.perform { sessionList(it.create(SessionReads::class.java).sessions().body_()) }
 
-    override suspend fun revokeSession(id: String) = product.perform { retrofit ->
+    override suspend fun revokeSession(id: String): List<DeviceSessionSummary> {
+        id.requireUuid()
+        return revoke(id)
+    }
+
+    private suspend fun revoke(id: String) = product.perform { retrofit ->
         val response = retrofit.create(SessionReads::class.java).revoke(id)
         if (response.code() == 404) { response.errorBody()?.close(); throw AccountFailure.NotFound }
         sessionList(response.requireBody(conflict = AccountFailure.Conflict))
@@ -60,7 +66,7 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
             organization = body.organization.ifEmpty { null },
             teamName = body.teamName?.ifEmpty { null },
             leaderboard = body.leaderboard.map {
-                TeamStanding(it.teamId, it.name, it.activeGivers, it.annualizedMinor, it.avgStreakDays, it.volunteerMinutes)
+                TeamStanding(it.teamId, it.name, it.activeGivers, it.annualizedMinor, it.avgStreakDays, it.volunteerMinutes, metricsVerified = it.metricsVerified)
             },
         )
     }
@@ -76,7 +82,7 @@ class WireAccountManagement(private val product: ProductClient) : AccountManagem
     private fun sessionList(json: JsonElement): List<DeviceSessionSummary> =
         json.asObjectOrInvalid().array("sessions").map { element ->
             val s = element.asObjectOrInvalid()
-            DeviceSessionSummary(id = s.str("id"), label = s.str("label"), isApp = s.str("client") == "APP",
+            DeviceSessionSummary(id = s.str("id"), label = s.str("label"),
                 lastUsedAt = s.time("last_used_at"), current = s.bool("current"))
         }
 }

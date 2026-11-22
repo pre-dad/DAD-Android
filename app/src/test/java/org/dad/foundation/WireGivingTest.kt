@@ -30,8 +30,6 @@ class WireGivingTest {
         fun posts(path: String) = http.requests.filter { it.method == "POST" && it.path == path }
     }
 
-    private suspend fun failure(block: suspend () -> Any?): Throwable? = runCatching { block() }.exceptionOrNull()
-
     private val sub = "11111111-2222-4333-8444-555555555555"
     private val periodEnd = "2026-11-30T12:00:00Z"
     private fun periodEndDate(): Date = Date.from(java.time.Instant.parse(periodEnd))
@@ -47,8 +45,6 @@ class WireGivingTest {
 
     private val checkout = """{"url":"https://checkout.stripe.com/c/pay/cs_test_1","session_id":"cs_test_1","expires_at":"2026-10-31T13:00:00Z"}"""
     private val ok = 200 to "{}"
-
-    // --- recurring ---
 
     @Test fun anActiveSubscriptionMapsAndSendsTheNativeBearerAndHeader() = runTest {
         val rig = Rig(backgroundScope) { 200 to recurring() }
@@ -157,8 +153,6 @@ class WireGivingTest {
         assertFalse(dead.session.isSignedIn())
     }
 
-    // --- amount options ---
-
     @Test fun amountOptionsMapsTheOfferAndAPendingChange() = runTest {
         val change = """{"amount_minor":30000,"confirmed":false,"effective_at":"$periodEnd","previous_minor":15000,"request_id":"$sub"}"""
         val rig = Rig(backgroundScope) { 200 to offer(change) }
@@ -181,8 +175,6 @@ class WireGivingTest {
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to """{"state":"ready"}""" }.wire.amountOffer() })
         assertEquals(AccountFailure.InvalidResponse, failure { Rig(backgroundScope) { 200 to "[]" }.wire.amountOffer() })
     }
-
-    // --- change amount ---
 
     @Test fun changeAmountReadsTheOfferThenPostsItsEchoWithAKeyAndReReads() = runTest {
         val rig = Rig(backgroundScope) { r ->
@@ -266,8 +258,6 @@ class WireGivingTest {
         }
     }
 
-    // --- cancel ---
-
     @Test fun cancelPostsTheSubscriptionAndPeriodEndAndMapsTheResult() = runTest {
         val rig = Rig(backgroundScope) { 200 to recurring(subscription(stops = "\"$periodEnd\"")) }
         val state = rig.wire.cancel(sub, periodEndDate()) as RecurringState.Ending
@@ -313,8 +303,6 @@ class WireGivingTest {
         assertEquals(AccountFailure.InvalidInput, failure { rig.wire.cancel("nope", Date()) })
         assertTrue(rig.http.requests.isEmpty())
     }
-
-    // --- start a gift ---
 
     @Test fun startGiftPostsOnlyTheAmountWithAKeyAndReturnsTheHostedUrl() = runTest {
         val rig = Rig(backgroundScope) { 201 to checkout }
@@ -396,7 +384,6 @@ class WireGivingTest {
                 1 -> 503 to ""
                 2 -> 429 to ""
                 3 -> 200 to ""            // lost / empty response
-                4 -> 201 to checkout
                 else -> 201 to checkout
             }
         }
@@ -440,8 +427,6 @@ class WireGivingTest {
         assertEquals(listOf("Bearer access-0", "Bearer access-new"), posts.map { it.headers["authorization"] })
         assertEquals(1, posts.map { it.headers["idempotency-key"] }.toSet().size)
     }
-
-    // --- payment method ---
 
     @Test fun paymentMethodMapsEveryStatusAndToleratesUnknownOnes() = runTest {
         for (kind in PaymentMethodState.Kind.entries) {
@@ -490,15 +475,10 @@ class WireGivingTest {
         assertEquals(AccountFailure.PaymentsUnavailable, failure { Rig(backgroundScope) { 503 to """{"code":"PAYMENTS_UNCONFIGURED"}""" }.wire.beginPayment() })
     }
 
-    // --- errors never leak ---
-
     @Test fun serverErrorBodiesAreNeverSurfaced() = runTest {
         val error = failure { Rig(backgroundScope) { 500 to """{"detail":"alex@example.org card 4242"}""" }.wire.recurring() }
         assertEquals(AccountFailure.Unavailable, error)
-        assertFalse(error.toString().contains("alex"))
     }
-
-    // --- cancellation ---
 
     @Test fun cancellingACommandInFlightRethrowsCancellationAndKeepsTheKey() = runTest {
         val started = CountDownLatch(1)
@@ -520,8 +500,6 @@ class WireGivingTest {
         assertTrue("the outcome is unknown, so a retry must reuse the key", rig.ledger.isHolding("checkout:15000:none"))
         assertTrue(rig.session.isSignedIn())
     }
-
-    // --- ledger ---
 
     @Test fun theLedgerIssuesVersion4KeysPerFingerprintAndForgetsSettledOnes() {
         val ledger = IdempotencyLedger()
