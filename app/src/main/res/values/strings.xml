@@ -671,6 +671,7 @@
     <string name="partner_user_name_role">%1$s · %2$s</string>
     <string name="partner_user_line_self">%1$s (you) · %2$s</string>
     <string name="partner_confirm_remove">Confirm remove %1$s</string>
+    <string name="partner_user_pending">%1$s · Pending</string>
     <string name="partner_remove_user">Remove %1$s</string>
     <string name="partner_export_line">By %1$s · Committed %2$s</string>
     <plurals name="appsubmit_wait_seconds">
@@ -792,4 +793,29 @@
     <string name="report_daily_limit">This organization has reached today’s report limit. Try after midnight UTC. Existing reports remain available.</string>
     <string name="report_storage_limit">Report storage is full. Download an existing report or contact DAD support.</string>
     <string name="report_size_limit">This report is too large to export. Existing reports remain available; contact DAD support.</string>
+    <string name="insights_title">Your insights</string>
+    <string name="insights_percent">%1$d%%</string>
+    <string name="insights_yes">Yes</string>
+    <string name="insights_no">No</string>
+    <string name="insights_caption_given">Total given</string>
+    <string name="insights_caption_initiatives_funded">Initiatives funded</string>
+    <string name="insights_caption_events_volunteered">Events volunteered</string>
+    <string name="insights_caption_referral_total">Given through your referrals</string>
+    <string name="insights_caption_referral_link">Referred by link</string>
+    <string name="insights_caption_referral_irl">Referred in person</string>
+    <string name="insights_caption_active_network">Active in your network</string>
+    <string name="insights_caption_annualized_network">Network giving per year</string>
+    <string name="insights_caption_streak">Current streak</string>
+    <string name="insights_caption_days_to_next">Days to next milestone</string>
+    <string name="insights_caption_last_milestone">Last milestone</string>
+    <string name="insights_caption_national_percentile">National percentile</string>
+    <string name="insights_caption_city_rank">City rank</string>
+    <string name="insights_link_dashboard">Your dashboard</string>
+    <string name="insights_link_profile">Your profile</string>
+    <string name="insights_link_payment_method">Payment method</string>
+    <string name="insights_link_gifts">Your gifts</string>
+    <plurals name="insights_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 </resources>

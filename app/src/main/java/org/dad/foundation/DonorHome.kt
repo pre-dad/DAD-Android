@@ -73,6 +73,7 @@ data class HomeDashboard(
     val impact: ImpactTotals,
     val network: HomeNetwork?,
     val referrals: HomeReferrals?,
+    val insights: InsightsPanel? = null,
 )
 
 data class HomeNetwork(val activeCount: Long, val annualizedMinor: Long) {

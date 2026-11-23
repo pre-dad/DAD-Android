@@ -132,7 +132,7 @@ data class PartnerMetric(val label: String, val value: Long, val unit: Unit, val
     val valueLabel: String get() = if (unit == Unit.USD_CENTS) formatMinorUsd(value) else formatCount(value)
 }
 
-data class PartnerUser(val id: String, val email: String, val name: String, val role: PartnerRole)
+data class PartnerUser(val id: String, val email: String, val name: String, val role: PartnerRole, val accepted: Boolean = true)
 
 data class PartnerSpendCategory(val category: String, val amountMinor: Long) {
     val amountLabel: String get() = formatMinorUsd(amountMinor)

@@ -102,7 +102,7 @@ class PartnerWiredFlowTest {
             compose.enterText("partner-invite-name", "New Person", replace = true)
             compose.enterText("partner-invite-email", "new.person@acme.com", replace = true)
             compose.tapSafely("partner-invite")
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("New Person · Viewer")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("New Person · Viewer · Pending")).fetchSemanticsNodes().isNotEmpty() }
             // Only an accepted invite clears the form.
             compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("partner-invite-email") and hasText("new.person@acme.com")).fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithTag("partner-invite-name").assert(hasText("New Person").not())

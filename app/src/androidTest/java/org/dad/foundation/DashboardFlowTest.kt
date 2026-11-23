@@ -153,4 +153,24 @@ class DashboardFlowTest {
             assertTrue(!compose.tagExists("founding-donor"))
         }
     }
+
+    @Test fun insightsDrawKnownBlocksSkipUnknownOnesAndLinkIntoTheApp() {
+        launch("stub_dashboard_insights").use {
+            compose.waitForTag("insights")
+            compose.onNodeWithTag("insights-title").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithTag("insights-0-heading").assertTextEquals("Your impact")
+            assertTrue("an unknown node type draws nothing, so the link is the third block", !compose.tagExists("insights-3-link"))
+            compose.onNodeWithTag("insights-1-metric-0").assertTextContains("$1,240")
+            compose.onNodeWithTag("insights-1-metric-1").assertTextContains("18 days")
+            compose.onNodeWithTag("insights-2-link").performScrollTo().performClick()
+            compose.waitUntil(15_000) { !compose.tagExists("insights") }
+        }
+    }
+
+    @Test fun noInsightsCardWithoutAPanel() {
+        launch().use {
+            compose.waitForTag("streak-count")
+            assertTrue(!compose.tagExists("insights"))
+        }
+    }
 }

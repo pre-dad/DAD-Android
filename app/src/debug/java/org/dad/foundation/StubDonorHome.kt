@@ -22,6 +22,7 @@ internal class StubDonorHome(private val scenario: StubDashboard) {
             failsThisTime("dashboard") -> 503 to UNAVAILABLE
             scenario == StubDashboard.EMPTY -> 200 to PREPARING
             scenario == StubDashboard.UNRANKED -> 200 to UNRANKED
+            scenario == StubDashboard.INSIGHTS -> 200 to READY.replaceFirst("\"state\":\"ready\"", "\"state\":\"ready\",\"insights\":$INSIGHTS")
             else -> 200 to READY
         }
         path == "/donor/me/today-initiative" -> if (scenario == StubDashboard.EMPTY) 404 to NOT_FOUND else 200 to TODAY
@@ -51,6 +52,7 @@ internal class StubDonorHome(private val scenario: StubDashboard) {
         const val NOT_FOUND = """{"detail":"not found"}"""
         const val PREPARING = """{"state":"preparing","mode":"test"}"""
         const val READY = """{"state":"ready","mode":"test","computed_at":"2026-10-30T12:00:00Z","founding_donor":true,"referrals":{"currency":"USD","irl":1,"irl_minor":3000,"link":2,"link_minor":9000,"total_minor":12000},"streak":{"at_risk":false,"current":18,"grace_ends_at":null,"ladder":{"days":18,"last_milestone":7,"next_milestone":30,"days_to_next":12,"bar":[true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,false,false,false,false,false,false,false,false,false,false,false,false]}},"rank":{"national_percentile":2,"city":"Austin","city_rank":4,"computed_at":"2026-10-30T00:00:00Z"},"rankings_opted_out":false,"network":{"active_count":3,"annualized_minor":474500,"currency":"USD"},"impact":{"given_minor":124000,"currency":"USD","initiatives_funded":4,"events_volunteered":2}}"""
+        const val INSIGHTS = """{"catalog_version":1,"spec_id":"stub","spec":[{"type":"Heading","title":"Your impact"},{"type":"Sparkline","points":[1,2]},{"type":"MetricGrid","children":[{"type":"Metric","bind":"/impact/given_minor","format":"usd_minor","caption":"given"},{"type":"Metric","bind":"/streak/current","format":"days","caption":"streak"}]},{"type":"LinkButton","navigate":"/account/gifts"}]}"""
         const val UNRANKED = """{"state":"ready","mode":"test","computed_at":"2026-10-30T12:00:00Z","founding_donor":false,"referrals":null,"streak":null,"rank":null,"rankings_opted_out":true,"network":null,"impact":{"given_minor":null,"currency":"USD","initiatives_funded":0,"events_volunteered":0}}"""
         const val TODAY = """{"initiative_id":"11111111-1111-4111-8111-111111111111","slug":"meals-on-wheels","title":"Meals on Wheels","summary":"Hot meals delivered to neighbours who cannot cook for themselves.","region":"TX","location":"Austin, TX","type":"PROGRAM","started_on":"2025-01-02","metrics":[{"label":"Meals this week","value":1200,"unit":"PEOPLE","verified_on":"2026-10-28"},{"label":"Cost per meal","value":425,"unit":"USD_CENTS","verified_on":"2026-10-28"},{"label":"Partners","value":1,"unit":"PARTNERS","verified_on":"2026-10-28"}],"distinct_shown":4}"""
 

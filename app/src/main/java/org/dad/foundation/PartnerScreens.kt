@@ -636,7 +636,8 @@ private fun PartnerUsersSection(model: PartnerModel, snapshot: PartnerSnapshot) 
         snapshot.users.forEach { user ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val isSelf = user.id == snapshot.selfId
-                Text(stringResource(if (isSelf) R.string.partner_user_line_self else R.string.partner_user_name_role, user.name, stringResource(if (user.role == PartnerRole.ADMIN) R.string.partner_admin else R.string.partner_viewer)), modifier = Modifier.weight(1f))
+                val line = stringResource(if (isSelf) R.string.partner_user_line_self else R.string.partner_user_name_role, user.name, stringResource(if (user.role == PartnerRole.ADMIN) R.string.partner_admin else R.string.partner_viewer))
+                Text(if (user.accepted) line else stringResource(R.string.partner_user_pending, line), modifier = Modifier.weight(1f).testTag("partner-user-${user.id}"))
                 if (model.canRemove(user)) {
                     if (model.pendingRemoval?.id == user.id) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

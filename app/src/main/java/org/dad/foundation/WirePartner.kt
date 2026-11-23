@@ -230,7 +230,7 @@ class WirePartner(
 
     override suspend fun users(): List<PartnerUser> = read { users() }.array("users").map {
         val u = it.asObjectOrInvalid()
-        PartnerUser(u.str("id"), u.str("email"), u.str("name"), PartnerRole.from(u.str("role")))
+        PartnerUser(u.str("id"), u.str("email"), u.str("name"), PartnerRole.from(u.str("role")), u.bool("accepted"))
     }
 
     override suspend fun inviteUser(email: String, name: String, role: PartnerRole) {

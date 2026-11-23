@@ -41,7 +41,7 @@ import okio.Buffer
  * other code keeps the token sent, if any; `/donor/me/company-touch` binds the `ACME42` token. The referral token the
  * last checkout carried is [checkoutReferral].
  * `stub_signed_in` starts with a stored session. The donor-home reads follow the scenario extras
- * (`stub_dashboard_empty`, `stub_dashboard_fail_first`, `stub_dashboard_unranked`); see [StubDonorHome].
+ * (`stub_dashboard_empty`, `stub_dashboard_fail_first`, `stub_dashboard_unranked`, `stub_dashboard_insights`); see [StubDonorHome].
  */
 object DebugBackend {
     /** Every request path the stub transport has served since [resetRequestLog], for tests. */
