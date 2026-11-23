@@ -48,7 +48,7 @@ class InsightsCatalogTest {
 
     private val dashboard = obj(
         """{"state":"ready","founding_donor":true,"impact":{"given_minor":124000,"initiatives_funded":4,"events_volunteered":1},
-           "streak":{"current":18,"ladder":{"days_to_next":1}},"network":null,"rank":{"city":"Austin"},"computed_at":"2026-10-30T12:00:00Z"}""",
+           "streak":{"current":1,"ladder":{"days":18,"days_to_next":1}},"network":null,"rank":{"city":"Austin"},"computed_at":"2026-10-30T12:00:00Z"}""",
     )
 
     @Test fun aValidPanelDrawsEveryComponentInItsFormat() {
@@ -57,7 +57,7 @@ class InsightsCatalogTest {
           {"type":"Text","bind":"/rank/city"},
           {"type":"MetricGrid","children":[
             {"type":"Metric","bind":"/impact/given_minor","format":"usd_minor","caption":"given"},
-            {"type":"Metric","bind":"/streak/current","format":"days","caption":"streak"},
+            {"type":"Metric","bind":"/streak/ladder/days","format":"days","caption":"streak"},
             {"type":"Metric","bind":"/streak/ladder/days_to_next","format":"days"},
             {"type":"Metric","bind":"/impact/events_volunteered","format":"percent"},
             {"type":"Metric","bind":"/impact/initiatives_funded","format":"integer"}]},
