@@ -24,7 +24,7 @@ class WireDashboardTest {
 
     private val bar = (1..30).joinToString(",") { if (it <= 18) "true" else "false" }
     private fun ready(
-        streak: String = """{"at_risk":false,"current":18,"grace_ends_at":null,"ladder":{"days":18,"last_milestone":7,"next_milestone":30,"days_to_next":12,"bar":[$bar]}}""",
+        streak: String = """{"at_risk":false,"current":1,"grace_ends_at":null,"ladder":{"days":18,"last_milestone":7,"next_milestone":30,"days_to_next":12,"bar":[$bar]}}""",
         rank: String = """{"national_percentile":2,"city":"Austin","city_rank":4,"computed_at":"2026-10-30T00:00:00Z"}""",
         optedOut: Boolean = false,
         network: String = """{"active_count":3,"annualized_minor":474500,"currency":"USD"}""",

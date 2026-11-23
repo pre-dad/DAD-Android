@@ -39,13 +39,16 @@ data class HomeLadder(
 }
 
 data class HomeStreak(
+    /** Consecutive paid monthly periods. The streak itself is counted in days: [days]. */
     val current: Int,
     /** A renewal failed and the donor is inside the 7-day grace period (S-1). */
     val atRisk: Boolean,
     val graceEndsAt: OffsetDateTime?,
     val ladder: HomeLadder?,
 ) {
-    val headline: UiText get() = UiText.plural(R.plurals.home_streak_headline, current, current)
+    /** The streak length in the donor's local days (S-1); zero when there is no run. */
+    val days: Long get() = ladder?.days ?: 0
+    val headline: UiText get() = UiText.plural(R.plurals.home_streak_headline, days.toQuantity(), days)
 }
 
 /**
@@ -437,9 +440,9 @@ fun seedMilestoneBaseline(streak: HomeStreak?, store: MilestoneStore) {
 
 /** The newly crossed milestone to celebrate, or null: above the seeded baseline and still covered by the current streak. */
 fun pendingMilestone(streak: HomeStreak?, store: MilestoneStore): Long? {
-    val last = streak?.ladder?.lastMilestone ?: return null
+    val ladder = streak?.ladder ?: return null
     val baseline = store.seen() ?: return null
-    return last.takeIf { it > baseline && streak.current >= it }
+    return ladder.lastMilestone.takeIf { it > baseline && ladder.days >= it }
 }
 
 fun milestoneLine(days: Long): UiText = when (days) {
