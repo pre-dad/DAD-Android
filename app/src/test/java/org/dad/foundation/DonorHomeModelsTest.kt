@@ -339,7 +339,8 @@ class DonorHomeModelsTest {
         assertNull(gift(1).refundLabel)
         assertEquals("$1,234.56", formatMinorUsd(123456))
         assertEquals("1 person", HomeMetric("a", 1, HomeMetric.MetricUnit.PEOPLE, "d").valueLabel.textOrNull())
-        assertEquals("1-day streak", HomeStreak(1, false, null, null).headline.textOrNull())
+        assertEquals("1-day streak", HomeStreak(0, false, null, HomeLadder(1, 0, 7, 6, emptyList())).headline.textOrNull())
+        assertEquals("730-day streak", HomeStreak(24, false, null, HomeLadder(730, 500, 1000, 270, emptyList())).headline.textOrNull())
         assertEquals("1 day to your 7-day milestone", HomeLadder(6, 0, 7, 1, emptyList()).nextLabel.textOrNull())
         assertNull(HomeLadder(2000, 1460, null, null, emptyList()).nextLabel)
     }

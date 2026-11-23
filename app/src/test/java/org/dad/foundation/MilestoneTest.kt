@@ -11,8 +11,8 @@ private class MemoryMilestoneStore(private var value: Long? = null) : MilestoneS
 }
 
 class MilestoneTest {
-    private fun streak(current: Int, last: Long) =
-        HomeStreak(current, false, null, HomeLadder(current.toLong(), last, null, null, emptyList()))
+    private fun streak(days: Long, last: Long) =
+        HomeStreak((days / 30).toInt(), false, null, HomeLadder(days, last, null, null, emptyList()))
 
     @Test fun seedingRecordsTheBaselineOnceAndNothingPendsBeforeIt() {
         val store = MemoryMilestoneStore()
